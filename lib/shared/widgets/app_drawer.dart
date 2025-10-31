@@ -8,20 +8,20 @@ class AppDrawer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authStateProvider);
-    final user = authState.user;
+    final authState = ref.watch(authProvider);
+    final driver = authState.driver;
 
     return Drawer(
       child: Column(
         children: [
           // Header
           UserAccountsDrawerHeader(
-            accountName: Text(user?.fullName ?? 'Parent'),
-            accountEmail: Text(user?.email ?? ''),
+            accountName: Text(driver?.fullName ?? 'Driver'),
+            accountEmail: Text(driver?.email ?? ''),
             currentAccountPicture: CircleAvatar(
               backgroundColor: Theme.of(context).colorScheme.primary,
               child: Text(
-                user?.firstName.substring(0, 1).toUpperCase() ?? 'P',
+                driver?.firstName.substring(0, 1).toUpperCase() ?? 'D',
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -64,11 +64,11 @@ class AppDrawer extends ConsumerWidget {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.message),
-                  title: const Text('Messages'),
+                  leading: const Icon(Icons.chat),
+                  title: const Text('Chats'),
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/communication');
+                    context.go('/chats');
                   },
                 ),
                 ListTile(
@@ -95,9 +95,7 @@ class AppDrawer extends ConsumerWidget {
                     Navigator.pop(context);
                     // TODO: Implement settings
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Settings coming soon'),
-                      ),
+                      const SnackBar(content: Text('Settings coming soon')),
                     );
                   },
                 ),
@@ -107,7 +105,7 @@ class AppDrawer extends ConsumerWidget {
                   title: const Text('Logout'),
                   onTap: () async {
                     Navigator.pop(context);
-                    await ref.read(authStateProvider.notifier).logout();
+                    await ref.read(authProvider.notifier).logout();
                   },
                 ),
               ],

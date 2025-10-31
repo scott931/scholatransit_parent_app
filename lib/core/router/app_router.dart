@@ -16,6 +16,7 @@ import '../../features/parent/screens/parent_dashboard_screen.dart';
 import '../../features/parent/screens/parent_tracking_screen.dart';
 import '../../features/parent/screens/parent_schedule_screen.dart';
 import '../../features/communication/screens/conversations_screen.dart';
+import '../../features/communication/screens/chat_list_screen.dart';
 import '../../features/attendance/screens/attendance_history_screen.dart';
 import '../../features/parent/screens/parent_notifications_screen.dart';
 import '../../features/parent/screens/parent_profile_screen.dart';
@@ -74,6 +75,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final alertData = state.extra as Map<String, dynamic>;
           return AlertDetailsScreen(alertData: alertData);
+        },
+      ),
+      GoRoute(
+        path: '/communication/chats',
+        name: 'communication-chats',
+        builder: (context, state) => const ChatListScreen(),
+      ),
+      GoRoute(
+        path: '/chats',
+        name: 'chats',
+        builder: (context, state) => const ChatListScreen(),
+      ),
+      GoRoute(
+        path: '/communication/chats/:id',
+        name: 'communication-chat-details',
+        builder: (context, state) {
+          final chatId = int.parse(state.pathParameters['id']!);
+          return ChatDetailScreen(chatId: chatId);
         },
       ),
       GoRoute(

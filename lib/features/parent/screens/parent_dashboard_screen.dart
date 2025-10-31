@@ -165,7 +165,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
           Text(
             'Good ${_getGreeting()}!',
             style: GoogleFonts.poppins(
-              fontSize: 24.sp,
+              fontSize: 22.sp,
               fontWeight: FontWeight.w700,
               color: const Color(0xFF0052CC),
             ),
@@ -342,8 +342,8 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
               Expanded(
                 child: _QuickActionCard(
                   icon: Icons.chat,
-                  label: 'Messages',
-                  onTap: () => context.go('/parent/messages'),
+                  label: 'Chats',
+                  onTap: () => context.go('/chats'),
                 ),
               ),
             ],

@@ -250,11 +250,11 @@ class ConsolidatedCommunicationService {
   // ============================================================================
 
   /// List all chats for the authenticated user
-  static Future<ApiResponse<Map<String, dynamic>>> listChats({
+  static Future<ApiResponse<dynamic>> listChats({
     int? page,
     int? pageSize,
   }) async {
-    return ApiService.get<Map<String, dynamic>>(
+    return ApiService.get<dynamic>(
       '/api/v1/communication/chats/',
       queryParameters: {
         if (page != null) 'page': page,
@@ -267,7 +267,7 @@ class ConsolidatedCommunicationService {
   static Future<ApiResponse<Map<String, dynamic>>> createDriverParentChat({
     required int studentId,
   }) async {
-    final path = '/api/v1/communication/chats/';
+    final path = '/api/v1/communication/driver-parent/$studentId/';
     return ApiService.post<Map<String, dynamic>>(path);
   }
 
@@ -275,7 +275,7 @@ class ConsolidatedCommunicationService {
   static Future<ApiResponse<Map<String, dynamic>>> createAdminDriverChat({
     required int driverId,
   }) async {
-    final path = '/api/v1/communication/chats/';
+    final path = '/api/v1/communication/admin-driver/$driverId/';
     return ApiService.post<Map<String, dynamic>>(path);
   }
 
@@ -283,11 +283,11 @@ class ConsolidatedCommunicationService {
   static Future<ApiResponse<Map<String, dynamic>>> createAdminParentChat({
     required int parentId,
   }) async {
-    final path = '/api/v1/communication/chats/';
+    final path = '/api/v1/communication/admin-parent/$parentId/';
     return ApiService.post<Map<String, dynamic>>(path);
   }
 
-  /// Create a general chat (any authenticated user)
+  /// Create a general chat (any authenticated user) - legacy support
   static Future<ApiResponse<Map<String, dynamic>>> createGeneralChat({
     required String title,
     required List<int> participantIds,
@@ -300,6 +300,23 @@ class ConsolidatedCommunicationService {
         'title': title,
         'description': description,
         'participant_ids': participantIds,
+      },
+    );
+  }
+
+  /// Create a new chat with specified chat_type and other_user_id (optional student)
+  static Future<ApiResponse<Map<String, dynamic>>> createChat({
+    required String chatType,
+    required int otherUserId,
+    int? studentId,
+  }) async {
+    final path = '/api/v1/communication/chats/';
+    return ApiService.post<Map<String, dynamic>>(
+      path,
+      data: {
+        'chat_type': chatType,
+        'other_user_id': otherUserId,
+        if (studentId != null) 'student': studentId,
       },
     );
   }
@@ -320,7 +337,7 @@ class ConsolidatedCommunicationService {
     final path = '/api/v1/communication/chats/$chatId/messages/';
     return ApiService.post<Map<String, dynamic>>(
       path,
-      data: {'content': content},
+      data: {'message_type': 'text', 'content': content},
     );
   }
 
@@ -406,7 +423,7 @@ class ConsolidatedCommunicationService {
 
   /// Get unread count across chats (any authenticated user)
   static Future<ApiResponse<Map<String, dynamic>>> getUnreadCount() async {
-    final path = '/api/v1/communication/chats/';
+    final path = '/api/v1/communication/unread-count/';
     return ApiService.get<Map<String, dynamic>>(path);
   }
 
@@ -414,11 +431,19 @@ class ConsolidatedCommunicationService {
   static Future<ApiResponse<Map<String, dynamic>>> searchChats({
     required String query,
   }) async {
-    final path = '/api/v1/communication/chats/';
+    final path = '/api/v1/communication/search/';
     return ApiService.get<Map<String, dynamic>>(
       path,
       queryParameters: {'q': query},
     );
+  }
+
+  /// Get messages in a chat (supports list or paginated map)
+  static Future<ApiResponse<dynamic>> getChatMessages({
+    required int chatId,
+  }) async {
+    final path = '/api/v1/communication/chats/$chatId/messages/';
+    return ApiService.get<dynamic>(path);
   }
 
   // ============================================================================

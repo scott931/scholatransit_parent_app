@@ -209,7 +209,14 @@ class ApiService {
       // Handle type conversion safely
       T data;
       try {
-        if (response.data is Map<String, dynamic>) {
+        // Bypass special-case conversions for communication APIs to avoid
+        // accidental casting to unrelated models (e.g., TripLogsResponse)
+        final reqPath = response.requestOptions.path;
+        final isCommunicationApi = reqPath.contains('/communication/');
+
+        if (isCommunicationApi) {
+          data = response.data as T;
+        } else if (response.data is Map<String, dynamic>) {
           final responseData = response.data as Map<String, dynamic>;
 
           // Check if this looks like a TripLogsResponse by checking for required fields

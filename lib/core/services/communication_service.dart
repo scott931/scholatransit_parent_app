@@ -5,7 +5,7 @@ import 'consolidated_communication_service.dart';
 /// Maintains backward compatibility while using the improved implementation
 class CommunicationService {
   /// List all chats for the authenticated user
-  static Future<ApiResponse<Map<String, dynamic>>> listChats({
+  static Future<ApiResponse<dynamic>> listChats({
     int? page,
     int? pageSize,
   }) async {
@@ -52,6 +52,19 @@ class CommunicationService {
       title: title,
       participantIds: participantIds,
       description: description,
+    );
+  }
+
+  /// Create a new chat using chat_type and other_user_id (optional student)
+  static Future<ApiResponse<Map<String, dynamic>>> createChat({
+    required String chatType,
+    required int otherUserId,
+    int? studentId,
+  }) async {
+    return ConsolidatedCommunicationService.createChat(
+      chatType: chatType,
+      otherUserId: otherUserId,
+      studentId: studentId,
     );
   }
 
@@ -116,6 +129,13 @@ class CommunicationService {
       content: content,
       attachment: attachment,
     );
+  }
+
+  /// Get messages in a chat
+  static Future<ApiResponse<dynamic>> getChatMessages({
+    required int chatId,
+  }) async {
+    return ConsolidatedCommunicationService.getChatMessages(chatId: chatId);
   }
 
   /// Mark a chat as read (any participant)

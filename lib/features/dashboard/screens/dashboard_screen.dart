@@ -11,8 +11,8 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authStateProvider);
-    final user = authState.user;
+    final authState = ref.watch(authProvider);
+    final driver = authState.driver;
 
     return Scaffold(
       appBar: AppBar(
@@ -21,7 +21,7 @@ class DashboardScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
             onPressed: () {
-              context.go('/communication');
+              context.go('/chats');
             },
           ),
           IconButton(
@@ -52,10 +52,9 @@ class DashboardScreen extends ConsumerWidget {
                       ),
                     ),
                     Text(
-                      user?.fullName ?? 'Parent',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                      driver?.fullName ?? 'Parent',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -73,9 +72,9 @@ class DashboardScreen extends ConsumerWidget {
             // Current Status
             Text(
               'Current Status',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             const StatusCard(
@@ -96,9 +95,9 @@ class DashboardScreen extends ConsumerWidget {
             // Quick Actions
             Text(
               'Quick Actions',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             GridView.count(
@@ -122,10 +121,10 @@ class DashboardScreen extends ConsumerWidget {
                   onTap: () => context.go('/students'),
                 ),
                 QuickActionCard(
-                  title: 'Messages',
-                  icon: Icons.message,
+                  title: 'Chats',
+                  icon: Icons.chat,
                   color: Colors.orange,
-                  onTap: () => context.go('/communication'),
+                  onTap: () => context.go('/chats'),
                 ),
                 QuickActionCard(
                   title: 'Emergency',
@@ -140,9 +139,9 @@ class DashboardScreen extends ConsumerWidget {
             // Recent Activity
             Text(
               'Recent Activity',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Card(
@@ -151,19 +150,28 @@ class DashboardScreen extends ConsumerWidget {
                 child: Column(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.check_circle, color: Colors.green),
+                      leading: const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                      ),
                       title: const Text('Student picked up'),
                       subtitle: const Text('5 minutes ago'),
                     ),
                     const Divider(),
                     ListTile(
-                      leading: const Icon(Icons.directions_bus, color: Colors.blue),
+                      leading: const Icon(
+                        Icons.directions_bus,
+                        color: Colors.blue,
+                      ),
                       title: const Text('Trip started'),
                       subtitle: const Text('15 minutes ago'),
                     ),
                     const Divider(),
                     ListTile(
-                      leading: const Icon(Icons.notifications, color: Colors.orange),
+                      leading: const Icon(
+                        Icons.notifications,
+                        color: Colors.orange,
+                      ),
                       title: const Text('Route update'),
                       subtitle: const Text('1 hour ago'),
                     ),
