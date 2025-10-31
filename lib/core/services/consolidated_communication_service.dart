@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dio/dio.dart' as dio;
 import 'dart:convert';
 import '../models/communication_log_model.dart';
 import 'api_service.dart';
@@ -349,13 +350,25 @@ class ConsolidatedCommunicationService {
     int? replyTo,
   }) async {
     final path = '/api/v1/communication/chats/$chatId/messages/';
+    // Use multipart for file upload
+    final formData = dio.FormData();
+    formData.fields..add(MapEntry('content', content));
+    if (replyTo != null) {
+      formData.fields.add(MapEntry('reply_to', replyTo.toString()));
+    }
+    formData.files.add(
+      MapEntry(
+        'attachment',
+        await dio.MultipartFile.fromFile(
+          attachment,
+          filename: attachment.split('/').last,
+        ),
+      ),
+    );
     return ApiService.post<Map<String, dynamic>>(
       path,
-      data: {
-        'content': content,
-        'attachment': attachment,
-        if (replyTo != null) 'reply_to': replyTo,
-      },
+      data: formData,
+      options: dio.Options(contentType: 'multipart/form-data'),
     );
   }
 
@@ -367,14 +380,27 @@ class ConsolidatedCommunicationService {
     int? replyTo,
   }) async {
     final path = '/api/v1/communication/chats/$chatId/messages/';
+    // Use multipart for image upload
+    final formData = dio.FormData();
+    formData.fields
+      ..add(const MapEntry('message_type', 'image'))
+      ..add(MapEntry('content', content));
+    if (replyTo != null) {
+      formData.fields.add(MapEntry('reply_to', replyTo.toString()));
+    }
+    formData.files.add(
+      MapEntry(
+        'attachment',
+        await dio.MultipartFile.fromFile(
+          attachment,
+          filename: attachment.split('/').last,
+        ),
+      ),
+    );
     return ApiService.post<Map<String, dynamic>>(
       path,
-      data: {
-        'message_type': 'image',
-        'content': content,
-        'attachment': attachment,
-        if (replyTo != null) 'reply_to': replyTo,
-      },
+      data: formData,
+      options: dio.Options(contentType: 'multipart/form-data'),
     );
   }
 

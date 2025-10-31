@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:record/record.dart';
-import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:http/http.dart' as http;
 import '../../../core/services/communication_service.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/config/api_endpoints.dart';
+import '../../../core/services/storage_service.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -165,6 +167,46 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     : 'Chat';
                 final subtitle =
                     (chat['latest_message_preview'] ?? '') as String?;
+                // Detect latest image message for thumbnail preview
+                bool latestIsImage = false;
+                String latestImageUrl = '';
+                final dynamic latestMsg = chat['latest_message'];
+                final String latestType = (chat['latest_message_type'] ?? '')
+                    .toString();
+                if (latestMsg is Map<String, dynamic>) {
+                  final String msgType =
+                      (latestMsg['message_type'] ?? latestType).toString();
+                  latestIsImage = msgType == 'image';
+                  if (latestIsImage) {
+                    // Resolve attachment URL
+                    final dynamic rawAttachment = latestMsg['attachment'];
+                    String resolved = (latestMsg['attachment_url'] ?? '')
+                        .toString();
+                    if (resolved.isEmpty) {
+                      if (rawAttachment is Map<String, dynamic>) {
+                        final String fromUrl = (rawAttachment['url'] ?? '')
+                            .toString();
+                        final String fromFile = (rawAttachment['file'] ?? '')
+                            .toString();
+                        final String fromPath = (rawAttachment['path'] ?? '')
+                            .toString();
+                        resolved = fromUrl.isNotEmpty
+                            ? fromUrl
+                            : (fromFile.isNotEmpty ? fromFile : fromPath);
+                      } else if (rawAttachment != null) {
+                        resolved = rawAttachment.toString();
+                      }
+                    }
+                    if (resolved.isNotEmpty &&
+                        resolved.startsWith('/') &&
+                        !resolved.startsWith('http')) {
+                      resolved = ApiEndpoints.baseUrl + resolved;
+                    }
+                    latestImageUrl = resolved;
+                  }
+                } else if (latestType == 'image') {
+                  latestIsImage = true;
+                }
                 final unread = (chat['unread_count'] ?? 0) as int;
                 final time = (chat['last_message_time'] ?? '') as String?;
                 final chatId = chat['id'] as int?;
@@ -288,15 +330,78 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 4),
-                                Text(
-                                  subtitle ?? '',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF475569),
-                                    height: 1.2,
-                                  ),
+                                Builder(
+                                  builder: (_) {
+                                    if (latestIsImage &&
+                                        latestImageUrl.isNotEmpty) {
+                                      final token =
+                                          StorageService.getAuthToken();
+                                      final headers = <String, String>{};
+                                      if (token != null && token.isNotEmpty) {
+                                        headers['Authorization'] =
+                                            'Bearer $token';
+                                      }
+                                      return Row(
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                            child: Image.network(
+                                              latestImageUrl,
+                                              width: 36,
+                                              height: 36,
+                                              fit: BoxFit.cover,
+                                              headers: headers.isEmpty
+                                                  ? null
+                                                  : headers,
+                                              errorBuilder:
+                                                  (
+                                                    context,
+                                                    error,
+                                                    stack,
+                                                  ) => Container(
+                                                    width: 36,
+                                                    height: 36,
+                                                    color: const Color(
+                                                      0xFFE2E8F0,
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons.image_not_supported,
+                                                      size: 18,
+                                                      color: Color(0xFF94A3B8),
+                                                    ),
+                                                  ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          const Icon(
+                                            Icons.photo,
+                                            size: 16,
+                                            color: Color(0xFF64748B),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          const Text(
+                                            'Photo',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Color(0xFF475569),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }
+                                    return Text(
+                                      subtitle ?? '',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF475569),
+                                        height: 1.2,
+                                      ),
+                                    );
+                                  },
                                 ),
                               ],
                             ),
@@ -349,12 +454,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scroll = ScrollController();
   final ImagePicker _imagePicker = ImagePicker();
-  final Record _recorder = Record();
   Map<String, dynamic>? _chat;
   List<dynamic> _messages = [];
   bool _loading = true;
   String? _error;
-  bool _isRecording = false;
 
   @override
   void initState() {
@@ -438,14 +541,54 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         imageQuality: 80,
       );
       if (file == null) return;
+      // Optimistic local preview message
+      final optimisticMsg = <String, dynamic>{
+        'message_type': 'image',
+        'content': 'Image',
+        'attachment': file.path,
+        'local': true,
+        'sender': (_chat?['current_user'] as Map<String, dynamic>?) ?? {},
+        'created_at': DateTime.now().toIso8601String(),
+      };
+      setState(() {
+        _messages = List<dynamic>.from(_messages)..add(optimisticMsg);
+      });
+      await Future.delayed(const Duration(milliseconds: 50));
+      if (_scroll.hasClients) {
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      }
       final resp = await CommunicationService.sendImageMessage(
         chatId: widget.chatId,
         content: 'Image',
         attachment: file.path,
       );
       if (resp.success) {
-        await _load();
+        // Try to replace local preview only when a valid remote URL is ready
+        final replaced = await _tryReplaceWithRemoteOnce();
+        if (!replaced && mounted) {
+          // Retry after a brief delay to give backend time to process
+          await Future.delayed(const Duration(seconds: 3));
+          if (mounted) {
+            final replacedAgain = await _tryReplaceWithRemoteOnce();
+            if (!replacedAgain) {
+              // Keep local preview; optional toast to inform user
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Image is processing. It will appear when ready.',
+                    ),
+                  ),
+                );
+              }
+            }
+          }
+        }
       } else if (mounted) {
+        // Remove optimistic message if send failed
+        setState(() {
+          _messages.remove(optimisticMsg);
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(resp.error ?? 'Failed to send image')),
         );
@@ -458,44 +601,82 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
-  Future<void> _toggleRecord() async {
+  Future<bool> _tryReplaceWithRemoteOnce() async {
     try {
-      if (_isRecording) {
-        final path = await _recorder.stop();
-        setState(() => _isRecording = false);
-        if (path != null) {
-          final resp = await CommunicationService.sendVoiceMessage(
-            chatId: widget.chatId,
-            content: 'Voice message',
-            attachment: path,
-          );
-          if (resp.success) {
-            await _load();
-          } else if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(resp.error ?? 'Failed to send voice')),
-            );
+      final msgs = await CommunicationService.getChatMessages(
+        chatId: widget.chatId,
+      );
+      if (!msgs.success) return false;
+      final data = msgs.data;
+      final List<dynamic> list;
+      if (data is List) {
+        list = data;
+      } else if (data is Map<String, dynamic>) {
+        final resultsDynamic = data['results'];
+        list = resultsDynamic is List ? resultsDynamic : const [];
+      } else {
+        return false;
+      }
+
+      final currentUserId =
+          (_chat?['current_user'] as Map<String, dynamic>?)?['id'];
+      Map<String, dynamic>? latestOwnImage;
+      for (int i = list.length - 1; i >= 0; i--) {
+        final m = list[i];
+        if (m is Map<String, dynamic>) {
+          final type = (m['message_type'] ?? 'text').toString();
+          final senderId = (m['sender'] as Map<String, dynamic>?)?['id'];
+          if (type == 'image' && senderId == currentUserId) {
+            latestOwnImage = m;
+            break;
           }
         }
-      } else {
-        final hasPerm = await _recorder.hasPermission();
-        if (!hasPerm) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Microphone permission required')),
-          );
-          return;
-        }
-        final dir = await getTemporaryDirectory();
-        final filePath =
-            '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
-        await _recorder.start(path: filePath);
-        setState(() => _isRecording = true);
       }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Recording error: $e')));
+      if (latestOwnImage == null) return false;
+
+      // Resolve URL similar to renderer
+      String attachmentUrl = '';
+      final dynamic rawAttachment = latestOwnImage['attachment'];
+      final String attachmentUrlField = (latestOwnImage['attachment_url'] ?? '')
+          .toString();
+      if (attachmentUrlField.isNotEmpty) {
+        attachmentUrl = attachmentUrlField;
+      } else if (rawAttachment is Map<String, dynamic>) {
+        final String fromUrl = (rawAttachment['url'] ?? '').toString();
+        final String fromFile = (rawAttachment['file'] ?? '').toString();
+        final String fromPath = (rawAttachment['path'] ?? '').toString();
+        final String candidate = fromUrl.isNotEmpty
+            ? fromUrl
+            : (fromFile.isNotEmpty ? fromFile : fromPath);
+        if (candidate.isNotEmpty) {
+          attachmentUrl = candidate;
+        }
+      } else {
+        final String attachmentStr = (rawAttachment ?? '').toString();
+        if (attachmentStr.isNotEmpty) {
+          attachmentUrl = attachmentStr;
+        }
+      }
+      if (attachmentUrl.isEmpty) return false;
+      if (attachmentUrl.startsWith('/') && !attachmentUrl.startsWith('http')) {
+        attachmentUrl = ApiEndpoints.baseUrl + attachmentUrl;
+      }
+
+      // HEAD check to ensure the remote image is available
+      final token = StorageService.getAuthToken();
+      final resp = await http.head(
+        Uri.parse(attachmentUrl),
+        headers: token != null && token.isNotEmpty
+            ? {'Authorization': 'Bearer $token'}
+            : null,
+      );
+      if (resp.statusCode == 200) {
+        await _load();
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -568,11 +749,55 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             final msg =
                                 _messages[index] as Map<String, dynamic>;
                             final content = (msg['content'] ?? '').toString();
+                            final messageType = (msg['message_type'] ?? 'text')
+                                .toString();
+                            // Resolve attachment URL from multiple possible shapes
+                            String attachmentUrl = '';
+                            final dynamic rawAttachment = msg['attachment'];
+                            final String attachmentUrlField =
+                                (msg['attachment_url'] ?? '').toString();
+                            if (attachmentUrlField.isNotEmpty) {
+                              attachmentUrl = attachmentUrlField;
+                            } else if (rawAttachment is Map<String, dynamic>) {
+                              final String fromUrl =
+                                  (rawAttachment['url'] ?? '').toString();
+                              final String fromFile =
+                                  (rawAttachment['file'] ?? '').toString();
+                              final String fromPath =
+                                  (rawAttachment['path'] ?? '').toString();
+                              final String candidate = fromUrl.isNotEmpty
+                                  ? fromUrl
+                                  : (fromFile.isNotEmpty ? fromFile : fromPath);
+                              if (candidate.isNotEmpty) {
+                                attachmentUrl = candidate;
+                              }
+                            } else {
+                              final String attachmentStr = (rawAttachment ?? '')
+                                  .toString();
+                              if (attachmentStr.isNotEmpty) {
+                                attachmentUrl = attachmentStr;
+                              }
+                            }
+                            // Normalize to absolute URL when only a path is returned
+                            if (attachmentUrl.isNotEmpty &&
+                                attachmentUrl.startsWith('/') &&
+                                !attachmentUrl.startsWith('http')) {
+                              attachmentUrl =
+                                  ApiEndpoints.baseUrl + attachmentUrl;
+                            }
                             final isMine =
                                 (msg['sender']
                                     as Map<String, dynamic>?)?['id'] ==
                                 ((_chat?['current_user']
                                     as Map<String, dynamic>?)?['id']);
+                            final bool isLocalImage =
+                                messageType == 'image' &&
+                                (msg['local'] == true) &&
+                                ((msg['attachment']?.toString().isNotEmpty) ??
+                                    false);
+                            final bool isRemoteImage =
+                                messageType == 'image' &&
+                                attachmentUrl.isNotEmpty;
                             final bubbleColor = isMine
                                 ? Theme.of(context).colorScheme.primary
                                 : const Color(0xFFF1F5F9);
@@ -693,14 +918,163 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                                       ),
                                                     ),
                                             ),
-                                            child: Text(
-                                              content,
-                                              style: TextStyle(
-                                                color: textColor,
-                                                fontSize: 16,
-                                                height: 1.3,
-                                              ),
-                                            ),
+                                            child: isLocalImage
+                                                ? Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      ClipRRect(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                        child: ConstrainedBox(
+                                                          constraints:
+                                                              const BoxConstraints(
+                                                                maxHeight: 240,
+                                                                minHeight: 100,
+                                                              ),
+                                                          child: Image.file(
+                                                            File(
+                                                              (msg['attachment'])
+                                                                  .toString(),
+                                                            ),
+                                                            fit: BoxFit.cover,
+                                                            width:
+                                                                double.infinity,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      if (content.isNotEmpty &&
+                                                          content.toLowerCase() !=
+                                                              'image')
+                                                        Padding(
+                                                          padding:
+                                                              const EdgeInsets.only(
+                                                                top: 8,
+                                                              ),
+                                                          child: Text(
+                                                            content,
+                                                            style: TextStyle(
+                                                              color: textColor,
+                                                              fontSize: 16,
+                                                              height: 1.3,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  )
+                                                : isRemoteImage
+                                                ? Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      ClipRRect(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                        child: ConstrainedBox(
+                                                          constraints:
+                                                              const BoxConstraints(
+                                                                maxHeight: 240,
+                                                                minHeight: 100,
+                                                              ),
+                                                          child: Builder(
+                                                            builder: (_) {
+                                                              final token =
+                                                                  StorageService.getAuthToken();
+                                                              final headers =
+                                                                  <
+                                                                    String,
+                                                                    String
+                                                                  >{};
+                                                              if (token !=
+                                                                      null &&
+                                                                  token
+                                                                      .isNotEmpty) {
+                                                                headers['Authorization'] =
+                                                                    'Bearer $token';
+                                                              }
+                                                              return Image.network(
+                                                                attachmentUrl,
+                                                                fit: BoxFit
+                                                                    .cover,
+                                                                width: double
+                                                                    .infinity,
+                                                                headers:
+                                                                    headers
+                                                                        .isEmpty
+                                                                    ? null
+                                                                    : headers,
+                                                                errorBuilder:
+                                                                    (
+                                                                      context,
+                                                                      error,
+                                                                      stack,
+                                                                    ) {
+                                                                      return Container(
+                                                                        color: Colors
+                                                                            .black12,
+                                                                        alignment:
+                                                                            Alignment.center,
+                                                                        child: Column(
+                                                                          mainAxisSize:
+                                                                              MainAxisSize.min,
+                                                                          children: const [
+                                                                            Icon(
+                                                                              Icons.broken_image_outlined,
+                                                                              size: 40,
+                                                                              color: Colors.grey,
+                                                                            ),
+                                                                            SizedBox(
+                                                                              height: 6,
+                                                                            ),
+                                                                            Text(
+                                                                              'Image unavailable',
+                                                                              style: TextStyle(
+                                                                                color: Colors.grey,
+                                                                                fontSize: 12,
+                                                                              ),
+                                                                            ),
+                                                                          ],
+                                                                        ),
+                                                                      );
+                                                                    },
+                                                              );
+                                                            },
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      if (content.isNotEmpty &&
+                                                          content.toLowerCase() !=
+                                                              'image')
+                                                        Padding(
+                                                          padding:
+                                                              const EdgeInsets.only(
+                                                                top: 8,
+                                                              ),
+                                                          child: Text(
+                                                            content,
+                                                            style: TextStyle(
+                                                              color: textColor,
+                                                              fontSize: 16,
+                                                              height: 1.3,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  )
+                                                : Text(
+                                                    content,
+                                                    style: TextStyle(
+                                                      color: textColor,
+                                                      fontSize: 16,
+                                                      height: 1.3,
+                                                    ),
+                                                  ),
                                           ),
                                           if (timeLabel.isNotEmpty)
                                             Padding(
@@ -764,18 +1138,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                               children: [
                                 const SizedBox(width: 8),
                                 IconButton(
-                                  tooltip: _isRecording
-                                      ? 'Stop recording'
-                                      : 'Record voice',
-                                  icon: Icon(
-                                    _isRecording
-                                        ? Icons.stop_circle_outlined
-                                        : Icons.mic_none_rounded,
-                                    color: _isRecording
-                                        ? Colors.red
-                                        : const Color(0xFF64748B),
+                                  tooltip: 'Emoji',
+                                  icon: const Icon(
+                                    Icons.emoji_emotions_outlined,
+                                    color: Color(0xFF64748B),
                                   ),
-                                  onPressed: _toggleRecord,
+                                  onPressed: () {},
                                 ),
                                 IconButton(
                                   tooltip: 'Add image',

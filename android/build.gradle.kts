@@ -16,6 +16,17 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// Workaround: set namespace for the `record` plugin (older versions miss it)
+subprojects {
+    if (project.name == "record") {
+        plugins.withId("com.android.library") {
+            extensions.configure<com.android.build.gradle.LibraryExtension>("android") {
+                namespace = "com.llfbandit.record"
+            }
+        }
+    }
+}
+
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
