@@ -330,15 +330,64 @@ class ConsolidatedCommunicationService {
     return ApiService.get<Map<String, dynamic>>(path);
   }
 
+  /// Send a new message to a chat (generic method matching API spec)
+  /// Supports text, voice, image, and file message types
+  /// For file uploads (voice, image, file), provide attachment path and it will use multipart
+  /// This matches the API endpoint: POST /api/v1/communication/chats/{chat_id}/messages/
+  static Future<ApiResponse<Map<String, dynamic>>> sendChatMessage({
+    required int chatId,
+    required String content,
+    String messageType = 'text',
+    String? attachment,
+    int? replyTo,
+  }) async {
+    final path = '/api/v1/communication/chats/$chatId/messages/';
+
+    // If attachment is provided, use multipart form data
+    if (attachment != null && attachment.isNotEmpty) {
+      final formData = dio.FormData();
+      formData.fields
+        ..add(MapEntry('message_type', messageType))
+        ..add(MapEntry('content', content));
+      if (replyTo != null) {
+        formData.fields.add(MapEntry('reply_to', replyTo.toString()));
+      }
+      formData.files.add(
+        MapEntry(
+          'attachment',
+          await dio.MultipartFile.fromFile(
+            attachment,
+            filename: attachment.split('/').last,
+          ),
+        ),
+      );
+      return ApiService.post<Map<String, dynamic>>(
+        path,
+        data: formData,
+        options: dio.Options(contentType: 'multipart/form-data'),
+      );
+    }
+
+    // For text messages without attachments, use JSON
+    return ApiService.post<Map<String, dynamic>>(
+      path,
+      data: {
+        'message_type': messageType,
+        'content': content,
+        if (replyTo != null) 'reply_to': replyTo,
+      },
+    );
+  }
+
   /// Send text message
   static Future<ApiResponse<Map<String, dynamic>>> sendTextMessage({
     required int chatId,
     required String content,
   }) async {
-    final path = '/api/v1/communication/chats/$chatId/messages/';
-    return ApiService.post<Map<String, dynamic>>(
-      path,
-      data: {'message_type': 'text', 'content': content},
+    return sendChatMessage(
+      chatId: chatId,
+      content: content,
+      messageType: 'text',
     );
   }
 

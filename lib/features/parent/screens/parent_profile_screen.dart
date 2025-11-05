@@ -1017,7 +1017,7 @@ class ParentProfileScreen extends ConsumerWidget {
       builder: (context) => AlertDialog(
         title: const Text('About Go Drop'),
         content: const Text(
-          'Version 1.0.0\n\nGo Drop Parent App for tracking your child\'s bus transportation.',
+          'Version 1.0.2\n\nGo Drop Parent App for tracking your child\'s bus transportation.',
         ),
         actions: [
           TextButton(
