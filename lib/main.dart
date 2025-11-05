@@ -13,6 +13,7 @@ import 'core/services/storage_service.dart';
 import 'core/services/api_service.dart';
 import 'core/services/location_health_monitor.dart';
 import 'core/services/simple_communication_log_service.dart';
+import 'core/services/notification_service.dart';
 import 'core/widgets/system_back_button_handler.dart';
 import 'core/config/app_config.dart';
 import 'core/utils/hot_reload_handler.dart';
@@ -41,6 +42,9 @@ Future<void> _initializeServices() async {
 
   // Initialize communication log service
   await SimpleCommunicationLogService.init();
+
+  // Initialize notification service for local notifications
+  await NotificationService.init();
 
   // Initialize location health monitoring
   LocationHealthMonitor.startMonitoring();

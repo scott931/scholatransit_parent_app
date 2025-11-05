@@ -127,34 +127,11 @@ class _NotificationItemCardState extends ConsumerState<NotificationItemCard>
                     if (!isRead) {
                       print('📱 Marking notification as read...');
                       final notificationId = widget.notification['id'];
-                      if (notificationId is int) {
-                        ref
-                            .read(parentProvider.notifier)
-                            .markNotificationAsRead(notificationId);
-                      } else if (notificationId is String) {
-                        // For string IDs, we might need to handle them differently
-                        // or convert them to integers if possible
-                        print('📱 Notification ID is string: $notificationId');
-                        // Try to extract numeric part if it's in format like "emergency_2"
-                        if (notificationId.contains('_')) {
-                          final parts = notificationId.split('_');
-                          final numericPart = parts.last;
-                          final numericId = int.tryParse(numericPart);
-                          if (numericId != null) {
-                            ref
-                                .read(parentProvider.notifier)
-                                .markNotificationAsRead(numericId);
-                          } else {
-                            print('❌ Could not convert string ID to integer');
-                          }
-                        } else {
-                          print('❌ String ID format not recognized');
-                        }
-                      } else {
-                        print(
-                          '❌ Notification ID type not supported: ${notificationId.runtimeType}',
-                        );
-                      }
+                      // Pass the notification ID as-is (can be int or string)
+                      // The markNotificationAsRead method will handle both types
+                      ref
+                          .read(parentProvider.notifier)
+                          .markNotificationAsRead(notificationId);
                     }
 
                     // Check if this is an emergency alert

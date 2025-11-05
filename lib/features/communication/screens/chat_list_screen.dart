@@ -53,12 +53,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
         _isSearching = true;
         _filteredChats = _allChats.where((chat) {
           final other = (chat['other_participant'] as Map<String, dynamic>?);
-          final name = (other?['display_name'] ??
-                  other?['full_name'] ??
-                  other?['name'] ??
-                  'Chat')
-              .toString()
-              .toLowerCase();
+          final name =
+              (other?['display_name'] ??
+                      other?['full_name'] ??
+                      other?['name'] ??
+                      'Chat')
+                  .toString()
+                  .toLowerCase();
           final preview = (chat['latest_message_preview'] ?? '')
               .toString()
               .toLowerCase();
@@ -98,8 +99,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.error_outline,
-                              size: 48, color: Colors.red),
+                          const Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: Colors.red,
+                          ),
                           const SizedBox(height: 8),
                           Text('Error: ${snapshot.error}'),
                           const SizedBox(height: 12),
@@ -120,8 +124,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.wifi_off,
-                              size: 48, color: Colors.grey),
+                          const Icon(
+                            Icons.wifi_off,
+                            size: 48,
+                            color: Colors.grey,
+                          ),
                           const SizedBox(height: 8),
                           Text(resp.error ?? 'Failed to load'),
                           const SizedBox(height: 12),
@@ -205,16 +212,19 @@ class _ChatListScreenState extends State<ChatListScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
       ),
       child: TextField(
         controller: _searchController,
+        style: const TextStyle(color: Colors.black87),
         decoration: const InputDecoration(
           hintText: 'Search chat...',
           hintStyle: TextStyle(color: Color(0xFF94A3B8)),
           border: InputBorder.none,
-          icon: Icon(Icons.search, color: Color(0xFF94A3B8)),
+          filled: true,
+          fillColor: Colors.white,
+          prefixIcon: Icon(Icons.search, color: Color(0xFF94A3B8)),
         ),
       ),
     );
@@ -275,11 +285,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   Widget _buildChatItem(Map<String, dynamic> chat) {
     final other = chat['other_participant'] as Map<String, dynamic>?;
-    final name = (other?['display_name'] ??
-            other?['full_name'] ??
-            other?['name'] ??
-            'Chat')
-        .toString();
+    final name =
+        (other?['display_name'] ??
+                other?['full_name'] ??
+                other?['name'] ??
+                'Chat')
+            .toString();
     final preview = (chat['latest_message_preview'] ?? '').toString();
     final unread = (chat['unread_count'] ?? 0) as int;
     final time = _formatTime(chat['last_message_time'] ?? '');
@@ -366,7 +377,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       if (unread > 0)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFF3B82F6),
                             borderRadius: BorderRadius.circular(10),
@@ -397,10 +410,31 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
+  Color _getAvatarColor(String name) {
+    // List of vibrant, popping colors
+    final colors = [
+      const Color(0xFF6366F1), // Indigo
+      const Color(0xFF8B5CF6), // Purple
+      const Color(0xFFEC4899), // Pink
+      const Color(0xFFEF4444), // Red
+      const Color(0xFFF59E0B), // Amber
+      const Color(0xFF10B981), // Emerald
+      const Color(0xFF06B6D4), // Cyan
+      const Color(0xFF3B82F6), // Blue
+      const Color(0xFFF97316), // Orange
+      const Color(0xFF14B8A6), // Teal
+    ];
+
+    // Generate a consistent color based on the name
+    int hash = name.hashCode;
+    return colors[hash.abs() % colors.length];
+  }
+
   Widget _buildAvatar(String? avatarUrl, String name) {
+    final avatarColor = _getAvatarColor(name);
     return CircleAvatar(
       radius: 28,
-      backgroundColor: const Color(0xFFE2E8F0),
+      backgroundColor: avatarColor,
       backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
           ? NetworkImage(avatarUrl)
           : null,
@@ -410,7 +444,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF334155),
+                color: Colors.white,
               ),
             )
           : null,
@@ -524,6 +558,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     super.dispose();
   }
 
+  Color _getAvatarColor(String name) {
+    // List of vibrant, popping colors
+    final colors = [
+      const Color(0xFF6366F1), // Indigo
+      const Color(0xFF8B5CF6), // Purple
+      const Color(0xFFEC4899), // Pink
+      const Color(0xFFEF4444), // Red
+      const Color(0xFFF59E0B), // Amber
+      const Color(0xFF10B981), // Emerald
+      const Color(0xFF06B6D4), // Cyan
+      const Color(0xFF3B82F6), // Blue
+      const Color(0xFFF97316), // Orange
+      const Color(0xFF14B8A6), // Teal
+    ];
+
+    // Generate a consistent color based on the name
+    int hash = name.hashCode;
+    return colors[hash.abs() % colors.length];
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -591,13 +645,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _loadSilently();
     } else {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(resp.error ?? 'Failed to send')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(resp.error ?? 'Failed to send')));
     }
   }
 
-  Future<List<dynamic>> _mergeMessagesWithLocalFiles(List<dynamic> serverMessages) async {
+  Future<List<dynamic>> _mergeMessagesWithLocalFiles(
+    List<dynamic> serverMessages,
+  ) async {
     // Try to match server messages with local files
     final merged = <dynamic>[];
     final now = DateTime.now();
@@ -608,14 +664,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         continue;
       }
 
-      final messageType = (serverMsg['message_type'] ?? serverMsg['messageType'] ?? 'text').toString().toLowerCase();
+      final messageType =
+          (serverMsg['message_type'] ?? serverMsg['messageType'] ?? 'text')
+              .toString()
+              .toLowerCase();
 
       // If it's a voice message from the current user, try to find matching local file
       if (messageType == 'voice') {
         // Get current user ID
         dynamic currentUserId;
         if (_chat?['current_user'] is Map<String, dynamic>) {
-          currentUserId = (_chat!['current_user'] as Map<String, dynamic>)['id'];
+          currentUserId =
+              (_chat!['current_user'] as Map<String, dynamic>)['id'];
         }
         if (currentUserId == null) {
           final userProfile = StorageService.getUserProfile();
@@ -654,7 +714,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     enhancedMsg['local_attachment'] = entry.value;
                     merged.add(enhancedMsg);
                     foundLocalFile = true;
-                    print('✅ Merged local file with server message: ${entry.value}');
+                    print(
+                      '✅ Merged local file with server message: ${entry.value}',
+                    );
                     break;
                   }
                 }
@@ -667,15 +729,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     // Check if it looks like a local file path
                     if (attachmentStr.isNotEmpty &&
                         (attachmentStr.startsWith('/data/') ||
-                         attachmentStr.startsWith('/storage/') ||
-                         attachmentStr.contains('app_flutter'))) {
+                            attachmentStr.startsWith('/storage/') ||
+                            attachmentStr.contains('app_flutter'))) {
                       final file = File(attachmentStr);
                       if (file.existsSync()) {
-                        final enhancedMsg = Map<String, dynamic>.from(serverMsg);
+                        final enhancedMsg = Map<String, dynamic>.from(
+                          serverMsg,
+                        );
                         enhancedMsg['local_attachment'] = attachmentStr;
                         merged.add(enhancedMsg);
                         foundLocalFile = true;
-                        print('✅ Found existing local file in attachment: $attachmentStr');
+                        print(
+                          '✅ Found existing local file in attachment: $attachmentStr',
+                        );
                       }
                     }
                   }
@@ -683,9 +749,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   // Third try: Check common voice file locations
                   if (!foundLocalFile) {
                     try {
-                      final directory = await getApplicationDocumentsDirectory();
-                      final voiceFiles = directory.listSync()
-                          .where((f) => f.path.contains('voice_') && f.path.endsWith('.m4a'))
+                      final directory =
+                          await getApplicationDocumentsDirectory();
+                      final voiceFiles = directory
+                          .listSync()
+                          .where(
+                            (f) =>
+                                f.path.contains('voice_') &&
+                                f.path.endsWith('.m4a'),
+                          )
                           .where((f) => File(f.path).existsSync())
                           .toList();
 
@@ -697,17 +769,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       });
 
                       // Check if any file was modified around the message creation time
-                      for (final voiceFile in voiceFiles.take(5)) { // Check last 5 voice files
+                      for (final voiceFile in voiceFiles.take(5)) {
+                        // Check last 5 voice files
                         final fileStat = File(voiceFile.path).statSync();
                         final fileModTime = fileStat.modified;
-                        final timeDiffSeconds = (createdTime.difference(fileModTime).inSeconds).abs();
+                        final timeDiffSeconds =
+                            (createdTime.difference(fileModTime).inSeconds)
+                                .abs();
                         // If file was modified within 30 seconds of message creation, it's likely the match
                         if (timeDiffSeconds < 30) {
-                          final enhancedMsg = Map<String, dynamic>.from(serverMsg);
+                          final enhancedMsg = Map<String, dynamic>.from(
+                            serverMsg,
+                          );
                           enhancedMsg['local_attachment'] = voiceFile.path;
                           merged.add(enhancedMsg);
                           foundLocalFile = true;
-                          print('✅ Matched voice file by timestamp: ${voiceFile.path}');
+                          print(
+                            '✅ Matched voice file by timestamp: ${voiceFile.path}',
+                          );
                           break;
                         }
                       }
@@ -785,7 +864,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         if (permission.isDenied) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Microphone permission is required to record voice messages')),
+            const SnackBar(
+              content: Text(
+                'Microphone permission is required to record voice messages',
+              ),
+            ),
           );
           return;
         }
@@ -795,7 +878,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Microphone permission is permanently denied. Please enable it in settings.'),
+            content: const Text(
+              'Microphone permission is permanently denied. Please enable it in settings.',
+            ),
             action: SnackBarAction(
               label: 'Settings',
               onPressed: () => openAppSettings(),
@@ -808,11 +893,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       // Also check with record package
       if (await _audioRecorder.hasPermission()) {
         final directory = await getApplicationDocumentsDirectory();
-        final filePath = '${directory.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        final filePath =
+            '${directory.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
-        await _audioRecorder.start(
-          path: filePath,
-        );
+        await _audioRecorder.start(path: filePath);
 
         setState(() {
           _isRecording = true;
@@ -835,9 +919,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to start recording: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to start recording: $e')));
     }
   }
 
@@ -862,15 +946,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to stop recording: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to stop recording: $e')));
     }
   }
 
   Future<void> _showRecordingPreview() async {
     if (_recordedFilePath == null || !mounted) {
-      print('⚠️ Cannot show preview: _recordedFilePath=${_recordedFilePath}, mounted=$mounted');
+      print(
+        '⚠️ Cannot show preview: _recordedFilePath=${_recordedFilePath}, mounted=$mounted',
+      );
       return;
     }
 
@@ -909,9 +995,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       print('❌ Error showing preview dialog: $e');
       print('Stack trace: $stackTrace');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error showing preview: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error showing preview: $e')));
       }
     }
   }
@@ -988,7 +1074,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     // If attachmentUrl is empty, try to extract it from the message
     if (attachmentUrl.isEmpty) {
-      final String attachmentUrlField = (msg['attachment_url'] ?? '').toString();
+      final String attachmentUrlField = (msg['attachment_url'] ?? '')
+          .toString();
       if (attachmentUrlField.isNotEmpty) {
         attachmentUrl = attachmentUrlField;
       } else {
@@ -1005,8 +1092,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         }
       }
       // Normalize URL
-      if (attachmentUrl.isNotEmpty && attachmentUrl.startsWith('/') && !attachmentUrl.startsWith('http')) {
-        if (!attachmentUrl.startsWith('/data/') && !attachmentUrl.startsWith('/storage/') && !attachmentUrl.contains('app_flutter')) {
+      if (attachmentUrl.isNotEmpty &&
+          attachmentUrl.startsWith('/') &&
+          !attachmentUrl.startsWith('http')) {
+        if (!attachmentUrl.startsWith('/data/') &&
+            !attachmentUrl.startsWith('/storage/') &&
+            !attachmentUrl.contains('app_flutter')) {
           attachmentUrl = ApiEndpoints.baseUrl + attachmentUrl;
         }
       }
@@ -1021,14 +1112,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         if (file.existsSync()) {
           audioPath = localAttachment;
           isLocalFile = true;
-          print('✅ Using local_attachment field for voice message: $localAttachment');
+          print(
+            '✅ Using local_attachment field for voice message: $localAttachment',
+          );
         }
       }
 
       // Also check for local_file_key
       if (audioPath.isEmpty) {
         final localFileKey = msg['local_file_key']?.toString();
-        if (localFileKey != null && _localVoiceFiles.containsKey(localFileKey)) {
+        if (localFileKey != null &&
+            _localVoiceFiles.containsKey(localFileKey)) {
           final localPath = _localVoiceFiles[localFileKey]!;
           final file = File(localPath);
           if (file.existsSync()) {
@@ -1065,14 +1159,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             final String attachmentStr = rawAttachment.toString();
             if (attachmentStr.isNotEmpty) {
               // Check if it's a URL or local path
-              if (attachmentStr.startsWith('http') || attachmentStr.startsWith('/media/')) {
-                audioPath = attachmentStr.startsWith('/') && !attachmentStr.startsWith('http')
+              if (attachmentStr.startsWith('http') ||
+                  attachmentStr.startsWith('/media/')) {
+                audioPath =
+                    attachmentStr.startsWith('/') &&
+                        !attachmentStr.startsWith('http')
                     ? ApiEndpoints.baseUrl + attachmentStr
                     : attachmentStr;
                 isLocalFile = false;
-              } else if (!attachmentStr.startsWith('/data/') && !attachmentStr.startsWith('/storage/')) {
+              } else if (!attachmentStr.startsWith('/data/') &&
+                  !attachmentStr.startsWith('/storage/')) {
                 // Not a local path, treat as URL
-                audioPath = attachmentStr.startsWith('/') && !attachmentStr.startsWith('http')
+                audioPath =
+                    attachmentStr.startsWith('/') &&
+                        !attachmentStr.startsWith('http')
                     ? ApiEndpoints.baseUrl + attachmentStr
                     : attachmentStr;
                 isLocalFile = false;
@@ -1084,7 +1184,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           print('✅ Using remote voice message URL: $audioPath');
         }
       }
-
     }
 
     // If still empty, try extraction (even if flags are false or both false)
@@ -1102,7 +1201,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           final String attachmentStr = rawAttachment.toString();
           if (attachmentStr.isNotEmpty) {
             // Check if it's a local file path
-            bool looksLikeLocalFile = attachmentStr.startsWith('/data/') ||
+            bool looksLikeLocalFile =
+                attachmentStr.startsWith('/data/') ||
                 attachmentStr.startsWith('/storage/') ||
                 attachmentStr.contains('app_flutter');
 
@@ -1116,12 +1216,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               } else {
                 // File doesn't exist anymore, might have been uploaded
                 // Try as URL
-                audioPath = attachmentStr.startsWith('/') && !attachmentStr.startsWith('http')
+                audioPath =
+                    attachmentStr.startsWith('/') &&
+                        !attachmentStr.startsWith('http')
                     ? ApiEndpoints.baseUrl + attachmentStr
                     : attachmentStr;
                 isLocalFile = false;
               }
-            } else if (!attachmentStr.startsWith('http') && !attachmentStr.startsWith('/media/')) {
+            } else if (!attachmentStr.startsWith('http') &&
+                !attachmentStr.startsWith('/media/')) {
               // Might be a local file path (not starting with http or /media/)
               // Verify file exists
               final file = File(attachmentStr);
@@ -1131,14 +1234,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 print('✅ Found local file path (verified): $attachmentStr');
               } else {
                 // Not a local file, treat as URL
-                audioPath = attachmentStr.startsWith('/') && !attachmentStr.startsWith('http')
+                audioPath =
+                    attachmentStr.startsWith('/') &&
+                        !attachmentStr.startsWith('http')
                     ? ApiEndpoints.baseUrl + attachmentStr
                     : attachmentStr;
                 isLocalFile = false;
               }
             } else {
               // It's a URL
-              audioPath = attachmentStr.startsWith('/') && !attachmentStr.startsWith('http')
+              audioPath =
+                  attachmentStr.startsWith('/') &&
+                      !attachmentStr.startsWith('http')
                   ? ApiEndpoints.baseUrl + attachmentStr
                   : attachmentStr;
               isLocalFile = false;
@@ -1175,9 +1282,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
         // If still no audio path, try attachment_url field
         if (audioPath.isEmpty) {
-          final String attachmentUrlField = (msg['attachment_url'] ?? '').toString();
+          final String attachmentUrlField = (msg['attachment_url'] ?? '')
+              .toString();
           if (attachmentUrlField.isNotEmpty) {
-            audioPath = attachmentUrlField.startsWith('/') && !attachmentUrlField.startsWith('http')
+            audioPath =
+                attachmentUrlField.startsWith('/') &&
+                    !attachmentUrlField.startsWith('http')
                 ? ApiEndpoints.baseUrl + attachmentUrlField
                 : attachmentUrlField;
             isLocalFile = false;
@@ -1204,154 +1314,227 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             }
           }
         }
-        }  // Close the else block
-      }
+      } // Close the else block
+    }
 
-      // Last resort: Try to extract any URL from attachment field even if it looks like a path
-      if (audioPath.isEmpty) {
-        final dynamic rawAttachment = msg['attachment'];
-        if (rawAttachment != null) {
-          String attachmentStr = '';
+    // Last resort: Try to extract any URL from attachment field even if it looks like a path
+    if (audioPath.isEmpty) {
+      final dynamic rawAttachment = msg['attachment'];
+      if (rawAttachment != null) {
+        String attachmentStr = '';
 
-          // Try different extraction methods
-          if (rawAttachment is Map) {
-            // Try all possible keys in the map
-            final Map attachmentMap = rawAttachment;
-            attachmentStr = (attachmentMap['url'] ??
-                            attachmentMap['file'] ??
-                            attachmentMap['path'] ??
-                            attachmentMap['attachment'] ??
-                            attachmentMap['source'] ??
-                            '').toString();
-          } else {
-            attachmentStr = rawAttachment.toString();
-          }
+        // Try different extraction methods
+        if (rawAttachment is Map) {
+          // Try all possible keys in the map
+          final Map attachmentMap = rawAttachment;
+          attachmentStr =
+              (attachmentMap['url'] ??
+                      attachmentMap['file'] ??
+                      attachmentMap['path'] ??
+                      attachmentMap['attachment'] ??
+                      attachmentMap['source'] ??
+                      '')
+                  .toString();
+        } else {
+          attachmentStr = rawAttachment.toString();
+        }
 
-          if (attachmentStr.isNotEmpty) {
-            // Check if it's a local file path that exists
-            if (attachmentStr.startsWith('/data/') || attachmentStr.startsWith('/storage/') || attachmentStr.contains('app_flutter')) {
-              final file = File(attachmentStr);
-              if (file.existsSync()) {
-                audioPath = attachmentStr;
-                isLocalFile = true;
-                print('✅ Found local file (last resort): $audioPath');
-              } else {
-                // File doesn't exist, treat as URL
-                audioPath = attachmentStr.startsWith('/') && !attachmentStr.startsWith('http')
-                    ? ApiEndpoints.baseUrl + attachmentStr
-                    : attachmentStr;
-                isLocalFile = false;
-                print('✅ Using attachment as URL (last resort): $audioPath');
-              }
+        if (attachmentStr.isNotEmpty) {
+          // Check if it's a local file path that exists
+          if (attachmentStr.startsWith('/data/') ||
+              attachmentStr.startsWith('/storage/') ||
+              attachmentStr.contains('app_flutter')) {
+            final file = File(attachmentStr);
+            if (file.existsSync()) {
+              audioPath = attachmentStr;
+              isLocalFile = true;
+              print('✅ Found local file (last resort): $audioPath');
             } else {
-              // Not a local path, treat as URL
-              audioPath = attachmentStr.startsWith('/') && !attachmentStr.startsWith('http')
+              // File doesn't exist, treat as URL
+              audioPath =
+                  attachmentStr.startsWith('/') &&
+                      !attachmentStr.startsWith('http')
                   ? ApiEndpoints.baseUrl + attachmentStr
                   : attachmentStr;
               isLocalFile = false;
               print('✅ Using attachment as URL (last resort): $audioPath');
             }
+          } else {
+            // Not a local path, treat as URL
+            audioPath =
+                attachmentStr.startsWith('/') &&
+                    !attachmentStr.startsWith('http')
+                ? ApiEndpoints.baseUrl + attachmentStr
+                : attachmentStr;
+            isLocalFile = false;
+            print('✅ Using attachment as URL (last resort): $audioPath');
           }
         }
       }
+    }
 
-      // If still no audio path found, return a placeholder (don't return empty)
-      if (audioPath.isEmpty) {
-        print('⚠️ Voice message has no audio path: msg=$msg');
-        // Return a placeholder that shows it's a voice message but can't be played
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.mic,
-              color: textColor,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Voice message (unavailable)',
-              style: TextStyle(
-                color: textColor.withOpacity(0.7),
-                fontSize: 14,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
-        );
-      }
-
-      // Now build the actual voice message player widget
-      final duration = msg['duration'] != null
-          ? Duration(seconds: (msg['duration'] as num).toInt())
-          : Duration.zero;
-      final isCurrentlyPlaying = _currentlyPlayingUrl == audioPath && _isPlaying;
-
+    // If still no audio path found, return a placeholder (don't return empty)
+    if (audioPath.isEmpty) {
+      print('⚠️ Voice message has no audio path: msg=$msg');
+      // Return a placeholder that shows it's a voice message but can't be played
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            icon: Icon(
-              isCurrentlyPlaying ? Icons.pause : Icons.play_arrow,
-              color: textColor,
-              size: 28,
-            ),
-            onPressed: () => _toggleVoicePlayback(audioPath, isLocalFile),
-          ),
+          Icon(Icons.mic, color: textColor, size: 20),
           const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: textColor.withOpacity(0.3),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                        child: Stack(
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                color: textColor.withOpacity(0.3),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                            if (isCurrentlyPlaying && _audioDuration.inMilliseconds > 0)
-                              FractionallySizedBox(
-                                widthFactor: _audioPosition.inMilliseconds /
-                                    _audioDuration.inMilliseconds,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: textColor,
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _formatDuration(isCurrentlyPlaying ? _audioPosition : duration),
-                  style: TextStyle(
-                    color: textColor.withOpacity(0.9),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+          Text(
+            'Voice message (unavailable)',
+            style: TextStyle(
+              color: textColor.withOpacity(0.7),
+              fontSize: 14,
+              fontStyle: FontStyle.italic,
             ),
           ),
-          const SizedBox(width: 8),
         ],
       );
+    }
+
+    // Now build the actual voice message player widget
+    final duration = msg['duration'] != null
+        ? Duration(seconds: (msg['duration'] as num).toInt())
+        : Duration.zero;
+    final isCurrentlyPlaying = _currentlyPlayingUrl == audioPath && _isPlaying;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Play/Pause button with circular background
+        GestureDetector(
+          onTap: () => _toggleVoicePlayback(audioPath, isLocalFile),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: isMine
+                  ? textColor.withOpacity(0.2)
+                  : bubbleColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isCurrentlyPlaying
+                  ? Icons.pause_rounded
+                  : Icons.play_arrow_rounded,
+              color: textColor,
+              size: 24,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Waveform/Progress bar and duration
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Waveform visualization / Progress bar
+              Container(
+                height: 32,
+                decoration: BoxDecoration(
+                  color: isMine
+                      ? textColor.withOpacity(0.15)
+                      : Colors.grey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Stack(
+                  children: [
+                    // Background waveform bars (static visualization)
+                    if (!isCurrentlyPlaying ||
+                        _audioDuration.inMilliseconds == 0)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: List.generate(20, (index) {
+                          final height = (index % 3 == 0)
+                              ? 8.0
+                              : (index % 2 == 0 ? 12.0 : 16.0);
+                          return Container(
+                            width: 2,
+                            height: height,
+                            decoration: BoxDecoration(
+                              color: textColor.withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(1),
+                            ),
+                          );
+                        }),
+                      ),
+                    // Progress indicator when playing
+                    if (isCurrentlyPlaying && _audioDuration.inMilliseconds > 0)
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final progressWidth =
+                              constraints.maxWidth *
+                              (_audioPosition.inMilliseconds /
+                                  _audioDuration.inMilliseconds);
+                          return Row(
+                            children: [
+                              Container(
+                                width: progressWidth,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: textColor.withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: List.generate(20, (index) {
+                                    final height = (index % 3 == 0)
+                                        ? 8.0
+                                        : (index % 2 == 0 ? 12.0 : 16.0);
+                                    return Container(
+                                      width: 2,
+                                      height: height,
+                                      decoration: BoxDecoration(
+                                        color: textColor.withOpacity(0.8),
+                                        borderRadius: BorderRadius.circular(1),
+                                      ),
+                                    );
+                                  }).take((progressWidth / 3).ceil()).toList(),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              // Duration text
+              Row(
+                children: [
+                  Icon(
+                    Icons.mic_rounded,
+                    size: 12,
+                    color: textColor.withOpacity(0.7),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _formatDuration(
+                      isCurrentlyPlaying ? _audioPosition : duration,
+                    ),
+                    style: TextStyle(
+                      color: textColor.withOpacity(0.8),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
   }
 
   Future<void> _toggleVoicePlayback(String audioPath, bool isLocal) async {
@@ -1383,9 +1566,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to play audio: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to play audio: $e')));
         setState(() {
           _isPlaying = false;
           _currentlyPlayingUrl = null;
@@ -1438,9 +1621,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Image error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Image error: $e')));
     }
   }
 
@@ -1479,8 +1662,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
       String attachmentUrl = '';
       final dynamic rawAttachment = latestOwnImage['attachment'];
-      final String attachmentUrlField =
-          (latestOwnImage['attachment_url'] ?? '').toString();
+      final String attachmentUrlField = (latestOwnImage['attachment_url'] ?? '')
+          .toString();
       if (attachmentUrlField.isNotEmpty) {
         attachmentUrl = attachmentUrlField;
       } else if (rawAttachment is Map<String, dynamic>) {
@@ -1524,10 +1707,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final title = _chat != null
-        ? (((_chat!['other_participant'] as Map<String, dynamic>?)?['display_name']) ??
-                ((_chat!['other_participant'] as Map<String, dynamic>?)?['full_name']) ??
-                ((_chat!['other_participant'] as Map<String, dynamic>?)?['name']) ??
-                'Chat')
+        ? (((_chat!['other_participant']
+                  as Map<String, dynamic>?)?['display_name']) ??
+              ((_chat!['other_participant']
+                  as Map<String, dynamic>?)?['full_name']) ??
+              ((_chat!['other_participant']
+                  as Map<String, dynamic>?)?['name']) ??
+              'Chat')
         : 'Chat';
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -1560,669 +1746,790 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(child: Text(_error!))
-              : Column(
-                  children: [
-                    Expanded(
-                      child: _messages.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: const [
-                                  Icon(
-                                    Icons.chat_bubble_outline,
-                                    size: 48,
-                                    color: Colors.grey,
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text('No messages yet'),
-                                ],
+          ? Center(child: Text(_error!))
+          : Column(
+              children: [
+                Expanded(
+                  child: _messages.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                size: 48,
+                                color: Colors.grey,
                               ),
-                            )
-                          : ListView.builder(
-                              controller: _scroll,
-                              padding: const EdgeInsets.all(12),
-                              itemCount: _messages.length,
-                              itemBuilder: (context, index) {
-                                final msg =
-                                    _messages[index] as Map<String, dynamic>;
-                                final content = (msg['content'] ?? '').toString();
-                                // Check both snake_case and camelCase message type fields
-                                final messageType = (msg['message_type'] ??
-                                    msg['messageType'] ??
-                                    'text').toString().toLowerCase();
-                                String attachmentUrl = '';
-                                final dynamic rawAttachment = msg['attachment'];
-                                final String attachmentUrlField =
-                                    (msg['attachment_url'] ?? '').toString();
+                              SizedBox(height: 8),
+                              Text('No messages yet'),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _scroll,
+                          padding: const EdgeInsets.all(12),
+                          itemCount: _messages.length,
+                          itemBuilder: (context, index) {
+                            final msg =
+                                _messages[index] as Map<String, dynamic>;
+                            final content = (msg['content'] ?? '').toString();
+                            // Check both snake_case and camelCase message type fields
+                            final messageType =
+                                (msg['message_type'] ??
+                                        msg['messageType'] ??
+                                        'text')
+                                    .toString()
+                                    .toLowerCase();
+                            String attachmentUrl = '';
+                            final dynamic rawAttachment = msg['attachment'];
+                            final String attachmentUrlField =
+                                (msg['attachment_url'] ?? '').toString();
 
-                                // For voice messages, be more aggressive in finding the URL
-                                final bool isVoiceMsg = messageType == 'voice';
+                            // For voice messages, be more aggressive in finding the URL
+                            final bool isVoiceMsg = messageType == 'voice';
 
-                                if (attachmentUrlField.isNotEmpty) {
-                                  attachmentUrl = attachmentUrlField;
-                                } else if (rawAttachment is Map<String, dynamic>) {
-                                  final String fromUrl =
-                                      (rawAttachment['url'] ?? '').toString();
-                                  final String fromFile =
-                                      (rawAttachment['file'] ?? '').toString();
-                                  final String fromPath =
-                                      (rawAttachment['path'] ?? '').toString();
-                                  // Also check for 'attachment' key inside the map
-                                  final String fromAttachment =
-                                      (rawAttachment['attachment'] ?? '').toString();
-                                  final String candidate = fromUrl.isNotEmpty
-                                      ? fromUrl
-                                      : (fromFile.isNotEmpty
-                                          ? fromFile
-                                          : (fromPath.isNotEmpty
+                            if (attachmentUrlField.isNotEmpty) {
+                              attachmentUrl = attachmentUrlField;
+                            } else if (rawAttachment is Map<String, dynamic>) {
+                              final String fromUrl =
+                                  (rawAttachment['url'] ?? '').toString();
+                              final String fromFile =
+                                  (rawAttachment['file'] ?? '').toString();
+                              final String fromPath =
+                                  (rawAttachment['path'] ?? '').toString();
+                              // Also check for 'attachment' key inside the map
+                              final String fromAttachment =
+                                  (rawAttachment['attachment'] ?? '')
+                                      .toString();
+                              final String candidate = fromUrl.isNotEmpty
+                                  ? fromUrl
+                                  : (fromFile.isNotEmpty
+                                        ? fromFile
+                                        : (fromPath.isNotEmpty
                                               ? fromPath
                                               : fromAttachment));
-                                  if (candidate.isNotEmpty) {
-                                    attachmentUrl = candidate;
-                                  }
-                                } else {
-                                  final String attachmentStr =
-                                      (rawAttachment ?? '').toString();
-                                  if (attachmentStr.isNotEmpty) {
-                                    attachmentUrl = attachmentStr;
-                                  }
+                              if (candidate.isNotEmpty) {
+                                attachmentUrl = candidate;
+                              }
+                            } else {
+                              final String attachmentStr = (rawAttachment ?? '')
+                                  .toString();
+                              if (attachmentStr.isNotEmpty) {
+                                attachmentUrl = attachmentStr;
+                              }
+                            }
+
+                            // For voice messages, ensure we normalize URLs properly
+                            if (attachmentUrl.isNotEmpty) {
+                              // Don't normalize if it's clearly a local file path
+                              if (!attachmentUrl.startsWith('/data/') &&
+                                  !attachmentUrl.startsWith('/storage/') &&
+                                  !attachmentUrl.contains('app_flutter')) {
+                                if (attachmentUrl.startsWith('/') &&
+                                    !attachmentUrl.startsWith('http')) {
+                                  attachmentUrl =
+                                      ApiEndpoints.baseUrl + attachmentUrl;
                                 }
+                              }
+                            }
 
-                                // For voice messages, ensure we normalize URLs properly
-                                if (attachmentUrl.isNotEmpty) {
-                                  // Don't normalize if it's clearly a local file path
-                                  if (!attachmentUrl.startsWith('/data/') &&
-                                      !attachmentUrl.startsWith('/storage/') &&
-                                      !attachmentUrl.contains('app_flutter')) {
-                                    if (attachmentUrl.startsWith('/') &&
-                                        !attachmentUrl.startsWith('http')) {
-                                      attachmentUrl = ApiEndpoints.baseUrl + attachmentUrl;
-                                    }
-                                  }
-                                }
+                            // Debug for voice messages
+                            if (isVoiceMsg) {
+                              print(
+                                '🎤 Voice message attachment extraction: attachmentUrl=$attachmentUrl, rawAttachment=$rawAttachment',
+                              );
+                            }
+                            // Determine if message is from current user
+                            // Try multiple ways to get current user ID
+                            dynamic currentUserId;
 
-                                // Debug for voice messages
-                                if (isVoiceMsg) {
-                                  print('🎤 Voice message attachment extraction: attachmentUrl=$attachmentUrl, rawAttachment=$rawAttachment');
-                                }
-                                // Determine if message is from current user
-                                // Try multiple ways to get current user ID
-                                dynamic currentUserId;
+                            // First try: current_user from chat details
+                            if (_chat?['current_user']
+                                is Map<String, dynamic>) {
+                              currentUserId =
+                                  (_chat!['current_user']
+                                      as Map<String, dynamic>)['id'];
+                            }
 
-                                // First try: current_user from chat details
-                                if (_chat?['current_user'] is Map<String, dynamic>) {
-                                  currentUserId = (_chat!['current_user'] as Map<String, dynamic>)['id'];
-                                }
+                            // Second try: user1 from chat
+                            if (currentUserId == null &&
+                                _chat?['user1'] is Map<String, dynamic>) {
+                              final user1 =
+                                  _chat!['user1'] as Map<String, dynamic>;
+                              currentUserId = user1['id'];
+                            }
 
-                                // Second try: user1 from chat
-                                if (currentUserId == null && _chat?['user1'] is Map<String, dynamic>) {
-                                  final user1 = _chat!['user1'] as Map<String, dynamic>;
-                                  currentUserId = user1['id'];
-                                }
+                            // Third try: user2 from chat (if current user is user2)
+                            if (currentUserId == null &&
+                                _chat?['user2'] is Map<String, dynamic>) {
+                              final user2 =
+                                  _chat!['user2'] as Map<String, dynamic>;
+                              currentUserId = user2['id'];
+                            }
 
-                                // Third try: user2 from chat (if current user is user2)
-                                if (currentUserId == null && _chat?['user2'] is Map<String, dynamic>) {
-                                  final user2 = _chat!['user2'] as Map<String, dynamic>;
-                                  currentUserId = user2['id'];
-                                }
+                            // Fourth try: from user profile in storage
+                            if (currentUserId == null) {
+                              final userProfile =
+                                  StorageService.getUserProfile();
+                              if (userProfile != null &&
+                                  userProfile['id'] != null) {
+                                currentUserId = userProfile['id'];
+                              }
+                            }
 
-                                // Fourth try: from user profile in storage
-                                if (currentUserId == null) {
-                                  final userProfile = StorageService.getUserProfile();
-                                  if (userProfile != null && userProfile['id'] != null) {
-                                    currentUserId = userProfile['id'];
-                                  }
-                                }
+                            // Get sender ID
+                            dynamic senderId;
+                            if (msg['sender'] is Map<String, dynamic>) {
+                              senderId =
+                                  (msg['sender'] as Map<String, dynamic>)['id'];
+                            }
 
-                                // Get sender ID
-                                dynamic senderId;
-                                if (msg['sender'] is Map<String, dynamic>) {
-                                  senderId = (msg['sender'] as Map<String, dynamic>)['id'];
-                                }
+                            // Compare IDs - handle both int and string comparisons
+                            bool isMine = false;
+                            if (senderId != null && currentUserId != null) {
+                              // Convert both to strings for comparison to handle int vs string
+                              final senderIdStr = senderId.toString();
+                              final currentUserIdStr = currentUserId.toString();
+                              isMine = senderIdStr == currentUserIdStr;
+                            }
 
-                                // Compare IDs - handle both int and string comparisons
-                                bool isMine = false;
-                                if (senderId != null && currentUserId != null) {
-                                  // Convert both to strings for comparison to handle int vs string
-                                  final senderIdStr = senderId.toString();
-                                  final currentUserIdStr = currentUserId.toString();
-                                  isMine = senderIdStr == currentUserIdStr;
-                                }
+                            // Debug print to help diagnose issues
+                            if (!isMine && senderId != null) {
+                              print(
+                                '📱 Message sender check: senderId=$senderId, currentUserId=$currentUserId, isMine=$isMine',
+                              );
+                            }
+                            final bool isLocalImage =
+                                messageType == 'image' &&
+                                (msg['local'] == true) &&
+                                ((msg['attachment']?.toString().isNotEmpty) ??
+                                    false);
+                            final bool isRemoteImage =
+                                messageType == 'image' &&
+                                attachmentUrl.isNotEmpty;
+                            // Check if it's a voice message - be more aggressive in detection
+                            // Check message_type first, but also check if content is "Voice message" with an attachment
+                            bool isVoiceMessage = messageType == 'voice';
 
-                                // Debug print to help diagnose issues
-                                if (!isMine && senderId != null) {
-                                  print('📱 Message sender check: senderId=$senderId, currentUserId=$currentUserId, isMine=$isMine');
-                                }
-                                final bool isLocalImage =
-                                    messageType == 'image' &&
-                                        (msg['local'] == true) &&
-                                        ((msg['attachment']?.toString().isNotEmpty) ??
-                                            false);
-                                final bool isRemoteImage =
-                                    messageType == 'image' &&
-                                        attachmentUrl.isNotEmpty;
-                                // Check if it's a voice message - be more aggressive in detection
-                                // Check message_type first, but also check if content is "Voice message" with an attachment
-                                bool isVoiceMessage = messageType == 'voice';
+                            // Fallback: Check multiple ways to detect voice messages
+                            if (!isVoiceMessage) {
+                              // Method 1: Content is "Voice message" with attachment
+                              bool hasVoiceContent =
+                                  content.toLowerCase() == 'voice message' ||
+                                  content.toLowerCase().contains('voice');
 
-                                // Fallback: Check multiple ways to detect voice messages
-                                if (!isVoiceMessage) {
-                                  // Method 1: Content is "Voice message" with attachment
-                                  bool hasVoiceContent = content.toLowerCase() == 'voice message' ||
-                                                         content.toLowerCase().contains('voice');
+                              // Method 2: Check if attachment has audio file extension
+                              bool hasAudioExtension = false;
+                              String attachmentStr = '';
+                              if (attachmentUrl.isNotEmpty) {
+                                attachmentStr = attachmentUrl;
+                              } else if (rawAttachment != null) {
+                                attachmentStr = rawAttachment.toString();
+                              } else if (msg['attachment_url'] != null) {
+                                attachmentStr = msg['attachment_url']
+                                    .toString();
+                              } else if (msg['attachment'] != null) {
+                                attachmentStr = msg['attachment'].toString();
+                              }
 
-                                  // Method 2: Check if attachment has audio file extension
-                                  bool hasAudioExtension = false;
-                                  String attachmentStr = '';
-                                  if (attachmentUrl.isNotEmpty) {
-                                    attachmentStr = attachmentUrl;
-                                  } else if (rawAttachment != null) {
-                                    attachmentStr = rawAttachment.toString();
-                                  } else if (msg['attachment_url'] != null) {
-                                    attachmentStr = msg['attachment_url'].toString();
-                                  } else if (msg['attachment'] != null) {
-                                    attachmentStr = msg['attachment'].toString();
-                                  }
+                              if (attachmentStr.isNotEmpty) {
+                                final lowerStr = attachmentStr.toLowerCase();
+                                hasAudioExtension =
+                                    lowerStr.endsWith('.m4a') ||
+                                    lowerStr.endsWith('.mp3') ||
+                                    lowerStr.endsWith('.wav') ||
+                                    lowerStr.endsWith('.aac') ||
+                                    lowerStr.endsWith('.ogg') ||
+                                    lowerStr.contains('voice_') ||
+                                    lowerStr.contains('/audio/') ||
+                                    lowerStr.contains('/voice/');
+                              }
 
-                                  if (attachmentStr.isNotEmpty) {
-                                    final lowerStr = attachmentStr.toLowerCase();
-                                    hasAudioExtension = lowerStr.endsWith('.m4a') ||
-                                                       lowerStr.endsWith('.mp3') ||
-                                                       lowerStr.endsWith('.wav') ||
-                                                       lowerStr.endsWith('.aac') ||
-                                                       lowerStr.endsWith('.ogg') ||
-                                                       lowerStr.contains('voice_') ||
-                                                       lowerStr.contains('/audio/') ||
-                                                       lowerStr.contains('/voice/');
-                                  }
+                              // Method 3: Has attachment and content suggests voice
+                              bool hasAttachment =
+                                  attachmentUrl.isNotEmpty ||
+                                  rawAttachment != null ||
+                                  msg['attachment_url'] != null ||
+                                  (msg['attachment'] != null &&
+                                      msg['attachment'].toString().isNotEmpty);
 
-                                  // Method 3: Has attachment and content suggests voice
-                                  bool hasAttachment = attachmentUrl.isNotEmpty ||
-                                                      rawAttachment != null ||
-                                                      msg['attachment_url'] != null ||
-                                                      (msg['attachment'] != null && msg['attachment'].toString().isNotEmpty);
+                              if ((hasVoiceContent && hasAttachment) ||
+                                  hasAudioExtension) {
+                                isVoiceMessage = true;
+                                print(
+                                  '🎤 Voice message detected via fallback: content="$content", hasAttachment=$hasAttachment, hasAudioExtension=$hasAudioExtension, attachment="$attachmentStr"',
+                                );
+                              }
+                            }
 
-                                  if ((hasVoiceContent && hasAttachment) || hasAudioExtension) {
-                                    isVoiceMessage = true;
-                                    print('🎤 Voice message detected via fallback: content="$content", hasAttachment=$hasAttachment, hasAudioExtension=$hasAudioExtension, attachment="$attachmentStr"');
-                                  }
-                                }
+                            // Check if it's a local voice message (optimistic or recently sent)
+                            final bool isLocalVoice =
+                                isVoiceMessage &&
+                                (msg['local'] == true ||
+                                    msg['local_attachment'] != null ||
+                                    msg['local_file_key'] != null) &&
+                                ((msg['attachment']?.toString().isNotEmpty) ??
+                                    false);
 
-                                // Check if it's a local voice message (optimistic or recently sent)
-                                final bool isLocalVoice = isVoiceMessage &&
-                                    (msg['local'] == true || msg['local_attachment'] != null || msg['local_file_key'] != null) &&
-                                    ((msg['attachment']?.toString().isNotEmpty) ?? false);
+                            // For remote voice: check if attachment URL exists OR if message_type is voice with any attachment
+                            // Also check if it's a voice message from sender (might have local file)
+                            final bool isRemoteVoice =
+                                isVoiceMessage &&
+                                (attachmentUrl.isNotEmpty ||
+                                    (rawAttachment != null &&
+                                        rawAttachment.toString().isNotEmpty) ||
+                                    (msg['attachment_url'] != null));
 
-                                // For remote voice: check if attachment URL exists OR if message_type is voice with any attachment
-                                // Also check if it's a voice message from sender (might have local file)
-                                final bool isRemoteVoice = isVoiceMessage &&
-                                    (attachmentUrl.isNotEmpty ||
-                                     (rawAttachment != null && rawAttachment.toString().isNotEmpty) ||
-                                     (msg['attachment_url'] != null));
+                            // Debug voice messages - ALWAYS log to help diagnose
+                            if (isVoiceMessage) {
+                              print(
+                                '🎤 Voice message detected: messageType=$messageType, isLocalVoice=$isLocalVoice, isRemoteVoice=$isRemoteVoice',
+                              );
+                              print('   attachmentUrl=$attachmentUrl');
+                              print('   rawAttachment=$rawAttachment');
+                              print('   msg keys: ${msg.keys.toList()}');
+                              print('   msg[attachment]=${msg['attachment']}');
+                              print(
+                                '   msg[attachment_url]=${msg['attachment_url']}',
+                              );
+                              print('   msg[local]=${msg['local']}');
+                              print(
+                                '   msg[local_attachment]=${msg['local_attachment']}',
+                              );
+                              print('   isMine=$isMine');
+                            } else if (content.toLowerCase().contains(
+                                  'voice',
+                                ) ||
+                                (msg['attachment'] != null ||
+                                    msg['attachment_url'] != null)) {
+                              // Log messages that might be voice but weren't detected
+                              print(
+                                '⚠️ Potential voice message NOT detected: messageType=$messageType, content="$content"',
+                              );
+                              print('   attachmentUrl=$attachmentUrl');
+                              print('   rawAttachment=$rawAttachment');
+                              print('   msg[attachment]=${msg['attachment']}');
+                              print(
+                                '   msg[attachment_url]=${msg['attachment_url']}',
+                              );
+                            }
 
-                                // Debug voice messages - ALWAYS log to help diagnose
-                                if (isVoiceMessage) {
-                                  print('🎤 Voice message detected: messageType=$messageType, isLocalVoice=$isLocalVoice, isRemoteVoice=$isRemoteVoice');
-                                  print('   attachmentUrl=$attachmentUrl');
-                                  print('   rawAttachment=$rawAttachment');
-                                  print('   msg keys: ${msg.keys.toList()}');
-                                  print('   msg[attachment]=${msg['attachment']}');
-                                  print('   msg[attachment_url]=${msg['attachment_url']}');
-                                  print('   msg[local]=${msg['local']}');
-                                  print('   msg[local_attachment]=${msg['local_attachment']}');
-                                  print('   isMine=$isMine');
-                                } else if (content.toLowerCase().contains('voice') ||
-                                          (msg['attachment'] != null || msg['attachment_url'] != null)) {
-                                  // Log messages that might be voice but weren't detected
-                                  print('⚠️ Potential voice message NOT detected: messageType=$messageType, content="$content"');
-                                  print('   attachmentUrl=$attachmentUrl');
-                                  print('   rawAttachment=$rawAttachment');
-                                  print('   msg[attachment]=${msg['attachment']}');
-                                  print('   msg[attachment_url]=${msg['attachment_url']}');
-                                }
-
-                                final bubbleColor = isMine
-                                    ? Theme.of(context).colorScheme.primary
-                                    : const Color(0xFFF1F5F9);
-                                final textColor = isMine
-                                    ? Colors.white
-                                    : Colors.black87;
-                                final sender =
-                                    (msg['sender'] as Map<String, dynamic>?) ?? {};
-                                final senderName =
-                                    (sender['display_name'] ??
-                                            sender['full_name'] ??
-                                            ((sender['first_name'] != null ||
-                                                    sender['last_name'] != null)
-                                                ? '${sender['first_name'] ?? ''} ${sender['last_name'] ?? ''}'
-                                                    .trim()
-                                                : null) ??
-                                            'User')
-                                        .toString();
-                                final createdAt =
-                                    (msg['created_at'] ?? msg['updated_at'])
-                                        ?.toString();
-                                String timeLabel = '';
-                                if (createdAt != null) {
-                                  final parsed = DateTime.tryParse(createdAt);
-                                  if (parsed != null) {
-                                    final tod = TimeOfDay.fromDateTime(
-                                      parsed.toLocal(),
-                                    );
-                                    timeLabel = tod.format(context);
-                                  }
-                                }
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 2),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    mainAxisAlignment: isMine
-                                        ? MainAxisAlignment.end
-                                        : MainAxisAlignment.start,
-                                    children: [
-                                      if (!isMine) ...[
-                                        CircleAvatar(
-                                          radius: 14,
-                                          backgroundColor: const Color(0xFFE2E8F0),
-                                          child: Text(
-                                            senderName.isNotEmpty
-                                                ? senderName[0].toUpperCase()
-                                                : '?',
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: Color(0xFF334155),
-                                            ),
-                                          ),
+                            final bubbleColor = isMine
+                                ? Theme.of(context).colorScheme.primary
+                                : const Color(0xFFF1F5F9);
+                            final textColor = isMine
+                                ? Colors.white
+                                : Colors.black87;
+                            final sender =
+                                (msg['sender'] as Map<String, dynamic>?) ?? {};
+                            final senderName =
+                                (sender['display_name'] ??
+                                        sender['full_name'] ??
+                                        ((sender['first_name'] != null ||
+                                                sender['last_name'] != null)
+                                            ? '${sender['first_name'] ?? ''} ${sender['last_name'] ?? ''}'
+                                                  .trim()
+                                            : null) ??
+                                        'User')
+                                    .toString();
+                            final createdAt =
+                                (msg['created_at'] ?? msg['updated_at'])
+                                    ?.toString();
+                            String timeLabel = '';
+                            if (createdAt != null) {
+                              final parsed = DateTime.tryParse(createdAt);
+                              if (parsed != null) {
+                                final tod = TimeOfDay.fromDateTime(
+                                  parsed.toLocal(),
+                                );
+                                timeLabel = tod.format(context);
+                              }
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisAlignment: isMine
+                                    ? MainAxisAlignment.end
+                                    : MainAxisAlignment.start,
+                                children: [
+                                  if (!isMine) ...[
+                                    CircleAvatar(
+                                      radius: 14,
+                                      backgroundColor: _getAvatarColor(
+                                        senderName,
+                                      ),
+                                      child: Text(
+                                        senderName.isNotEmpty
+                                            ? senderName[0].toUpperCase()
+                                            : '?',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
                                         ),
-                                        const SizedBox(width: 6),
-                                      ],
-                                      Flexible(
-                                        child: ConstrainedBox(
-                                          constraints: BoxConstraints(
-                                            maxWidth:
-                                                MediaQuery.of(context).size.width *
-                                                    0.75,
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment: isMine
-                                                ? CrossAxisAlignment.end
-                                                : CrossAxisAlignment.start,
-                                            children: [
-                                              if (!isMine)
-                                                Padding(
-                                                  padding: const EdgeInsets.only(
-                                                    left: 4,
-                                                    bottom: 2,
-                                                  ),
-                                                  child: Text(
-                                                    senderName,
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: Colors.grey.shade600,
-                                                      fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
+                                  Flexible(
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        maxWidth:
+                                            MediaQuery.of(context).size.width *
+                                            0.75,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: isMine
+                                            ? CrossAxisAlignment.end
+                                            : CrossAxisAlignment.start,
+                                        children: [
+                                          if (!isMine)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                left: 4,
+                                                bottom: 2,
+                                              ),
+                                              child: Text(
+                                                senderName,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey.shade600,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 14,
+                                              vertical: 10,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: bubbleColor,
+                                              borderRadius: BorderRadius.only(
+                                                topLeft: const Radius.circular(
+                                                  16,
+                                                ),
+                                                topRight: const Radius.circular(
+                                                  16,
+                                                ),
+                                                bottomLeft: Radius.circular(
+                                                  isMine ? 16 : 4,
+                                                ),
+                                                bottomRight: Radius.circular(
+                                                  isMine ? 4 : 16,
+                                                ),
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.03),
+                                                  blurRadius: 6,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                              border: isMine
+                                                  ? null
+                                                  : Border.all(
+                                                      color: const Color(
+                                                        0xFFE2E8F0,
+                                                      ),
                                                     ),
-                                                  ),
-                                                ),
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 14,
-                                                  vertical: 10,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: bubbleColor,
-                                                  borderRadius: BorderRadius.only(
-                                                    topLeft: const Radius.circular(16),
-                                                    topRight: const Radius.circular(16),
-                                                    bottomLeft: Radius.circular(
-                                                        isMine ? 16 : 4),
-                                                    bottomRight: Radius.circular(
-                                                        isMine ? 4 : 16),
-                                                  ),
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: Colors.black
-                                                          .withOpacity(0.03),
-                                                      blurRadius: 6,
-                                                      offset: const Offset(0, 2),
-                                                    ),
-                                                  ],
-                                                  border: isMine
-                                                      ? null
-                                                      : Border.all(
-                                                          color: const Color(0xFFE2E8F0),
-                                                        ),
-                                                ),
-                                                child: isLocalImage
-                                                    ? Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment.start,
-                                                        children: [
-                                                          ClipRRect(
-                                                            borderRadius:
-                                                                BorderRadius.circular(12),
-                                                            child: ConstrainedBox(
-                                                              constraints:
-                                                                  const BoxConstraints(
+                                            ),
+                                            child: isLocalImage
+                                                ? Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      ClipRRect(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                        child: ConstrainedBox(
+                                                          constraints:
+                                                              const BoxConstraints(
                                                                 maxHeight: 240,
                                                                 minHeight: 100,
                                                               ),
-                                                              child: Image.file(
-                                                                File((msg['attachment'])
-                                                                    .toString()),
-                                                                fit: BoxFit.cover,
-                                                                width: double.infinity,
+                                                          child: Image.file(
+                                                            File(
+                                                              (msg['attachment'])
+                                                                  .toString(),
+                                                            ),
+                                                            fit: BoxFit.cover,
+                                                            width:
+                                                                double.infinity,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      if (content.isNotEmpty &&
+                                                          content.toLowerCase() !=
+                                                              'image')
+                                                        Padding(
+                                                          padding:
+                                                              const EdgeInsets.only(
+                                                                top: 8,
                                                               ),
+                                                          child: Text(
+                                                            content,
+                                                            style: TextStyle(
+                                                              color: textColor,
+                                                              fontSize: 16,
+                                                              height: 1.3,
                                                             ),
                                                           ),
-                                                          if (content.isNotEmpty &&
-                                                              content.toLowerCase() !=
-                                                                  'image')
-                                                            Padding(
-                                                              padding:
-                                                                  const EdgeInsets.only(
-                                                                    top: 8,
-                                                                  ),
-                                                              child: Text(
-                                                                content,
-                                                                style: TextStyle(
-                                                                  color: textColor,
-                                                                  fontSize: 16,
-                                                                  height: 1.3,
-                                                                ),
-                                                              ),
+                                                        ),
+                                                    ],
+                                                  )
+                                                : isRemoteImage
+                                                ? Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      ClipRRect(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
                                                             ),
-                                                        ],
-                                                      )
-                                                    : isRemoteImage
-                                                        ? Column(
-                                                            crossAxisAlignment:
-                                                                CrossAxisAlignment.start,
-                                                            children: [
-                                                              ClipRRect(
-                                                                borderRadius:
-                                                                    BorderRadius.circular(
-                                                                  12,
-                                                                ),
-                                                                child: ConstrainedBox(
-                                                                  constraints:
-                                                                      const BoxConstraints(
-                                                                    maxHeight: 240,
-                                                                    minHeight: 100,
-                                                                  ),
-                                                                  child: Builder(
-                                                                    builder: (_) {
-                                                                      final token =
-                                                                          StorageService
-                                                                              .getAuthToken();
-                                                                      final headers =
-                                                                          <String,
-                                                                              String>{};
-                                                                      if (token != null &&
-                                                                          token.isNotEmpty) {
-                                                                        headers['Authorization'] =
-                                                                            'Bearer $token';
-                                                                      }
-                                                                      return Image.network(
-                                                                        attachmentUrl,
-                                                                        fit: BoxFit.cover,
-                                                                        width: double
-                                                                            .infinity,
-                                                                        headers: headers
-                                                                                .isEmpty
-                                                                            ? null
-                                                                            : headers,
-                                                                        errorBuilder: (
-                                                                          context,
-                                                                          error,
-                                                                          stack,
-                                                                        ) {
-                                                                          return Container(
-                                                                            color: Colors
-                                                                                .black12,
-                                                                            alignment:
-                                                                                Alignment
-                                                                                    .center,
-                                                                            child: Column(
-                                                                              mainAxisSize:
-                                                                                  MainAxisSize
-                                                                                      .min,
-                                                                              children: const [
-                                                                                Icon(
-                                                                                  Icons.broken_image_outlined,
-                                                                                  size: 40,
-                                                                                  color: Colors
-                                                                                      .grey,
-                                                                                ),
-                                                                                SizedBox(
-                                                                                    height: 6),
-                                                                                Text(
-                                                                                  'Image unavailable',
-                                                                                  style: TextStyle(
-                                                                                    color: Colors
-                                                                                        .grey,
-                                                                                    fontSize: 12,
-                                                                                  ),
-                                                                                ),
-                                                                              ],
+                                                        child: ConstrainedBox(
+                                                          constraints:
+                                                              const BoxConstraints(
+                                                                maxHeight: 240,
+                                                                minHeight: 100,
+                                                              ),
+                                                          child: Builder(
+                                                            builder: (_) {
+                                                              final token =
+                                                                  StorageService.getAuthToken();
+                                                              final headers =
+                                                                  <
+                                                                    String,
+                                                                    String
+                                                                  >{};
+                                                              if (token !=
+                                                                      null &&
+                                                                  token
+                                                                      .isNotEmpty) {
+                                                                headers['Authorization'] =
+                                                                    'Bearer $token';
+                                                              }
+                                                              return Image.network(
+                                                                attachmentUrl,
+                                                                fit: BoxFit
+                                                                    .cover,
+                                                                width: double
+                                                                    .infinity,
+                                                                headers:
+                                                                    headers
+                                                                        .isEmpty
+                                                                    ? null
+                                                                    : headers,
+                                                                errorBuilder:
+                                                                    (
+                                                                      context,
+                                                                      error,
+                                                                      stack,
+                                                                    ) {
+                                                                      return Container(
+                                                                        color: Colors
+                                                                            .black12,
+                                                                        alignment:
+                                                                            Alignment.center,
+                                                                        child: Column(
+                                                                          mainAxisSize:
+                                                                              MainAxisSize.min,
+                                                                          children: const [
+                                                                            Icon(
+                                                                              Icons.broken_image_outlined,
+                                                                              size: 40,
+                                                                              color: Colors.grey,
                                                                             ),
-                                                                          );
-                                                                        },
+                                                                            SizedBox(
+                                                                              height: 6,
+                                                                            ),
+                                                                            Text(
+                                                                              'Image unavailable',
+                                                                              style: TextStyle(
+                                                                                color: Colors.grey,
+                                                                                fontSize: 12,
+                                                                              ),
+                                                                            ),
+                                                                          ],
+                                                                        ),
                                                                       );
                                                                     },
-                                                                  ),
-                                                                ),
+                                                              );
+                                                            },
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      if (content.isNotEmpty &&
+                                                          content.toLowerCase() !=
+                                                              'image')
+                                                        Padding(
+                                                          padding:
+                                                              const EdgeInsets.only(
+                                                                top: 8,
                                                               ),
-                                                              if (content.isNotEmpty &&
-                                                                  content.toLowerCase() !=
-                                                                      'image')
-                                                                Padding(
-                                                                  padding:
-                                                                      const EdgeInsets.only(
-                                                                    top: 8,
-                                                                  ),
-                                                                  child: Text(
-                                                                    content,
-                                                                    style: TextStyle(
-                                                                      color: textColor,
-                                                                      fontSize: 16,
-                                                                      height: 1.3,
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                            ],
-                                                          )
-                                                        : isVoiceMessage
-                                                            ? _buildVoiceMessageBubble(
-                                                                msg,
-                                                                isMine,
-                                                                textColor,
-                                                                bubbleColor,
-                                                                isLocalVoice || (msg['local_attachment'] != null),
-                                                                isRemoteVoice || attachmentUrl.isNotEmpty || (msg['attachment'] != null),
-                                                                attachmentUrl,
-                                                              )
-                                                            : Text(
-                                                                content,
-                                                                style: TextStyle(
-                                                                  color: textColor,
-                                                                  fontSize: 16,
-                                                                  height: 1.3,
-                                                                ),
-                                                              ),
-                                              ),
-                                              if (timeLabel.isNotEmpty)
-                                                Padding(
-                                                  padding: const EdgeInsets.only(
-                                                    top: 2,
-                                                    left: 6,
-                                                    right: 6,
-                                                  ),
-                                                  child: Text(
-                                                    timeLabel,
+                                                          child: Text(
+                                                            content,
+                                                            style: TextStyle(
+                                                              color: textColor,
+                                                              fontSize: 16,
+                                                              height: 1.3,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  )
+                                                : isVoiceMessage
+                                                ? _buildVoiceMessageBubble(
+                                                    msg,
+                                                    isMine,
+                                                    textColor,
+                                                    bubbleColor,
+                                                    isLocalVoice ||
+                                                        (msg['local_attachment'] !=
+                                                            null),
+                                                    isRemoteVoice ||
+                                                        attachmentUrl
+                                                            .isNotEmpty ||
+                                                        (msg['attachment'] !=
+                                                            null),
+                                                    attachmentUrl,
+                                                  )
+                                                : Text(
+                                                    content,
                                                     style: TextStyle(
-                                                      fontSize: 11,
-                                                      color: Colors.grey.shade600,
+                                                      color: textColor,
+                                                      fontSize: 16,
+                                                      height: 1.3,
                                                     ),
                                                   ),
+                                          ),
+                                          if (timeLabel.isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 2,
+                                                left: 6,
+                                                right: 6,
+                                              ),
+                                              child: Text(
+                                                timeLabel,
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.grey.shade600,
                                                 ),
-                                            ],
-                                          ),
-                                        ),
+                                              ),
+                                            ),
+                                        ],
                                       ),
-                                      if (isMine) const SizedBox(width: 6),
-                                      if (isMine)
-                                        const CircleAvatar(
-                                          radius: 14,
-                                          backgroundColor: Color(0xFFDBEAFE),
-                                          child: Icon(
-                                            Icons.person,
-                                            size: 14,
-                                            color: Color(0xFF1D4ED8),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                    SafeArea(
-                      top: false,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(28),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.04),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
                                     ),
-                                  ],
-                                  border: Border.all(
-                                    color: const Color(0xFFE2E8F0),
                                   ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      tooltip: _isRecording ? 'Stop recording' : 'Record voice',
-                                      icon: Icon(
-                                        _isRecording ? Icons.stop_circle : Icons.mic,
-                                        color: _isRecording ? Colors.red : const Color(0xFF64748B),
-                                      ),
-                                      onPressed: () {
-                                        if (_isRecording) {
-                                          _stopRecording();
-                                        } else {
-                                          _startRecording();
-                                        }
+                                  if (isMine) const SizedBox(width: 6),
+                                  if (isMine) ...[
+                                    Builder(
+                                      builder: (context) {
+                                        final currentUser =
+                                            _chat?['current_user']
+                                                as Map<String, dynamic>?;
+                                        final currentUserName =
+                                            currentUser?['display_name'] ??
+                                            currentUser?['full_name'] ??
+                                            ((currentUser?['first_name'] !=
+                                                        null ||
+                                                    currentUser?['last_name'] !=
+                                                        null)
+                                                ? '${currentUser?['first_name'] ?? ''} ${currentUser?['last_name'] ?? ''}'
+                                                      .trim()
+                                                : null) ??
+                                            'Me';
+                                        final avatarColor = _getAvatarColor(
+                                          currentUserName,
+                                        );
+                                        return CircleAvatar(
+                                          radius: 14,
+                                          backgroundColor: avatarColor,
+                                          child: Text(
+                                            currentUserName.isNotEmpty
+                                                ? currentUserName[0]
+                                                      .toUpperCase()
+                                                : 'M',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        );
                                       },
                                     ),
-                                    IconButton(
-                                      tooltip: 'Add image',
-                                      icon: const Icon(
-                                        Icons.image_outlined,
-                                        color: Color(0xFF64748B),
-                                      ),
-                                      onPressed: _pickImage,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: _isRecording
-                                          ? Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                                              child: Row(
-                                                children: [
-                                                  Container(
-                                                    width: 12,
-                                                    height: 12,
-                                                    decoration: const BoxDecoration(
-                                                      color: Colors.red,
-                                                      shape: BoxShape.circle,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Text(
-                                                    _formatDuration(_recordingDuration),
-                                                    style: const TextStyle(
-                                                      fontSize: 14,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: Colors.red,
-                                                    ),
-                                                  ),
-                                                  const Spacer(),
-                                                  TextButton(
-                                                    onPressed: () => _stopRecording(showPreview: false),
-                                                    child: const Text('Cancel', style: TextStyle(color: Colors.red)),
-                                                  ),
-                                                ],
-                                              ),
-                                            )
-                                          : TextField(
-                                              controller: _controller,
-                                              minLines: 1,
-                                              maxLines: 4,
-                                              style: const TextStyle(color: Colors.black87),
-                                              decoration: const InputDecoration(
-                                                hintText: 'Type a message',
-                                                hintStyle: TextStyle(color: Color(0xFF94A3B8)),
-                                                filled: true,
-                                                fillColor: Colors.transparent,
-                                                border: InputBorder.none,
-                                              ),
-                                              textInputAction: TextInputAction.send,
-                                              onSubmitted: (_) => _send(),
-                                            ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    const SizedBox(width: 4),
                                   ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(24),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .primary
-                                        .withOpacity(0.3),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
                                 ],
                               ),
-                              child: CircleAvatar(
-                                backgroundColor:
-                                    Theme.of(context).colorScheme.primary,
-                                radius: 24,
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.send_rounded,
-                                    color: Colors.white,
-                                  ),
-                                  onPressed: _send,
+                            );
+                          },
+                        ),
+                ),
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(28),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
                                 ),
+                              ],
+                              border: Border.all(
+                                color: const Color(0xFFE2E8F0),
                               ),
                             ),
-                          ],
+                            child: Row(
+                              children: [
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  tooltip: _isRecording
+                                      ? 'Stop recording'
+                                      : 'Record voice',
+                                  icon: Icon(
+                                    _isRecording
+                                        ? Icons.stop_circle
+                                        : Icons.mic,
+                                    color: _isRecording
+                                        ? Colors.red
+                                        : const Color(0xFF64748B),
+                                  ),
+                                  onPressed: () {
+                                    if (_isRecording) {
+                                      _stopRecording();
+                                    } else {
+                                      _startRecording();
+                                    }
+                                  },
+                                ),
+                                IconButton(
+                                  tooltip: 'Add image',
+                                  icon: const Icon(
+                                    Icons.image_outlined,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                  onPressed: _pickImage,
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: _isRecording
+                                      ? Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 12,
+                                                height: 12,
+                                                decoration: const BoxDecoration(
+                                                  color: Colors.red,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                _formatDuration(
+                                                  _recordingDuration,
+                                                ),
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.red,
+                                                ),
+                                              ),
+                                              const Spacer(),
+                                              TextButton(
+                                                onPressed: () => _stopRecording(
+                                                  showPreview: false,
+                                                ),
+                                                child: const Text(
+                                                  'Cancel',
+                                                  style: TextStyle(
+                                                    color: Colors.red,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      : TextField(
+                                          controller: _controller,
+                                          minLines: 1,
+                                          maxLines: 4,
+                                          style: const TextStyle(
+                                            color: Colors.black87,
+                                          ),
+                                          decoration: const InputDecoration(
+                                            hintText: 'Type a message',
+                                            hintStyle: TextStyle(
+                                              color: Color(0xFF94A3B8),
+                                            ),
+                                            filled: true,
+                                            fillColor: Colors.transparent,
+                                            border: InputBorder.none,
+                                          ),
+                                          textInputAction: TextInputAction.send,
+                                          onSubmitted: (_) => _send(),
+                                        ),
+                                ),
+                                const SizedBox(width: 4),
+                                const SizedBox(width: 4),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.primary.withOpacity(0.3),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: CircleAvatar(
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
+                            radius: 24,
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.send_rounded,
+                                color: Colors.white,
+                              ),
+                              onPressed: _send,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
+              ],
+            ),
     );
   }
 }

@@ -2,11 +2,14 @@ import 'dart:async';
 import '../models/parent_model.dart';
 import '../config/api_endpoints.dart';
 import 'api_service.dart';
+import 'notification_service.dart';
 
 class ParentNotificationService {
   static final StreamController<Map<String, dynamic>> _notificationController =
       StreamController<Map<String, dynamic>>.broadcast();
   static Timer? _notificationTimer;
+  static final Set<dynamic> _processedNotificationIds = <dynamic>{}; // Changed to dynamic to handle both int and string IDs
+  static int? _currentParentId;
 
   static Stream<Map<String, dynamic>> get notificationStream =>
       _notificationController.stream;
@@ -153,35 +156,134 @@ class ParentNotificationService {
 
   /// Start real-time notification monitoring
   static void startNotificationMonitoring(int parentId) {
+    _currentParentId = parentId;
     _notificationTimer?.cancel();
+    // Check immediately, then periodically
+    _checkForNewNotifications(parentId);
     _notificationTimer = Timer.periodic(const Duration(seconds: 30), (
       timer,
     ) async {
       await _checkForNewNotifications(parentId);
     });
+    print('✅ Real-time notification monitoring started for parent $parentId');
   }
 
   /// Stop real-time notification monitoring
   static void stopNotificationMonitoring() {
     _notificationTimer?.cancel();
     _notificationTimer = null;
+    _currentParentId = null;
+    print('🛑 Real-time notification monitoring stopped');
   }
 
   /// Check for new notifications
   static Future<void> _checkForNewNotifications(int parentId) async {
     try {
-      final response = await getParentNotifications(limit: 10, isRead: false);
+      final response = await getParentNotifications(limit: 20, isRead: false);
 
       if (response.success && response.data != null) {
         final data = response.data!;
         final results = data['results'] as List<dynamic>? ?? [];
-        for (final notification in results) {
-          _notificationController.add(notification as Map<String, dynamic>);
+
+        for (final notificationData in results) {
+          final notification = notificationData as Map<String, dynamic>;
+          final notificationId = notification['id'];
+
+          // Skip if notification ID is null or already processed
+          if (notificationId == null) {
+            continue;
+          }
+
+          // Check if notification is already read - if so, skip it
+          final isReadValue = notification['is_read'] ?? notification['isRead'];
+          final isRead = isReadValue == true ||
+                         isReadValue == 1 ||
+                         isReadValue == '1' ||
+                         isReadValue == 'true';
+          final readAt = notification['read_at'] ?? notification['readAt'];
+          final hasReadAt = readAt != null && readAt != '' && readAt.toString().isNotEmpty;
+
+          if (isRead || hasReadAt) {
+            print('✅ Skipping read notification in real-time check: $notificationId');
+            continue;
+          }
+
+          // Track processed notifications by their actual ID (can be int or string)
+          // Use a Set that can handle both types
+          final idKey = notificationId.toString(); // Convert to string for consistent tracking
+
+          if (_processedNotificationIds.contains(notificationId) ||
+              _processedNotificationIds.contains(idKey)) {
+            print('⏭️ Notification already processed: $notificationId');
+            continue;
+          }
+
+          // Mark as processed - track both the original ID and string version
+          if (notificationId is int) {
+            _processedNotificationIds.add(notificationId);
+          }
+          // Also track string version for string IDs like "emergency_2"
+          _processedNotificationIds.add(notificationId);
+
+          // Emit to stream for UI updates (only unread notifications)
+          _notificationController.add(notification);
+
+          // Show local notification
+          await _showLocalNotification(notification);
         }
       }
     } catch (e) {
       print('❌ Failed to check for notifications: $e');
     }
+  }
+
+  /// Show local notification for a received notification
+  static Future<void> _showLocalNotification(
+    Map<String, dynamic> notification,
+  ) async {
+    try {
+      final title = notification['title'] as String? ??
+                    notification['message'] as String? ??
+                    'New Notification';
+      final message = notification['message'] as String? ??
+                      notification['title'] as String? ??
+                      'You have a new notification';
+      final notificationId = notification['id'];
+      final notificationType = notification['notification_type'] as String? ??
+                              notification['type'] as String? ??
+                              'general';
+
+      // Determine if this is an emergency notification
+      final isEmergency = notification['is_emergency'] == true ||
+                         notificationType == 'emergency_alert' ||
+                         notification['severity'] == 'critical';
+
+      if (isEmergency) {
+        await NotificationService.showEmergencyNotification(
+          title: title,
+          body: message,
+          emergencyId: notificationId?.toString(),
+        );
+      } else {
+        await NotificationService.showLocalNotification(
+          title: title,
+          body: message,
+          payload: notificationId?.toString(),
+          id: notificationId is int
+              ? notificationId.remainder(100000)
+              : DateTime.now().millisecondsSinceEpoch.remainder(100000),
+        );
+      }
+
+      print('🔔 Local notification shown: $title');
+    } catch (e) {
+      print('❌ Failed to show local notification: $e');
+    }
+  }
+
+  /// Clear processed notification IDs (useful for testing or reset)
+  static void clearProcessedNotifications() {
+    _processedNotificationIds.clear();
   }
 
   /// Get status message for child status
@@ -372,6 +474,8 @@ class ParentNotificationService {
   /// Dispose resources
   static Future<void> dispose() async {
     _notificationTimer?.cancel();
+    _processedNotificationIds.clear();
+    _currentParentId = null;
     await _notificationController.close();
   }
 }

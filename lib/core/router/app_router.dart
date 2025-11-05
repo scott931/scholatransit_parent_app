@@ -32,6 +32,8 @@ import '../../features/profile/screens/profile_screen.dart';
 import '../../features/map/screens/map_screen.dart';
 import '../../features/trip_logs/screens/trip_logs_screen.dart';
 import '../../core/providers/parent_auth_provider.dart';
+import '../../core/providers/parent_provider.dart';
+import '../../core/services/communication_service.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -379,7 +381,7 @@ class ParentMainShell extends ConsumerWidget {
   }
 }
 
-class _ParentSideDrawer extends ConsumerWidget {
+class _ParentSideDrawer extends ConsumerStatefulWidget {
   final String currentPath;
   final void Function(String path) onNavigate;
 
@@ -389,7 +391,113 @@ class _ParentSideDrawer extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ParentSideDrawer> createState() => _ParentSideDrawerState();
+}
+
+class _ParentSideDrawerState extends ConsumerState<_ParentSideDrawer> {
+  int _chatUnreadCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChatUnreadCount();
+  }
+
+  Future<void> _loadChatUnreadCount() async {
+    try {
+      final response = await CommunicationService.getUnreadCount();
+      if (response.success && response.data != null) {
+        final count =
+            response.data!['unread_count'] ??
+            response.data!['unreadCount'] ??
+            response.data!['count'] ??
+            0;
+        if (mounted) {
+          setState(() {
+            _chatUnreadCount = count is int
+                ? count
+                : (int.tryParse(count.toString()) ?? 0);
+          });
+          print('💬 Chat unread count: $_chatUnreadCount');
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _chatUnreadCount = 0;
+          });
+        }
+      }
+    } catch (e) {
+      print('❌ Failed to load chat unread count: $e');
+      if (mounted) {
+        setState(() {
+          _chatUnreadCount = 0;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Watch parent provider to get unread notification count
+    final parentState = ref.watch(parentProvider);
+
+    // Manually calculate unread count from notifications to ensure accuracy
+    final notifications = parentState.notifications;
+
+    // Filter and count only truly unread notifications
+    // Use the same logic as parent provider for consistency
+    final actualUnreadCount = notifications.where((n) {
+      // Normalize and check is_read field
+      dynamic isReadValue = n['is_read'] ?? n['isRead'];
+      bool isRead = false;
+
+      if (isReadValue == true ||
+          isReadValue == 1 ||
+          isReadValue == '1' ||
+          isReadValue == 'true' ||
+          isReadValue.toString().toLowerCase() == 'true') {
+        isRead = true;
+      }
+
+      // Check read_at field
+      final readAt = n['read_at'] ?? n['readAt'];
+      final hasReadAt =
+          readAt != null &&
+          readAt != '' &&
+          readAt.toString().isNotEmpty &&
+          readAt.toString().toLowerCase() != 'null';
+
+      // Notification is unread ONLY if is_read is false/null AND read_at is null/empty
+      final isUnread = !isRead && !hasReadAt;
+
+      // Debug: Log if notification appears unread but shouldn't be
+      if (isUnread) {
+        print(
+          '🔵 Unread notification ID: ${n['id']}, is_read: $isReadValue, read_at: $readAt',
+        );
+      }
+
+      return isUnread;
+    }).length;
+
+    // Use the manually calculated count - ensure it's 0 if no unread
+    final unreadCount = actualUnreadCount;
+
+    // Debug output - only log if there are notifications
+    if (notifications.isNotEmpty) {
+      print(
+        '🔔 Side Menu - Unread: $unreadCount, Total: ${notifications.length}, Read: ${notifications.length - unreadCount}',
+      );
+      // Log first few notifications to debug
+      if (unreadCount > 0 && notifications.length <= 5) {
+        for (final n in notifications) {
+          print(
+            '  - ID: ${n['id']}, is_read: ${n['is_read']}, read_at: ${n['read_at']}',
+          );
+        }
+      }
+    }
     return Drawer(
       child: Container(
         decoration: const BoxDecoration(color: Colors.white),
@@ -450,50 +558,67 @@ class _ParentSideDrawer extends ConsumerWidget {
                       context,
                       title: 'Dashboard',
                       icon: Icons.dashboard_rounded,
-                      selected: currentPath.startsWith('/parent/dashboard'),
+                      selected: widget.currentPath.startsWith(
+                        '/parent/dashboard',
+                      ),
                       to: '/parent/dashboard',
                     ),
                     _modernTile(
                       context,
                       title: 'Live Tracking',
                       icon: Icons.track_changes_rounded,
-                      selected: currentPath.startsWith('/parent/tracking'),
+                      selected: widget.currentPath.startsWith(
+                        '/parent/tracking',
+                      ),
                       to: '/parent/tracking',
                     ),
                     _modernTile(
                       context,
                       title: 'Schedule',
                       icon: Icons.schedule_rounded,
-                      selected: currentPath.startsWith('/parent/schedule'),
+                      selected: widget.currentPath.startsWith(
+                        '/parent/schedule',
+                      ),
                       to: '/parent/schedule',
                     ),
                     _modernTile(
                       context,
                       title: 'Messages',
                       icon: Icons.chat_bubble_rounded,
-                      selected: currentPath.startsWith('/parent/messages'),
-                      to: '/parent/messages',
+                      selected:
+                          widget.currentPath.startsWith('/parent/messages') ||
+                          widget.currentPath.startsWith('/chats') ||
+                          widget.currentPath.startsWith('/communication/chats'),
+                      to: '/chats',
+                      badgeCount: _chatUnreadCount > 0
+                          ? _chatUnreadCount
+                          : null,
                     ),
                     const SizedBox(height: 16),
                     _modernTile(
                       context,
                       title: 'Notifications',
                       icon: Icons.notifications_rounded,
-                      selected: currentPath.startsWith('/parent/notifications'),
+                      selected: widget.currentPath.startsWith(
+                        '/parent/notifications',
+                      ),
                       to: '/parent/notifications',
+                      badgeCount: unreadCount > 0 ? unreadCount : null,
                     ),
                     _modernTile(
                       context,
                       title: 'Students',
                       icon: Icons.school_rounded,
-                      selected: currentPath.startsWith('/parent/students'),
+                      selected: widget.currentPath.startsWith(
+                        '/parent/students',
+                      ),
                       to: '/parent/students',
                     ),
                     _modernTile(
                       context,
                       title: 'Attendance History',
                       icon: Icons.history_rounded,
-                      selected: currentPath.startsWith(
+                      selected: widget.currentPath.startsWith(
                         '/parent/attendance-history',
                       ),
                       to: '/parent/attendance-history',
@@ -502,14 +627,18 @@ class _ParentSideDrawer extends ConsumerWidget {
                       context,
                       title: 'Profile',
                       icon: Icons.person_rounded,
-                      selected: currentPath.startsWith('/parent/profile'),
+                      selected: widget.currentPath.startsWith(
+                        '/parent/profile',
+                      ),
                       to: '/parent/profile',
                     ),
                     _modernTile(
                       context,
                       title: 'QR Scanner',
                       icon: Icons.qr_code_scanner_rounded,
-                      selected: currentPath.startsWith('/parent/qr-scanner'),
+                      selected: widget.currentPath.startsWith(
+                        '/parent/qr-scanner',
+                      ),
                       to: '/parent/qr-scanner',
                     ),
                   ],
@@ -538,6 +667,7 @@ class _ParentSideDrawer extends ConsumerWidget {
     required IconData icon,
     required bool selected,
     required String to,
+    int? badgeCount,
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
@@ -564,17 +694,40 @@ class _ParentSideDrawer extends ConsumerWidget {
             size: 20,
           ),
         ),
-        title: Text(
-          title,
-          style: TextStyle(
-            color: selected ? const Color(0xFF0052CC) : Colors.grey[800],
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-            fontSize: 16,
-          ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: selected ? const Color(0xFF0052CC) : Colors.grey[800],
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            if (badgeCount != null && badgeCount > 0)
+              Container(
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  badgeCount > 99 ? '99+' : '$badgeCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
         ),
         onTap: () {
           Navigator.of(context).pop();
-          onNavigate(to);
+          widget.onNavigate(to);
         },
       ),
     );

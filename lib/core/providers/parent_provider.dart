@@ -8,7 +8,6 @@ import '../services/parent_notification_service.dart';
 import '../services/parent_student_service.dart';
 import '../services/storage_service.dart';
 import '../services/authentication_service.dart';
-import '../services/api_response_handler.dart';
 import '../services/state_management_helper.dart';
 import '../services/debug_logger.dart';
 
@@ -86,6 +85,36 @@ class ParentNotifier extends StateNotifier<ParentState> {
     });
   }
 
+  /// Helper method to calculate unread count from notifications
+  /// Uses consistent logic to determine if a notification is read
+  int _calculateUnreadCount(List<Map<String, dynamic>> notifications) {
+    return notifications.where((n) {
+      // Normalize and check is_read field
+      dynamic isReadValue = n['is_read'] ?? n['isRead'];
+      bool isRead = false;
+
+      if (isReadValue == true ||
+          isReadValue == 1 ||
+          isReadValue == '1' ||
+          isReadValue == 'true' ||
+          isReadValue.toString().toLowerCase() == 'true') {
+        isRead = true;
+      }
+
+      // Check read_at field
+      final readAt = n['read_at'] ?? n['readAt'];
+      final hasReadAt = readAt != null &&
+                        readAt != '' &&
+                        readAt.toString().isNotEmpty &&
+                        readAt.toString().toLowerCase() != 'null';
+
+      // Notification is unread ONLY if is_read is false/null AND read_at is null/empty
+      final isUnread = !isRead && !hasReadAt;
+
+      return isUnread;
+    }).length;
+  }
+
   /// Helper method to handle both direct list and paginated response formats
   List<Map<String, dynamic>> _extractDataFromResponse(dynamic responseData) {
     List<Map<String, dynamic>> extractedData = [];
@@ -153,6 +182,11 @@ class ParentNotifier extends StateNotifier<ParentState> {
 
       // Load notifications
       await loadNotifications();
+
+      // Start real-time notification monitoring if parent is loaded
+      if (state.parent != null) {
+        await startNotificationMonitoring();
+      }
 
       state = state.copyWith(isLoading: false);
     } catch (e) {
@@ -265,7 +299,7 @@ class ParentNotifier extends StateNotifier<ParentState> {
         );
       }
 
-      // Load regular notifications
+      // Load regular notifications (both read and unread for display)
       final notificationsResponse =
           await ParentNotificationService.getParentNotifications(limit: 50);
       print('📱 Notifications API response:');
@@ -347,14 +381,85 @@ class ParentNotifier extends StateNotifier<ParentState> {
           return bTime.compareTo(aTime);
         });
 
-        final unreadCount = allNotifications
-            .where((n) => !(n['is_read'] ?? false))
-            .length;
+        // Normalize notification fields and merge with existing notifications
+        // to preserve read status of notifications that were marked as read locally
+        // Create a map with both int and string keys for robust ID matching
+        final existingNotifications = <dynamic, Map<String, dynamic>>{};
+        for (final n in state.notifications) {
+          final id = n['id'];
+          existingNotifications[id] = n;
+          // Also store with string key for matching
+          existingNotifications[id.toString()] = n;
+        }
+
+        final normalizedNotifications = allNotifications.map((n) {
+          final normalized = Map<String, dynamic>.from(n);
+          final notificationId = normalized['id'];
+
+          // Check if this notification already exists in local state
+          // Try both the original ID and string version
+          final existingNotification = existingNotifications[notificationId] ??
+                                      existingNotifications[notificationId.toString()];
+
+          if (existingNotification != null) {
+            // Preserve read status from local state if it was marked as read
+            dynamic existingIsReadValue = existingNotification['is_read'] ?? existingNotification['isRead'];
+            bool existingIsRead = false;
+            if (existingIsReadValue == true || existingIsReadValue == 1 || existingIsReadValue == '1' || existingIsReadValue == 'true') {
+              existingIsRead = true;
+            }
+            final existingReadAt = existingNotification['read_at'] ?? existingNotification['readAt'];
+            final existingHasReadAt = existingReadAt != null && existingReadAt != '' && existingReadAt.toString().isNotEmpty;
+
+            // If notification was marked as read locally, preserve that status
+            if (existingIsRead || existingHasReadAt) {
+              print('📖 Preserving read status for notification: $notificationId');
+              normalized['is_read'] = true;
+              normalized['read_at'] = existingReadAt ?? DateTime.now().toIso8601String();
+              // Also normalize other fields
+              if (normalized['read_at'] == null && normalized['readAt'] != null) {
+                normalized['read_at'] = normalized['readAt'];
+              }
+              return normalized;
+            }
+          }
+
+          // Normalize fields for new notifications
+          // Ensure is_read is a boolean
+          if (normalized['is_read'] == null && normalized['isRead'] != null) {
+            normalized['is_read'] = normalized['isRead'];
+          }
+          if (normalized['is_read'] == 1 || normalized['is_read'] == '1') {
+            normalized['is_read'] = true;
+          }
+          if (normalized['is_read'] == 0 || normalized['is_read'] == '0' || normalized['is_read'] == null) {
+            normalized['is_read'] = false;
+          }
+          // Ensure read_at is consistent
+          if (normalized['read_at'] == null && normalized['readAt'] != null) {
+            normalized['read_at'] = normalized['readAt'];
+          }
+          return normalized;
+        }).toList();
+
+        // Calculate unread count using the helper method
+        final unreadCount = _calculateUnreadCount(normalizedNotifications);
+
         print(
-          '📱 Total loaded ${allNotifications.length} notifications, $unreadCount unread',
+          '📱 Total loaded ${normalizedNotifications.length} notifications, $unreadCount unread, ${normalizedNotifications.length - unreadCount} read',
         );
+
+        // Debug: Print first few notifications to see their read status
+        if (normalizedNotifications.isNotEmpty) {
+          print('📱 Sample notifications:');
+          for (int i = 0; i < normalizedNotifications.length && i < 3; i++) {
+            final n = normalizedNotifications[i];
+            print('  ${i + 1}. ID: ${n['id']}, is_read: ${n['is_read']} (${n['is_read'].runtimeType}), read_at: ${n['read_at']}');
+          }
+        }
+
         state = state.copyWith(
-          notifications: allNotifications,
+          notifications: normalizedNotifications,
           unreadCount: unreadCount,
         );
       } else {
@@ -423,45 +528,180 @@ class ParentNotifier extends StateNotifier<ParentState> {
       return;
     }
 
-    final updatedNotifications = List<Map<String, dynamic>>.from(
-      state.notifications,
+    final notificationId = notification['id'];
+
+    // Check if notification already exists in the list
+    final existingIndex = state.notifications.indexWhere(
+      (n) => n['id'] == notificationId ||
+             (n['id'] is int && notificationId is int && n['id'] == notificationId) ||
+             (n['id'] is String && notificationId is String && n['id'] == notificationId) ||
+             (n['id'].toString() == notificationId.toString()),
     );
-    updatedNotifications.insert(0, notification);
 
-    // Calculate unread count from all notifications
-    final unreadCount = updatedNotifications
-        .where((n) => !(n['is_read'] ?? false))
-        .length;
+    if (existingIndex >= 0) {
+      // Notification already exists - check if it's read
+      final existingNotification = state.notifications[existingIndex];
 
-    state = state.copyWith(
-      notifications: updatedNotifications,
-      unreadCount: unreadCount,
-    );
-  }
+      // Normalize existing notification read status
+      dynamic existingIsReadValue = existingNotification['is_read'] ?? existingNotification['isRead'];
+      bool existingIsRead = false;
+      if (existingIsReadValue == true || existingIsReadValue == 1 || existingIsReadValue == '1' || existingIsReadValue == 'true') {
+        existingIsRead = true;
+      }
+      final existingReadAt = existingNotification['read_at'] ?? existingNotification['readAt'];
+      final existingHasReadAt = existingReadAt != null && existingReadAt != '' && existingReadAt.toString().isNotEmpty;
+      final existingIsReadFinal = existingIsRead || existingHasReadAt;
 
-  Future<void> markNotificationAsRead(int notificationId) async {
-    try {
-      await ParentNotificationService.markNotificationAsRead(
-        notificationId: notificationId,
+      // If existing notification is already read, NEVER update it - preserve read status
+      if (existingIsReadFinal) {
+        print('✅ Existing notification is already read, preserving read status: $notificationId');
+        return;
+      }
+
+      // Check if the incoming notification is read - if so, mark existing as read
+      dynamic newIsReadValue = notification['is_read'] ?? notification['isRead'];
+      bool newIsRead = false;
+      if (newIsReadValue == true || newIsReadValue == 1 || newIsReadValue == '1' || newIsReadValue == 'true') {
+        newIsRead = true;
+      }
+      final newReadAt = notification['read_at'] ?? notification['readAt'];
+      final newHasReadAt = newReadAt != null && newReadAt != '' && newReadAt.toString().isNotEmpty;
+
+      // If incoming notification is read, mark existing as read too
+      if (newIsRead || newHasReadAt) {
+        print('📖 Marking existing notification as read from server update: $notificationId');
+        final updatedNotifications = List<Map<String, dynamic>>.from(state.notifications);
+        updatedNotifications[existingIndex] = {
+          ...existingNotification,
+          'is_read': true,
+          'read_at': newReadAt ?? DateTime.now().toIso8601String(),
+        };
+        final unreadCount = _calculateUnreadCount(updatedNotifications);
+        state = state.copyWith(
+          notifications: updatedNotifications,
+          unreadCount: unreadCount,
+        );
+        return;
+      }
+
+      // Both are unread - just update the existing notification with new data
+      print('🔄 Updating existing unread notification: $notificationId');
+      final updatedNotifications = List<Map<String, dynamic>>.from(
+        state.notifications,
       );
 
-      // Update local state
-      final updatedNotifications = state.notifications.map((notification) {
-        if (notification['id'] == notificationId) {
-          return {...notification, 'is_read': true};
-        }
-        return notification;
-      }).toList();
+      // Update with new notification data, but preserve read status if already read
+      updatedNotifications[existingIndex] = {
+        ...notification,
+        // Preserve existing read status - don't overwrite if already read
+        'is_read': existingNotification['is_read'],
+        'read_at': existingNotification['read_at'],
+      };
 
-      // Calculate unread count from all notifications
-      final unreadCount = updatedNotifications
-          .where((n) => !(n['is_read'] ?? false))
-          .length;
+      // Calculate unread count using the helper method
+      final unreadCount = _calculateUnreadCount(updatedNotifications);
 
       state = state.copyWith(
         notifications: updatedNotifications,
         unreadCount: unreadCount,
       );
+      return;
+    }
+
+    // Add new notification (only if it's unread)
+    // Check if notification is read before adding
+    dynamic isReadValue = notification['is_read'] ?? notification['isRead'];
+    bool isRead = false;
+    if (isReadValue == true || isReadValue == 1 || isReadValue == '1' || isReadValue == 'true') {
+      isRead = true;
+    }
+    final readAt = notification['read_at'] ?? notification['readAt'];
+    final hasReadAt = readAt != null && readAt != '' && readAt.toString().isNotEmpty;
+
+    // Only add if notification is unread
+    if (!isRead && !hasReadAt) {
+      final updatedNotifications = List<Map<String, dynamic>>.from(
+        state.notifications,
+      );
+      updatedNotifications.insert(0, notification);
+
+      // Calculate unread count using the helper method
+      final unreadCount = _calculateUnreadCount(updatedNotifications);
+
+      print('🔔 New unread notification added: ${notification['title'] ?? notification['message']}');
+      state = state.copyWith(
+        notifications: updatedNotifications,
+        unreadCount: unreadCount,
+      );
+    } else {
+      print('✅ Skipping read notification when adding new: $notificationId, is_read: $isReadValue, read_at: $readAt');
+    }
+  }
+
+  Future<void> markNotificationAsRead(dynamic notificationId) async {
+    try {
+      print('📖 Marking notification as read: $notificationId (type: ${notificationId.runtimeType})');
+
+      // For emergency alerts with string IDs like "emergency_2", we can't mark them via API
+      // But we can mark them locally
+      if (notificationId is String && notificationId.startsWith('emergency_')) {
+        print('⚠️ Emergency alert with string ID - marking locally only');
+      } else {
+        // Try to mark via API if it's a numeric ID
+        try {
+          final numericId = notificationId is int
+              ? notificationId
+              : (notificationId is String ? int.tryParse(notificationId) : null);
+
+          if (numericId != null) {
+            await ParentNotificationService.markNotificationAsRead(
+              notificationId: numericId,
+            );
+          }
+        } catch (e) {
+          print('⚠️ Could not mark via API (may be emergency alert): $e');
+        }
+      }
+
+      // Update local state - mark as read by setting both is_read and read_at
+      final updatedNotifications = state.notifications.map((notification) {
+        final notifId = notification['id'];
+        // Handle different ID types (int, string, etc.)
+        final matches = (notifId == notificationId) ||
+                       (notifId is int && notificationId is int && notifId == notificationId) ||
+                       (notifId is String && notificationId is String && notifId == notificationId) ||
+                       (notifId is String && notificationId is int && notifId == notificationId.toString()) ||
+                       (notifId is int && notificationId is String && notifId.toString() == notificationId) ||
+                       (notifId.toString() == notificationId.toString());
+
+        if (matches) {
+          print('✅ Marked notification $notifId as read');
+          return {
+            ...notification,
+            'is_read': true,
+            'read_at': DateTime.now().toIso8601String(),
+          };
+        }
+        return notification;
+      }).toList();
+
+      // Calculate unread count using the helper method
+      final unreadCount = _calculateUnreadCount(updatedNotifications);
+
+      print('📖 After marking as read - Unread count: $unreadCount (Total: ${updatedNotifications.length})');
+      print('📖 Notification IDs after marking: ${updatedNotifications.map((n) => '${n['id']}: is_read=${n['is_read']}, read_at=${n['read_at']}').join(', ')}');
+
+      state = state.copyWith(
+        notifications: updatedNotifications,
+        unreadCount: unreadCount,
+      );
+
+      // For string IDs (like emergency alerts), we don't need to reload from server
+      // since they're only stored locally. For numeric IDs, reload to get server status.
+      if (notificationId is int) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        await loadNotifications();
+      }
     } catch (e) {
       print('❌ Failed to mark notification as read: $e');
     }
@@ -470,18 +710,30 @@ class ParentNotifier extends StateNotifier<ParentState> {
   Future<void> markAllNotificationsAsRead() async {
     if (state.parent != null) {
       try {
+        print('📖 Marking ALL notifications as read...');
         await ParentNotificationService.markAllNotificationsAsRead(
           parentId: state.parent!.id,
         );
 
+        // Mark all as read locally
         final updatedNotifications = state.notifications.map((notification) {
-          return {...notification, 'is_read': true};
+          return {
+            ...notification,
+            'is_read': true,
+            'read_at': DateTime.now().toIso8601String(),
+          };
         }).toList();
 
         state = state.copyWith(
           notifications: updatedNotifications,
           unreadCount: 0,
         );
+
+        print('✅ All notifications marked as read. Unread count: 0');
+
+        // Reload notifications from server to get the latest status
+        await Future.delayed(const Duration(milliseconds: 500));
+        await loadNotifications();
       } catch (e) {
         print('❌ Failed to mark all notifications as read: $e');
       }
