@@ -12,6 +12,7 @@ import '../../features/auth/screens/forgot_password_screen.dart';
 // REMOVED: import '../../features/notifications/screens/notifications_screen.dart'; // Using parent notifications instead
 import '../../features/notifications/screens/alert_details_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
+import '../../features/settings/screens/notification_listener_settings_screen.dart';
 import '../../features/parent/screens/parent_dashboard_screen.dart';
 import '../../features/parent/screens/parent_tracking_screen.dart';
 import '../../features/parent/screens/parent_schedule_screen.dart';
@@ -31,7 +32,6 @@ import '../../features/trips/screens/trip_details_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/map/screens/map_screen.dart';
 import '../../features/trip_logs/screens/trip_logs_screen.dart';
-import '../../core/providers/parent_auth_provider.dart';
 import '../../core/providers/parent_provider.dart';
 import '../../core/services/communication_service.dart';
 
@@ -124,6 +124,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'settings',
         builder: (context, state) => const SettingsScreen(),
       ),
+      GoRoute(
+        path: '/settings/notification-listener',
+        name: 'notification-listener-settings',
+        builder: (context, state) => const NotificationListenerSettingsScreen(),
+      ),
       // Trip logs route
       GoRoute(
         path: '/trip-logs',
@@ -189,10 +194,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/parent/dashboard',
             name: 'parent-dashboard',
             builder: (context, state) => const ParentDashboardScreen(),
-            redirect: (context, state) {
-              final authState = ref.read(parentAuthProvider);
-              return authState.isAuthenticated ? null : '/login';
-            },
           ),
           GoRoute(
             path: '/parent/tracking',
@@ -213,19 +214,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/parent/notifications',
             name: 'parent-notifications',
             builder: (context, state) => const ParentNotificationsScreen(),
-            redirect: (context, state) {
-              final authState = ref.read(parentAuthProvider);
-              return authState.isAuthenticated ? null : '/login';
-            },
           ),
           GoRoute(
             path: '/parent/students',
             name: 'parent-students',
             builder: (context, state) => const ParentStudentsScreen(),
-            redirect: (context, state) {
-              final authState = ref.read(parentAuthProvider);
-              return authState.isAuthenticated ? null : '/login';
-            },
           ),
           GoRoute(
             path: '/parent/attendance-history',
@@ -236,10 +229,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/parent/profile',
             name: 'parent-profile',
             builder: (context, state) => const ParentProfileScreen(),
-            redirect: (context, state) {
-              final authState = ref.read(parentAuthProvider);
-              return authState.isAuthenticated ? null : '/login';
-            },
           ),
           GoRoute(
             path: '/parent/map',
@@ -513,9 +502,6 @@ class _ParentSideDrawerState extends ConsumerState<_ParentSideDrawer> {
                       width: 60,
                       height: 60,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF0052CC), Color(0xFF0066FF)],
-                        ),
                         borderRadius: BorderRadius.circular(30),
                         boxShadow: [
                           BoxShadow(
@@ -525,10 +511,14 @@ class _ParentSideDrawerState extends ConsumerState<_ParentSideDrawer> {
                           ),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.school,
-                        color: Colors.white,
-                        size: 30,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: Image.asset(
+                          'assets/images/parentslogo.png',
+                          width: 60,
+                          height: 60,
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),

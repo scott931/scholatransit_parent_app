@@ -63,7 +63,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   width: 160.w,
                   height: 120.h,
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryColor,
                     borderRadius: BorderRadius.circular(20.r),
                     boxShadow: [
                       BoxShadow(
@@ -73,15 +72,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ],
                   ),
-                  child: Center(
-                    child: Text(
-                      'Go Drop Parents',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20.r),
+                    child: Image.asset(
+                      'assets/images/parentslogo.png',
+                      width: 160.w,
+                      height: 120.h,
+                      fit: BoxFit.contain,
                     ),
                   ),
                 ),

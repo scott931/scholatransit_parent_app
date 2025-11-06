@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -155,6 +156,24 @@ class SettingsScreen extends ConsumerWidget {
                       value: true,
                       onChanged: (value) {
                         // TODO: Update notification settings
+                      },
+                    ),
+
+                    SizedBox(height: 16.h),
+
+                    // Notification Listener Settings (Android only)
+                    Builder(
+                      builder: (context) {
+                        if (Platform.isAndroid) {
+                          return _SettingsMenuItem(
+                            icon: Icons.notification_important_outlined,
+                            title: 'Notification Listener',
+                            onTap: () {
+                              context.go('/settings/notification-listener');
+                            },
+                          );
+                        }
+                        return const SizedBox.shrink();
                       },
                     ),
                   ],

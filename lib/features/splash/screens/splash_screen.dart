@@ -111,7 +111,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       width: 120.w,
                       height: 120.h,
                       decoration: BoxDecoration(
-                        color: Colors.black,
                         borderRadius: BorderRadius.circular(20.r),
                         boxShadow: [
                           BoxShadow(
@@ -121,10 +120,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                           ),
                         ],
                       ),
-                      child: Icon(
-                        Icons.directions_bus,
-                        size: 60.w,
-                        color: Colors.white,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20.r),
+                        child: Image.asset(
+                          'assets/images/parentslogo.png',
+                          width: 120.w,
+                          height: 120.h,
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
 

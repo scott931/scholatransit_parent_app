@@ -20,10 +20,10 @@ class AuthService {
 
   Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString(AppConfig.tokenKey);
+    _token = prefs.getString(AppConfig.authTokenKey);
     _refreshToken = prefs.getString(AppConfig.refreshTokenKey);
 
-    final userJson = prefs.getString(AppConfig.userKey);
+    final userJson = prefs.getString(AppConfig.userProfileKey);
     if (userJson != null) {
       _currentUser = User.fromJson(jsonDecode(userJson));
     }
@@ -32,7 +32,7 @@ class AuthService {
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
       final response = await http.post(
-        Uri.parse('${AppConfig.fullApiUrl}${AppConfig.loginEndpoint}'),
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.loginEndpoint}'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'password': password}),
       );
@@ -46,10 +46,10 @@ class AuthService {
 
         // Save to local storage
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(AppConfig.tokenKey, _token!);
+        await prefs.setString(AppConfig.authTokenKey, _token!);
         await prefs.setString(AppConfig.refreshTokenKey, _refreshToken!);
         await prefs.setString(
-          AppConfig.userKey,
+          AppConfig.userProfileKey,
           jsonEncode(_currentUser!.toJson()),
         );
 
@@ -74,7 +74,7 @@ class AuthService {
     try {
       if (_token != null) {
         await http.post(
-          Uri.parse('${AppConfig.fullApiUrl}${AppConfig.logoutEndpoint}'),
+          Uri.parse('${AppConfig.baseUrl}${AppConfig.logoutEndpoint}'),
           headers: {
             'Authorization': 'Bearer $_token',
             'Content-Type': 'application/json',
@@ -84,9 +84,9 @@ class AuthService {
 
       // Clear local storage
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(AppConfig.tokenKey);
+      await prefs.remove(AppConfig.authTokenKey);
       await prefs.remove(AppConfig.refreshTokenKey);
-      await prefs.remove(AppConfig.userKey);
+      await prefs.remove(AppConfig.userProfileKey);
 
       _token = null;
       _refreshToken = null;
@@ -98,14 +98,14 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> refreshToken() async {
+  Future<Map<String, dynamic>> refreshAuthToken() async {
     if (_refreshToken == null) {
       return {'success': false, 'message': 'No refresh token available'};
     }
 
     try {
       final response = await http.post(
-        Uri.parse('${AppConfig.fullApiUrl}${AppConfig.refreshEndpoint}'),
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.refreshTokenEndpoint}'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'refresh_token': _refreshToken}),
       );
@@ -118,7 +118,7 @@ class AuthService {
 
         // Update local storage
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(AppConfig.tokenKey, _token!);
+        await prefs.setString(AppConfig.authTokenKey, _token!);
         await prefs.setString(AppConfig.refreshTokenKey, _refreshToken!);
 
         return {'success': true, 'message': 'Token refreshed successfully'};
@@ -145,7 +145,7 @@ class AuthService {
 
     try {
       final response = await http.get(
-        Uri.parse('${AppConfig.fullApiUrl}${AppConfig.profileEndpoint}'),
+        Uri.parse('${AppConfig.baseUrl}${AppConfig.profileEndpoint}'),
         headers: {
           'Authorization': 'Bearer $_token',
           'Content-Type': 'application/json',
@@ -159,7 +159,7 @@ class AuthService {
         // Update local storage
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(
-          AppConfig.userKey,
+          AppConfig.userProfileKey,
           jsonEncode(_currentUser!.toJson()),
         );
 

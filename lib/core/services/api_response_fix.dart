@@ -12,35 +12,41 @@ class ApiResponseFix {
     try {
       print('🔧 SAFE API CALL: $endpoint');
 
-      // Use the raw Dio response to avoid type casting issues
-      final response = await ApiService._dio.get(
+      // Use ApiService.get() instead of accessing _dio directly
+      final response = await ApiService.get<Map<String, dynamic>>(
         endpoint,
         queryParameters: queryParameters,
       );
 
-      print('📡 Raw Response Status: ${response.statusCode}');
-      print('📡 Raw Response Data Type: ${response.data.runtimeType}');
+      if (!response.success) {
+        return response;
+      }
+
+      print('📡 Response Status: Success');
 
       // Handle the response data safely
       Map<String, dynamic> responseData;
 
-      if (response.data is Map<String, dynamic>) {
-        responseData = response.data as Map<String, dynamic>;
-        print('✅ Response is Map<String, dynamic>');
-      } else if (response.data is Map) {
-        // Handle generic Map case
-        responseData = Map<String, dynamic>.from(response.data as Map);
-        print('✅ Response is generic Map, converted to Map<String, dynamic>');
+      if (response.data != null) {
+        if (response.data is Map<String, dynamic>) {
+          responseData = response.data!;
+          print('✅ Response is Map<String, dynamic>');
+        } else if (response.data is Map) {
+          // Handle generic Map case
+          responseData = Map<String, dynamic>.from(response.data as Map);
+          print('✅ Response is generic Map, converted to Map<String, dynamic>');
+        } else {
+          print('❌ Unexpected response type: ${response.data.runtimeType}');
+          return ApiResponse<Map<String, dynamic>>.error(
+            'Unexpected response type: ${response.data.runtimeType}',
+          );
+        }
+
+        print('📊 Response Data Keys: ${responseData.keys.toList()}');
+        return ApiResponse<Map<String, dynamic>>.success(responseData);
       } else {
-        print('❌ Unexpected response type: ${response.data.runtimeType}');
-        return ApiResponse<Map<String, dynamic>>.error(
-          'Unexpected response type: ${response.data.runtimeType}',
-        );
+        return ApiResponse<Map<String, dynamic>>.error('Response data is null');
       }
-
-      print('📊 Response Data Keys: ${responseData.keys.toList()}');
-
-      return ApiResponse<Map<String, dynamic>>.success(responseData);
     } catch (e) {
       print('💥 Safe API call error: $e');
       return ApiResponse<Map<String, dynamic>>.error('API call failed: $e');
@@ -87,9 +93,4 @@ class ApiResponseFix {
       print('Value: $data');
     }
   }
-}
-
-/// Extension to access private Dio instance (if needed)
-extension ApiServiceExtension on ApiService {
-  static Dio get _dio => ApiService._dio;
 }

@@ -14,6 +14,7 @@ import 'core/services/api_service.dart';
 import 'core/services/location_health_monitor.dart';
 import 'core/services/simple_communication_log_service.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/android_notification_listener_service.dart';
 import 'core/widgets/system_back_button_handler.dart';
 import 'core/config/app_config.dart';
 import 'core/utils/hot_reload_handler.dart';
@@ -45,6 +46,9 @@ Future<void> _initializeServices() async {
 
   // Initialize notification service for local notifications
   await NotificationService.init();
+
+  // Initialize Android notification listener service (Android only)
+  await AndroidNotificationListenerService.initialize();
 
   // Initialize location health monitoring
   LocationHealthMonitor.startMonitoring();
@@ -103,7 +107,7 @@ class GoDropApp extends ConsumerWidget {
       splitScreenMode: true,
       builder: (context, child) {
         return MaterialApp.router(
-          title: 'Go Drop Parents',
+          title: 'GoDrop Parent',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,

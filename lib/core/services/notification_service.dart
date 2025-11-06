@@ -1,9 +1,16 @@
 import 'dart:io' show Platform;
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../config/app_config.dart';
 import '../services/api_service.dart';
+
+// Background notification handler (must be top-level function)
+@pragma('vm:entry-point')
+void _onBackgroundNotificationTapped(NotificationResponse response) {
+  print('Background notification tapped: ${response.payload}');
+}
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _localNotifications =
@@ -32,7 +39,33 @@ class NotificationService {
     await _localNotifications.initialize(
       settings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
+      onDidReceiveBackgroundNotificationResponse:
+          _onBackgroundNotificationTapped,
     );
+
+    // Create notification channel for Android (required for background notifications)
+    if (Platform.isAndroid) {
+      await _createNotificationChannel();
+    }
+  }
+
+  /// Create notification channel for Android (required for showing notifications in background)
+  static Future<void> _createNotificationChannel() async {
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      AppConfig.notificationChannelId,
+      AppConfig.notificationChannelName,
+      description: AppConfig.notificationChannelDescription,
+      importance: Importance.high, // High importance for popup notifications
+      playSound: true,
+      enableVibration: true,
+      showBadge: true,
+    );
+
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(channel);
   }
 
   // Firebase Messaging removed. Local notifications only
@@ -69,17 +102,30 @@ class NotificationService {
     String? payload,
     int id = 0,
   }) async {
-    const AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
-          AppConfig.notificationChannelId,
-          AppConfig.notificationChannelName,
-          channelDescription: AppConfig.notificationChannelDescription,
-          importance: Importance.high,
-          priority: Priority.high,
-          showWhen: true,
-          enableVibration: true,
-          playSound: true,
-        );
+    const AndroidNotificationDetails
+    androidDetails = AndroidNotificationDetails(
+      AppConfig.notificationChannelId,
+      AppConfig.notificationChannelName,
+      channelDescription: AppConfig.notificationChannelDescription,
+      importance: Importance.high,
+      priority: Priority.high,
+      showWhen: true,
+      enableVibration: true,
+      playSound: true,
+      // Ensure notifications show even when app is in background
+      channelShowBadge: true,
+      fullScreenIntent: false,
+      // Make notification sticky/persistent
+      ongoing: false,
+      autoCancel: true,
+      // Enable heads-up notification (popup style) - shows as popup even when app is in background
+      enableLights: true,
+      color: Color(0xFF0052CC),
+      // These settings ensure notification appears as popup in background
+      styleInformation: BigTextStyleInformation(''),
+      category: AndroidNotificationCategory.message,
+      visibility: NotificationVisibility.public,
+    );
 
     const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
       presentAlert: true,
