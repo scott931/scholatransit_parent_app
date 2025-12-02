@@ -1,5 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:io' show Platform;
 import '../models/parent_model.dart';
+import '../models/registration_request.dart';
+import '../models/otp_response.dart';
+import '../models/email_completion_request.dart';
+import '../models/email_completion_response.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../config/app_config.dart';
@@ -12,6 +17,7 @@ class ParentAuthState {
   final String? error;
   final int? otpId;
   final String? registrationEmail;
+  final bool isRegistrationFlow; // Track if we're in registration vs login flow
 
   const ParentAuthState({
     this.isLoading = false,
@@ -20,6 +26,7 @@ class ParentAuthState {
     this.error,
     this.otpId,
     this.registrationEmail,
+    this.isRegistrationFlow = false,
   });
 
   ParentAuthState copyWith({
@@ -29,6 +36,7 @@ class ParentAuthState {
     String? error,
     int? otpId,
     String? registrationEmail,
+    bool? isRegistrationFlow,
   }) {
     return ParentAuthState(
       isLoading: isLoading ?? this.isLoading,
@@ -37,6 +45,7 @@ class ParentAuthState {
       error: error,
       otpId: otpId ?? this.otpId,
       registrationEmail: registrationEmail ?? this.registrationEmail,
+      isRegistrationFlow: isRegistrationFlow ?? this.isRegistrationFlow,
     );
   }
 }
@@ -85,14 +94,27 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
       await StorageService.clearAuthTokens();
 
       final response = await ApiService.post<Map<String, dynamic>>(
-        AppConfig
-            .loginEndpoint, // '/users/login/' (baseUrl already includes /api/v1)
-        data: {'email': email, 'password': password, 'source': 'mobile'},
+        AppConfig.loginEndpoint,
+        data: {
+          'email': email,
+          'password': password,
+          'source': 'mobile',
+        },
       );
 
       print('🔐 DEBUG: Parent login response - Success: ${response.success}');
+      print('🔐 DEBUG: Parent login response - Status Code: ${response.statusCode}');
       print('🔐 DEBUG: Parent login response - Error: ${response.error}');
       print('🔐 DEBUG: Parent login response - Data: ${response.data}');
+      
+      // Log detailed error information for debugging
+      if (!response.success) {
+        print('❌ DEBUG: Login failed with status: ${response.statusCode}');
+        print('❌ DEBUG: Error message: ${response.error}');
+        if (response.data != null) {
+          print('❌ DEBUG: Error data: ${response.data}');
+        }
+      }
 
       if (response.success && response.data != null) {
         final data = response.data!;
@@ -117,6 +139,7 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
             isLoading: false,
             otpId: otpId,
             registrationEmail: email,
+            isRegistrationFlow: false, // This is login, not registration
           );
           print('🔐 DEBUG: OTP required for parent login');
           return true;
@@ -169,8 +192,65 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
     }
   }
 
+  Future<bool> registerWithOtp(RegistrationRequest registrationRequest) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      print('🔐 DEBUG: Starting parent registration with OTP');
+      print('🔐 DEBUG: Registration email: ${registrationRequest.email}');
+
+      final response = await ApiService.post<Map<String, dynamic>>(
+        AppConfig.registerOtpEndpoint,
+        data: registrationRequest.toJson(),
+      );
+
+      print('🔐 DEBUG: Parent registration response - Success: ${response.success}');
+      print('🔐 DEBUG: Parent registration response - Error: ${response.error}');
+      print('🔐 DEBUG: Parent registration response - Data: ${response.data}');
+
+      if (response.success && response.data != null) {
+        final otpResponse = OtpResponse.fromJson(response.data!);
+
+        if (otpResponse.requiresOtp && otpResponse.otpId != null) {
+          print('🔐 DEBUG: Setting registration email: ${registrationRequest.email}');
+          print('🔐 DEBUG: Setting OTP ID: ${otpResponse.otpId}');
+          state = state.copyWith(
+            isLoading: false,
+            otpId: otpResponse.otpId,
+            registrationEmail: registrationRequest.email,
+            isRegistrationFlow: true, // This is registration flow
+            error: null,
+          );
+          print(
+            '🔐 DEBUG: Parent registration state updated - email: ${state.registrationEmail}, otpId: ${state.otpId}',
+          );
+          return true;
+        } else {
+          state = state.copyWith(
+            isLoading: false,
+            error: 'Registration failed: OTP not sent',
+          );
+          return false;
+        }
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          error: response.error ?? 'Registration failed',
+        );
+        return false;
+      }
+    } catch (e) {
+      print('🔐 DEBUG: Parent registration error: $e');
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Registration failed: $e',
+      );
+      return false;
+    }
+  }
+
   Future<bool> verifyOtp(String otp) async {
-    if (state.otpId == null) {
+    if (state.otpId == null && state.registrationEmail == null) {
       state = state.copyWith(error: 'No OTP session found');
       return false;
     }
@@ -178,24 +258,162 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
+      // Use registration completion endpoint if we're in registration flow
+      // Otherwise use login endpoint (login flow)
+      // Note: registrationEmail can be set for both login and registration,
+      // so we use isRegistrationFlow flag to distinguish
+      final isRegistration = state.isRegistrationFlow;
+      final endpoint = isRegistration
+          ? AppConfig.registerEmailCompleteEndpoint
+          : AppConfig.verifyOtpLoginEndpoint;
+      
+      print('🔐 DEBUG: Verifying OTP using endpoint: $endpoint');
+      print('🔐 DEBUG: Registration email: ${state.registrationEmail}');
+      print('🔐 DEBUG: OTP ID: ${state.otpId}');
+      print('🔐 DEBUG: OTP Code: $otp');
+      print('🔐 DEBUG: Using ${isRegistration ? "REGISTRATION" : "LOGIN"} endpoint');
+
+      Map<String, dynamic> requestData;
+      
+      if (isRegistration) {
+        // For registration, use email and otp_code (not otp_id)
+        if (state.registrationEmail == null) {
+          state = state.copyWith(
+            isLoading: false,
+            error: 'Missing registration email. Please register again.',
+          );
+          return false;
+        }
+        final request = EmailCompletionRequest(
+          email: state.registrationEmail!,
+          otpCode: otp,
+        );
+        requestData = request.toJson();
+      } else {
+        // For login, use otp_code and otp_id
+        if (state.otpId == null) {
+          state = state.copyWith(
+            isLoading: false,
+            error: 'Missing OTP ID. Please login again.',
+          );
+          return false;
+        }
+        requestData = {
+          'otp_code': otp,
+          'otp_id': state.otpId.toString(),
+          'source': 'mobile',
+          'device_info': {
+            'user_agent': 'Flutter (${Platform.operatingSystem})',
+            'device_type': 'mobile',
+          },
+        };
+      }
+
       final response = await ApiService.post<Map<String, dynamic>>(
-        AppConfig.verifyOtpLoginEndpoint, // '/users/verify-otp/login/'
-        data: {'otp_id': state.otpId, 'otp_code': otp},
+        endpoint,
+        data: requestData,
       );
+
+      print('🔐 DEBUG: OTP verification response - Success: ${response.success}');
+      print('🔐 DEBUG: OTP verification response - Status Code: ${response.statusCode}');
+      print('🔐 DEBUG: OTP verification response - Error: ${response.error}');
+      print('🔐 DEBUG: OTP verification response - Data: ${response.data}');
 
       if (response.success && response.data != null) {
         final data = response.data!;
 
         print('🔐 DEBUG: OTP verification response received');
         print('🔐 DEBUG: Response data keys: ${data.keys.toList()}');
-        print('🔐 DEBUG: Response success: ${data['success']}');
-        print('🔐 DEBUG: Response message: ${data['message']}');
 
-        // Save tokens if present
-        final tokens = data['tokens'];
+        // Handle registration response (EmailCompletionResponse format)
+        if (isRegistration) {
+          try {
+            final completionResponse = EmailCompletionResponse.fromJson(data);
+            
+            if (completionResponse.success && completionResponse.tokens != null) {
+              // Save tokens
+              await StorageService.saveAuthToken(completionResponse.tokens!.access);
+              await StorageService.saveRefreshToken(completionResponse.tokens!.refresh);
+              print('🔐 DEBUG: Tokens saved successfully');
+
+              // Handle user data if available
+              if (completionResponse.user != null) {
+                final user = completionResponse.user!;
+                // Convert User to parent-like map
+                final userMap = user.toJson();
+                // Add any additional fields from profileData
+                if (user.profileData != null) {
+                  userMap.addAll(user.profileData!);
+                }
+                
+                final parent = _parentFromUserLike(userMap);
+                await StorageService.saveUserProfile(parent.toJson());
+                await StorageService.setInt('parent_id', parent.id);
+                print('🔐 DEBUG: Parent profile saved successfully');
+
+                state = state.copyWith(
+                  isLoading: false,
+                  isAuthenticated: true,
+                  parent: parent,
+                  error: null,
+                  otpId: null,
+                  registrationEmail: null,
+                );
+
+                print('🔐 DEBUG: Parent registration OTP verification completed successfully');
+                return true;
+              } else {
+                // No user in response, but we have tokens - try loading profile
+                print('🔐 DEBUG: No user data in response, but tokens saved. Loading profile...');
+                try {
+                  await _loadParentProfile();
+                  if (state.isAuthenticated) {
+                    state = state.copyWith(
+                      otpId: null,
+                      registrationEmail: null,
+                      isRegistrationFlow: false,
+                    );
+                    print('🔐 DEBUG: Profile loaded successfully after OTP verification');
+                    return true;
+                  } else {
+                    print('⚠️ DEBUG: Profile loading failed after OTP verification');
+                    state = state.copyWith(
+                      isLoading: false,
+                      error: 'OTP verified but failed to load profile. Please try again.',
+                    );
+                    return false;
+                  }
+                } catch (e) {
+                  print('🔐 DEBUG: Profile loading failed: $e');
+                  state = state.copyWith(
+                    isLoading: false,
+                    error: 'OTP verified but failed to load profile: $e',
+                  );
+                  return false;
+                }
+              }
+            } else {
+              print('❌ DEBUG: Registration completion failed: ${completionResponse.message}');
+              state = state.copyWith(
+                isLoading: false,
+                error: completionResponse.message,
+              );
+              return false;
+            }
+          } catch (e) {
+            print('❌ DEBUG: Error parsing EmailCompletionResponse: $e');
+            // Fall through to generic handling
+          }
+        }
+
+        // Handle login response (original format) or fallback for registration
+        // Save tokens if present - this is the most important part
+        final tokens = data['tokens'] as Map<String, dynamic>?;
         print('🔐 DEBUG: Tokens object type: ${tokens.runtimeType}');
         print('🔐 DEBUG: Tokens object: $tokens');
-        if (tokens is Map<String, dynamic>) {
+        
+        bool tokensSaved = false;
+        if (tokens != null) {
           final access = tokens['access'] as String?;
           final refresh = tokens['refresh'] as String?;
 
@@ -210,16 +428,7 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
           if (access != null) {
             await StorageService.saveAuthToken(access);
             print('🔐 DEBUG: Access token saved successfully');
-
-            // Verify token was saved
-            final savedToken = StorageService.getAuthToken();
-            if (savedToken == access) {
-              print('✅ DEBUG: Token verification successful - token matches');
-            } else {
-              print(
-                '❌ DEBUG: Token verification failed - saved token does not match',
-              );
-            }
+            tokensSaved = true;
           } else {
             print('⚠️ DEBUG: No access token in response!');
           }
@@ -227,18 +436,6 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
           if (refresh != null) {
             await StorageService.saveRefreshToken(refresh);
             print('🔐 DEBUG: Refresh token saved successfully');
-
-            // Verify refresh token was saved
-            final savedRefreshToken = StorageService.getRefreshToken();
-            if (savedRefreshToken == refresh) {
-              print(
-                '✅ DEBUG: Refresh token verification successful - token matches',
-              );
-            } else {
-              print(
-                '❌ DEBUG: Refresh token verification failed - saved token does not match',
-              );
-            }
           } else {
             print('⚠️ DEBUG: No refresh token in response!');
           }
@@ -247,62 +444,117 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
           print('🔐 DEBUG: Response data keys: ${data.keys.toList()}');
         }
 
-        // Accept either 'parent' or 'user' object
-        final parentObj = data['parent'];
-        final userObj = data['user'];
-        print(
-          '🔐 DEBUG: Parent object: ${parentObj != null ? "Present" : "Missing"}',
-        );
-        print(
-          '🔐 DEBUG: User object: ${userObj != null ? "Present" : "Missing"}',
-        );
-
-        Map<String, dynamic>? profileMap;
-        if (parentObj is Map<String, dynamic>) {
-          profileMap = parentObj;
-          print('🔐 DEBUG: Using parent object for profile');
-        } else if (userObj is Map<String, dynamic>) {
-          profileMap = userObj;
-          print('🔐 DEBUG: Using user object for profile');
-        } else {
-          print('⚠️ DEBUG: No valid profile object found!');
-        }
-
-        if (profileMap != null) {
-          print('🔐 DEBUG: Processing user profile...');
-          print('🔐 DEBUG: Profile keys: ${profileMap.keys.toList()}');
-
-          final parent = _parentFromUserLike(profileMap);
-          print('🔐 DEBUG: Parent created with ID: ${parent.id}');
-          print('🔐 DEBUG: Parent email: ${parent.email}');
+        // If we have tokens, try to get user/parent data
+        if (tokensSaved) {
+          // Accept either 'parent' or 'user' object
+          final parentObj = data['parent'];
+          final userObj = data['user'];
           print(
-            '🔐 DEBUG: Parent name: ${parent.firstName} ${parent.lastName}',
+            '🔐 DEBUG: Parent object: ${parentObj != null ? "Present" : "Missing"}',
+          );
+          print(
+            '🔐 DEBUG: User object: ${userObj != null ? "Present" : "Missing"}',
           );
 
-          // Persist
-          await StorageService.saveUserProfile(parent.toJson());
-          await StorageService.setInt('parent_id', parent.id);
-          print('🔐 DEBUG: User profile saved successfully');
+          Map<String, dynamic>? profileMap;
+          if (parentObj is Map<String, dynamic>) {
+            profileMap = parentObj;
+            print('🔐 DEBUG: Using parent object for profile');
+          } else if (userObj is Map<String, dynamic>) {
+            profileMap = userObj;
+            print('🔐 DEBUG: Using user object for profile');
+          }
 
+          if (profileMap != null) {
+            print('🔐 DEBUG: Processing user profile...');
+            print('🔐 DEBUG: Profile keys: ${profileMap.keys.toList()}');
+
+            final parent = _parentFromUserLike(profileMap);
+            print('🔐 DEBUG: Parent created with ID: ${parent.id}');
+            print('🔐 DEBUG: Parent email: ${parent.email}');
+
+            // Persist
+            await StorageService.saveUserProfile(parent.toJson());
+            await StorageService.setInt('parent_id', parent.id);
+            print('🔐 DEBUG: User profile saved successfully');
+
+            state = state.copyWith(
+              isLoading: false,
+              isAuthenticated: true,
+              parent: parent,
+              error: null,
+              otpId: null,
+              registrationEmail: null,
+              isRegistrationFlow: false,
+            );
+
+            print('🔐 DEBUG: Parent OTP verification completed successfully');
+            return true;
+          } else {
+            // No user/parent in response, but we have tokens - try loading profile
+            print(
+              '🔐 DEBUG: No user/parent data in OTP response, but tokens saved. Loading profile...',
+            );
+            try {
+              await _loadParentProfile();
+              // Only return true if profile loading succeeded
+              if (state.isAuthenticated) {
+                state = state.copyWith(
+                  otpId: null,
+                  registrationEmail: null,
+                  isRegistrationFlow: false,
+                );
+                print('🔐 DEBUG: Profile loaded successfully after OTP verification');
+                return true;
+              } else {
+                print('⚠️ DEBUG: Profile loading failed after OTP verification');
+                state = state.copyWith(
+                  isLoading: false,
+                  error: 'OTP verified but failed to load profile. Please try again.',
+                );
+                return false;
+              }
+            } catch (e) {
+              print('🔐 DEBUG: Profile loading failed: $e');
+              state = state.copyWith(
+                isLoading: false,
+                error: 'OTP verified but failed to load profile: $e',
+              );
+              return false;
+            }
+          }
+        } else {
+          // No tokens in response - this is a real failure
+          print('❌ DEBUG: OTP verification failed - no tokens in response');
           state = state.copyWith(
             isLoading: false,
-            isAuthenticated: true,
-            parent: parent,
-            error: null,
-            otpId: null,
-            registrationEmail: null,
+            error: 'OTP verification failed: No authentication tokens received',
           );
-
-          print('🔐 DEBUG: Parent OTP verification completed successfully');
-          return true;
+          return false;
         }
       }
 
-      final errorMessage = response.error ?? 'OTP verification failed';
-      state = state.copyWith(isLoading: false, error: errorMessage);
+      // Handle different error scenarios
+      if (response.statusCode == 404) {
+        print('❌ DEBUG: 404 - Endpoint not found: $endpoint');
+        print('❌ DEBUG: Full URL would be: ${AppConfig.baseUrl}$endpoint');
+        state = state.copyWith(
+          isLoading: false,
+          error: 'OTP verification endpoint not found. Please try again or contact support.',
+        );
+      } else {
+        final errorMessage = response.error ?? 'OTP verification failed';
+        print('❌ DEBUG: OTP verification failed: $errorMessage');
+        state = state.copyWith(
+          isLoading: false,
+          error: errorMessage,
+        );
+      }
 
       return false;
     } catch (e) {
+      print('❌ DEBUG: Exception during OTP verification: $e');
+      print('❌ DEBUG: Exception type: ${e.runtimeType}');
       state = state.copyWith(
         isLoading: false,
         error: 'OTP verification failed: $e',

@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/parent_auth_provider.dart';
+import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
 
 class OtpScreen extends ConsumerStatefulWidget {
@@ -35,13 +35,35 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final parentAuthState = ref.watch(parentAuthProvider);
     final authState = ref.watch(authProvider);
-    ref.watch(parentAuthProvider); // Watch parent auth state for listeners
 
-    // Listen for successful authentication from both providers
-    ref.listen<AuthState>(authProvider, (previous, next) {
-      // Driver authentication removed - only parent authentication available
-      if (next.error != null) {
+    // Determine which provider is active based on state
+    final isParentOtp = parentAuthState.otpId != null;
+    final isDriverRegistrationOtp = authState.registrationEmail != null &&
+        authState.otpId != null &&
+        !authState.isAuthenticated;
+    final isDriverLoginOtp = authState.otpId != null &&
+        authState.registrationEmail == null;
+
+    // Determine loading state from the active provider
+    final isLoading = isParentOtp
+        ? parentAuthState.isLoading
+        : (authState.isLoading);
+
+    // Listen for successful authentication and errors from parent auth provider
+    ref.listen<ParentAuthState>(parentAuthProvider, (previous, next) {
+      if ((previous == null || !previous.isAuthenticated) &&
+          next.isAuthenticated &&
+          next.parent != null &&
+          mounted) {
+        print(
+          '📱 DEBUG: Parent authentication successful, navigating to parent dashboard',
+        );
+        context.go('/parent/dashboard');
+        return;
+      }
+      if (next.error != null && next.error != previous?.error && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(next.error!),
@@ -51,14 +73,19 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       }
     });
 
-    ref.listen<ParentAuthState>(parentAuthProvider, (previous, next) {
-      if (next.isAuthenticated && next.parent != null) {
+    // Listen for successful authentication and errors from driver auth provider
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if ((previous == null || !previous.isAuthenticated) &&
+          next.isAuthenticated &&
+          next.driver != null &&
+          mounted) {
         print(
-          '📱 DEBUG: Parent authentication successful, navigating to parent dashboard',
+          '📱 DEBUG: Driver authentication successful, navigating to driver dashboard',
         );
-        context.go('/parent/dashboard');
+        context.go('/driver/dashboard');
+        return;
       }
-      if (next.error != null) {
+      if (next.error != null && next.error != previous?.error && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(next.error!),
@@ -123,16 +150,17 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: List.generate(6, (index) {
                     return SizedBox(
-                      width: 50.w,
-                      height: 60.h,
+                      width: 52.w,
+                      height: 64.h,
                       child: TextFormField(
                         controller: _otpControllers[index],
                         focusNode: _focusNodes[index],
                         keyboardType: TextInputType.number,
                         textAlign: TextAlign.center,
+                        textAlignVertical: TextAlignVertical.center,
                         maxLength: 1,
                         style: GoogleFonts.poppins(
-                          fontSize: 24.sp,
+                          fontSize: 22.sp,
                           fontWeight: FontWeight.w600,
                           color: Colors.black,
                         ),
@@ -155,6 +183,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           ),
                           filled: true,
                           fillColor: Colors.white,
+                          contentPadding: EdgeInsets.zero,
                         ),
                         onChanged: (value) {
                           if (value.isNotEmpty) {
@@ -220,7 +249,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 width: double.infinity,
                 height: 56.h,
                 child: ElevatedButton(
-                  onPressed: authState.isLoading ? null : _submit,
+                  onPressed: isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor:
                         AppTheme.primaryColor, // Professional blue (#0052cc)
@@ -230,7 +259,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: authState.isLoading
+                  child: isLoading
                       ? SizedBox(
                           height: 20.h,
                           width: 20.w,
@@ -282,43 +311,65 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       return;
     }
 
-    // Try parent OTP verification first (since parent login is more common)
     if (!mounted) return;
-    final parentSuccess = await ref
-        .read(parentAuthProvider.notifier)
-        .verifyOtp(otpCode.trim());
 
-    if (parentSuccess) {
-      return; // Success, navigation handled by listener
+    // Get current state from both providers
+    final parentAuthState = ref.read(parentAuthProvider);
+    final authState = ref.read(authProvider);
+
+    // Decision logic: Determine which OTP provider to use based on state
+    bool success = false;
+
+    // Priority 1: Parent login OTP
+    if (parentAuthState.otpId != null) {
+      print('🔐 DEBUG: Using parent login OTP verification');
+      success = await ref
+          .read(parentAuthProvider.notifier)
+          .verifyOtp(otpCode.trim());
     }
-
-    // If parent OTP fails, try driver OTP verification
-    if (mounted) {
-      final driverSuccess = await ref
-          .read(authProvider.notifier)
-          .verifyLoginOtp(otpCode: otpCode.trim());
-
-      if (driverSuccess) {
-        return; // Success, navigation handled by listener
-      }
-    }
-
-    // If both fail, try driver registration methods as fallback
-    if (mounted) {
-      final emailCompletionSuccess = await ref
+    // Priority 2: Driver registration OTP
+    else if (authState.registrationEmail != null &&
+        authState.otpId != null &&
+        !authState.isAuthenticated) {
+      print('🔐 DEBUG: Using driver registration OTP verification');
+      // Try completeEmailRegistration first, then fallback to verifyRegisterOtp
+      success = await ref
           .read(authProvider.notifier)
           .completeEmailRegistration(otpCode: otpCode.trim());
-
-      // If email completion fails, try registration OTP
-      if (!emailCompletionSuccess && mounted) {
-        await ref
+      
+      if (!success && mounted) {
+        // Fallback to verifyRegisterOtp if completeEmailRegistration fails
+        print('🔐 DEBUG: completeEmailRegistration failed, trying verifyRegisterOtp');
+        success = await ref
             .read(authProvider.notifier)
             .verifyRegisterOtp(otpCode: otpCode.trim());
       }
     }
+    // Priority 3: Driver login OTP
+    else if (authState.otpId != null && authState.registrationEmail == null) {
+      print('🔐 DEBUG: Using driver login OTP verification');
+      success = await ref
+          .read(authProvider.notifier)
+          .verifyLoginOtp(otpCode: otpCode.trim());
+    }
+    // No valid OTP state found
+    else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No active OTP session found. Please start the registration or login process again.',
+          ),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+      return;
+    }
 
-    // If all verification attempts fail, show error message
-    if (mounted) {
+    // Show error message if verification failed
+    if (!success && mounted) {
+      // Error message is already shown by the provider listener
+      // But we can show a generic message if needed
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Invalid OTP code. Please check and try again.'),

@@ -423,7 +423,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         AppConfig.verifyOtpLoginEndpoint,
         data: {
           'otp_code': otpCode,
-          'otp_id': otpId,
+          'otp_id': otpId.toString(), // Convert to string as API expects
           'source': 'mobile',
           'device_info': {
             'user_agent': 'Flutter (${Platform.operatingSystem})',
@@ -516,7 +516,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         AppConfig.verifyOtpRegisterEndpoint,
         data: {
           'otp_code': otpCode,
-          'otp_id': otpId,
+          'otp_id': otpId.toString(), // Convert to string as API expects
           'source': 'mobile',
           'device_info': {
             'user_agent': 'Flutter (${Platform.operatingSystem})',

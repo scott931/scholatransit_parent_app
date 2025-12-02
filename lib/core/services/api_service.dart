@@ -285,9 +285,10 @@ class ApiService {
         queryParameters: queryParameters,
         options: options,
       );
-      return ApiResponse<T>.success(response.data);
+      return ApiResponse<T>.success(response.data, response.statusCode);
     } on DioException catch (e) {
-      return ApiResponse<T>.error(_handleDioError(e));
+      final statusCode = e.response?.statusCode;
+      return ApiResponse<T>.error(_handleDioError(e), statusCode);
     } catch (e) {
       return ApiResponse<T>.error('Unexpected error: $e');
     }
