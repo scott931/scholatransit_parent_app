@@ -32,8 +32,12 @@ class ApiEndpoints {
       '/api/v1/users/otp/register/complete-email/';
 
   /// POST /api/v1/users/password/reset/
-  /// Password reset endpoint
+  /// Request password reset (forgot password) endpoint
   static const String passwordReset = '/api/v1/users/password/reset/';
+
+  /// POST /api/v1/users/password/reset/confirm/
+  /// Confirm password reset endpoint
+  static const String passwordResetConfirm = '/api/v1/users/password/reset/confirm/';
 
   /// POST /api/v1/users/logout/
   /// User logout endpoint
@@ -54,6 +58,10 @@ class ApiEndpoints {
   /// POST /api/v1/users/verify-otp/register/
   /// OTP registration verification endpoint
   static const String verifyOtpRegister = '/api/v1/users/verify-otp/register/';
+
+  /// POST /api/v1/users/otp/resend/
+  /// Resend OTP endpoint
+  static const String resendOtp = '/api/v1/users/otp/resend/';
 
   // ============================================================================
   // TRIP MANAGEMENT ENDPOINTS
@@ -429,6 +437,7 @@ class ApiEndpoints {
       registerOtp,
       registerEmailComplete,
       passwordReset,
+      passwordResetConfirm,
       refreshToken,
     ];
     return !authEndpoints.contains(endpoint);

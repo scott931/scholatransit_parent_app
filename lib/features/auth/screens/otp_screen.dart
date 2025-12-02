@@ -222,19 +222,14 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     ),
                   ),
                   GestureDetector(
-                    onTap: () {
-                      // TODO: Implement resend OTP
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Resend OTP feature coming soon'),
-                        ),
-                      );
-                    },
+                    onTap: isLoading ? null : _resendOtp,
                     child: Text(
                       'Resend it.',
                       style: GoogleFonts.poppins(
                         fontSize: 14.sp,
-                        color: const Color(0xFF3B82F6),
+                        color: isLoading
+                            ? Colors.grey[400]
+                            : const Color(0xFF3B82F6),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -373,6 +368,119 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Invalid OTP code. Please check and try again.'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
+  }
+
+  /// Resend OTP to the user's email
+  Future<void> _resendOtp() async {
+    if (!mounted) return;
+
+    // Get current state from both providers
+    final parentAuthState = ref.read(parentAuthProvider);
+    final authState = ref.read(authProvider);
+
+    // Determine which provider to use based on state
+    final isParentOtp = parentAuthState.otpId != null;
+    final isDriverRegistrationOtp = authState.registrationEmail != null &&
+        authState.otpId != null &&
+        !authState.isAuthenticated;
+    final isDriverLoginOtp = authState.otpId != null &&
+        authState.registrationEmail == null;
+
+    // Priority 1: Parent login OTP
+    if (isParentOtp) {
+      final email = parentAuthState.registrationEmail;
+      final otpId = parentAuthState.otpId;
+
+      if (email == null || email.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Email not found. Please start the login process again.',
+            ),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+        return;
+      }
+
+      print('🔐 DEBUG: Resending OTP for parent login');
+      print('🔐 DEBUG: Email: $email');
+      print('🔐 DEBUG: OTP ID: $otpId');
+
+      // Call resend OTP API
+      final success = await ref.read(parentAuthProvider.notifier).resendOtp(
+            email: email,
+            otpId: otpId?.toString(),
+          );
+
+      if (!mounted) return;
+
+      if (success) {
+        // Clear OTP input fields
+        for (var controller in _otpControllers) {
+          controller.clear();
+        }
+        // Focus on first field
+        _focusNodes[0].requestFocus();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('OTP has been resent to your email. Please check your inbox.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } else {
+        // Error message is already shown by the provider listener
+        // But we can show a generic message if needed
+        final error = parentAuthState.error;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error ?? 'Failed to resend OTP. Please try again.',
+            ),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    }
+    // Priority 2: Driver registration OTP
+    else if (isDriverRegistrationOtp) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Resend OTP for driver registration is not yet implemented.',
+          ),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
+    // Priority 3: Driver login OTP
+    else if (isDriverLoginOtp) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Resend OTP for driver login is not yet implemented.',
+          ),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
+    // No valid OTP state found
+    else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No active OTP session found. Please start the login process again.',
+          ),
           backgroundColor: AppTheme.errorColor,
         ),
       );

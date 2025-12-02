@@ -11,12 +11,15 @@ class AppConfig {
   static const String registerEmailCompleteEndpoint =
       ApiEndpoints.registerEmailComplete;
   static const String passwordResetEndpoint = ApiEndpoints.passwordReset;
+  static const String passwordResetConfirmEndpoint =
+      ApiEndpoints.passwordResetConfirm;
   static const String logoutEndpoint = ApiEndpoints.logout;
   static const String refreshTokenEndpoint = ApiEndpoints.refreshToken;
   static const String profileEndpoint = ApiEndpoints.profile;
   static const String verifyOtpLoginEndpoint = ApiEndpoints.verifyOtpLogin;
   static const String verifyOtpRegisterEndpoint =
       ApiEndpoints.verifyOtpRegister;
+  static const String resendOtpEndpoint = ApiEndpoints.resendOtp;
 
   // Trip Management Endpoints - Now using centralized endpoints
   static const String tripsEndpoint = ApiEndpoints.trips;

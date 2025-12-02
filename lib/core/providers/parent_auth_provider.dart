@@ -563,6 +563,111 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
     }
   }
 
+  /// Resend OTP to the user's email
+  /// 
+  /// [email] - Required email address to send OTP to
+  /// [otpId] - Optional OTP ID from previous request (for existing sessions)
+  /// 
+  /// Returns true if OTP was resent successfully, false otherwise
+  Future<bool> resendOtp({required String email, String? otpId}) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      print('🔐 DEBUG: Resending OTP to email: $email');
+      if (otpId != null) {
+        print('🔐 DEBUG: Using existing OTP ID: $otpId');
+      }
+
+      // Determine otp_type based on registration flow flag
+      final otpType = state.isRegistrationFlow ? 'register' : 'login';
+      print('🔐 DEBUG: OTP type: $otpType (isRegistrationFlow: ${state.isRegistrationFlow})');
+
+      // Build request body
+      final Map<String, dynamic> requestData = {
+        'email': email,
+        'otp_type': otpType,
+      };
+      
+      // Add otp_id if provided
+      if (otpId != null && otpId.isNotEmpty) {
+        requestData['otp_id'] = otpId;
+      }
+
+      final response = await ApiService.post<Map<String, dynamic>>(
+        AppConfig.resendOtpEndpoint,
+        data: requestData,
+      );
+
+      print('🔐 DEBUG: Resend OTP response - Success: ${response.success}');
+      print('🔐 DEBUG: Resend OTP response - Status Code: ${response.statusCode}');
+      print('🔐 DEBUG: Resend OTP response - Error: ${response.error}');
+      print('🔐 DEBUG: Resend OTP response - Data: ${response.data}');
+
+      if (response.success && response.data != null) {
+        final data = response.data!;
+        
+        // Extract new OTP ID if present in response
+        int? newOtpId;
+        if (data['otp_id'] is int) {
+          newOtpId = data['otp_id'] as int;
+        } else if (data['otp_id'] is String) {
+          newOtpId = int.tryParse(data['otp_id'] as String);
+        } else {
+          // Check nested in delivery_methods
+          final delivery = data['delivery_methods'];
+          if (delivery is Map && delivery['email'] is Map) {
+            final emailMethod = delivery['email'] as Map;
+            if (emailMethod['otp_id'] is int) {
+              newOtpId = emailMethod['otp_id'] as int;
+            } else if (emailMethod['otp_id'] is String) {
+              newOtpId = int.tryParse(emailMethod['otp_id'] as String);
+            }
+          }
+        }
+
+        // Update state with new OTP ID if received
+        if (newOtpId != null) {
+          print('🔐 DEBUG: Received new OTP ID: $newOtpId');
+          state = state.copyWith(
+            isLoading: false,
+            otpId: newOtpId,
+            registrationEmail: email,
+            error: null,
+          );
+        } else {
+          // Keep existing OTP ID if no new one provided
+          print('🔐 DEBUG: No new OTP ID in response, keeping existing: ${state.otpId}');
+          state = state.copyWith(
+            isLoading: false,
+            registrationEmail: email,
+            error: null,
+          );
+        }
+
+        print('🔐 DEBUG: OTP resent successfully');
+        return true;
+      } else {
+        // Handle error response
+        final errorMessage = response.error ?? 'Failed to resend OTP';
+        print('❌ DEBUG: Resend OTP failed: $errorMessage');
+        
+        state = state.copyWith(
+          isLoading: false,
+          error: errorMessage,
+        );
+        return false;
+      }
+    } catch (e) {
+      print('❌ DEBUG: Exception during OTP resend: $e');
+      print('❌ DEBUG: Exception type: ${e.runtimeType}');
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to resend OTP: $e',
+      );
+      return false;
+    }
+  }
+
   Future<void> _loadParentProfile() async {
     try {
       final response = await ApiService.get<Map<String, dynamic>>(
@@ -738,6 +843,172 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
     // This could be called periodically to refresh tokens
     // For now, we'll check token validity on each API call
     await checkTokenExpiration();
+  }
+
+  /// Request password reset (forgot password)
+  /// Sends password reset instructions to the user's email
+  Future<Map<String, dynamic>> requestPasswordReset(String email) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      print('🔐 DEBUG: Requesting password reset for email: $email');
+      print('🔐 DEBUG: Using endpoint: ${AppConfig.passwordResetEndpoint}');
+      print('🔐 DEBUG: Full URL: ${ApiEndpoints.getFullUrl(AppConfig.passwordResetEndpoint)}');
+
+      final response = await ApiService.post<Map<String, dynamic>>(
+        AppConfig.passwordResetEndpoint,
+        data: {
+          'email': email.trim().toLowerCase(),
+        },
+      );
+
+      print('🔐 DEBUG: Password reset request response - HTTP Success: ${response.success}');
+      print('🔐 DEBUG: Password reset request response - Status Code: ${response.statusCode}');
+      print('🔐 DEBUG: Password reset request response - Error: ${response.error}');
+      print('🔐 DEBUG: Password reset request response - Data: ${response.data}');
+      print('🔐 DEBUG: Password reset request response - Data type: ${response.data?.runtimeType}');
+
+      state = state.copyWith(isLoading: false);
+
+      // Check if we got a response (even if HTTP status indicates error)
+      if (response.data != null) {
+        final data = response.data as Map<String, dynamic>;
+        
+        // Check the 'success' field in the response data (API may return 200 with success: false)
+        final apiSuccess = data['success'] as bool? ?? response.success;
+        
+        print('🔐 DEBUG: API success field: $apiSuccess');
+        print('🔐 DEBUG: Response data keys: ${data.keys.toList()}');
+        
+        if (apiSuccess == true) {
+          print('🔐 DEBUG: Password reset request successful');
+          return {
+            'success': true,
+            'message': data['message'] as String? ?? 
+                       'Password reset instructions have been sent to your email address.',
+            'expires_at': data['expires_at'] as String?,
+            'instructions': data['instructions'] as String?,
+            'data': data['data'],
+          };
+        } else {
+          // API returned success: false in the response body
+          final errorMessage = data['message'] as String? ?? 
+                              response.error ?? 
+                              'Failed to send password reset email';
+          print('🔐 DEBUG: Password reset request failed (API returned success: false): $errorMessage');
+          print('🔐 DEBUG: Error details: ${data['error']}');
+          state = state.copyWith(error: errorMessage);
+          return {
+            'success': false,
+            'message': errorMessage,
+            'error': data['error'] ?? response.data,
+          };
+        }
+      } else if (response.success) {
+        // HTTP success but no data (unlikely but handle it)
+        print('🔐 DEBUG: HTTP success but no response data');
+        return {
+          'success': true,
+          'message': 'Password reset instructions have been sent to your email address.',
+        };
+      } else {
+        // HTTP error
+        final errorMessage = response.error ?? 'Failed to send password reset email';
+        print('🔐 DEBUG: Password reset request failed (HTTP error): $errorMessage');
+        state = state.copyWith(error: errorMessage);
+        return {
+          'success': false,
+          'message': errorMessage,
+          'error': response.data,
+        };
+      }
+    } catch (e, stackTrace) {
+      print('🔐 DEBUG: Password reset request error: $e');
+      print('🔐 DEBUG: Stack trace: $stackTrace');
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Password reset request failed: $e',
+      );
+      return {
+        'success': false,
+        'message': 'Password reset request failed: $e',
+        'error': {'detail': e.toString()},
+      };
+    }
+  }
+
+  /// Confirm password reset
+  /// Resets the password using the token from the email
+  Future<Map<String, dynamic>> confirmPasswordReset(
+    String token,
+    String newPassword,
+    String newPasswordConfirm,
+  ) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      print('🔐 DEBUG: Confirming password reset with token');
+
+      // Validate passwords match
+      if (newPassword != newPasswordConfirm) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Passwords do not match',
+        );
+        return {
+          'success': false,
+          'message': 'Passwords do not match',
+          'error': {'detail': 'Passwords do not match'},
+        };
+      }
+
+      final response = await ApiService.post<Map<String, dynamic>>(
+        AppConfig.passwordResetConfirmEndpoint,
+        data: {
+          'token': token,
+          'new_password': newPassword,
+          'new_password_confirm': newPasswordConfirm,
+        },
+      );
+
+      print('🔐 DEBUG: Password reset confirm response - Success: ${response.success}');
+      print('🔐 DEBUG: Password reset confirm response - Status Code: ${response.statusCode}');
+      print('🔐 DEBUG: Password reset confirm response - Error: ${response.error}');
+      print('🔐 DEBUG: Password reset confirm response - Data: ${response.data}');
+
+      state = state.copyWith(isLoading: false);
+
+      if (response.success && response.data != null) {
+        final data = response.data!;
+        print('🔐 DEBUG: Password reset confirmed successfully');
+        return {
+          'success': true,
+          'message': data['message'] as String? ?? 
+                     'Password reset successfully. Please login with your new password.',
+          'data': data['data'],
+        };
+      } else {
+        final errorMessage = response.error ?? 'Failed to reset password';
+        print('🔐 DEBUG: Password reset confirm failed: $errorMessage');
+        state = state.copyWith(error: errorMessage);
+        return {
+          'success': false,
+          'message': errorMessage,
+          'error': response.data,
+        };
+      }
+    } catch (e) {
+      print('🔐 DEBUG: Password reset confirm error: $e');
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Password reset confirmation failed: $e',
+      );
+      return {
+        'success': false,
+        'message': 'Password reset confirmation failed: $e',
+        'error': {'detail': e.toString()},
+      };
+    }
   }
 }
 
