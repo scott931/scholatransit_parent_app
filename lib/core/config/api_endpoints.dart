@@ -1,5 +1,5 @@
 /// API Endpoints Reference
-/// Base URL: https://schooltransit-backend-staging.onrender.com/
+/// Base URL: https://schooltransit-backend-staging-ixld.onrender.com/
 ///
 /// This file contains all API endpoints used in the SchoolTransit app.
 /// All endpoints are relative to the base URL to prevent URL confusion.
@@ -8,7 +8,7 @@ library;
 class ApiEndpoints {
   // Base Configuration
   static const String baseUrl =
-      'https://schooltransit-backend-staging.onrender.com';
+      'https://schooltransit-backend-staging-ixld.onrender.com';
 
   // ============================================================================
   // AUTHENTICATION ENDPOINTS

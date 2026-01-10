@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import '../models/parent_model.dart';
 import '../models/parent_trip_model.dart';
 import '../models/student_model.dart';
@@ -10,6 +11,8 @@ import '../services/storage_service.dart';
 import '../services/authentication_service.dart';
 import '../services/state_management_helper.dart';
 import '../services/debug_logger.dart';
+import '../services/location_service_resolver.dart';
+import 'dart:async';
 
 class ParentState {
   final bool isLoading;
@@ -64,6 +67,9 @@ class ParentState {
 }
 
 class ParentNotifier extends StateNotifier<ParentState> {
+  StreamSubscription<Position>? _locationSubscription;
+  bool _isLocationTracking = false;
+
   ParentNotifier() : super(const ParentState()) {
     _initializeServices();
   }
@@ -83,6 +89,116 @@ class ParentNotifier extends StateNotifier<ParentState> {
     ParentNotificationService.notificationStream.listen((notification) {
       _addNotification(notification);
     });
+  }
+
+  /// Start location tracking and update current location on the map
+  Future<void> startLocationTracking() async {
+    if (_isLocationTracking) {
+      print('📍 Location tracking already active');
+      return;
+    }
+
+    try {
+      print('📍 Starting location tracking for parent...');
+
+      // Check location permissions
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        print('⚠️ Location services are disabled');
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print('⚠️ Location permission denied');
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        print('⚠️ Location permission permanently denied');
+        return;
+      }
+
+      // Initialize location service resolver
+      await LocationServiceResolver.initialize();
+
+      // Start tracking with callbacks
+      final trackingStarted = await LocationServiceResolver.startTracking(
+        onLocationUpdate: (Position position) {
+          print(
+            '📍 Parent location update: ${position.latitude}, ${position.longitude}',
+          );
+          
+          // Update parent state with current location
+          state = state.copyWith(
+            currentLocation: {
+              'latitude': position.latitude,
+              'longitude': position.longitude,
+              'accuracy': position.accuracy,
+              'timestamp': position.timestamp?.toIso8601String(),
+            },
+          );
+        },
+        onLocationError: (String error) {
+          print('❌ Location error: $error');
+        },
+        onUserGuidance: (String guidance) {
+          print('💡 Location guidance: $guidance');
+        },
+      );
+
+      if (trackingStarted) {
+        _isLocationTracking = true;
+        print('✅ Location tracking started successfully');
+
+        // Get initial position
+        final initialPosition = await LocationServiceResolver.getCurrentPosition();
+        if (initialPosition != null) {
+          print(
+            '📍 Initial location: ${initialPosition.latitude}, ${initialPosition.longitude}',
+          );
+          state = state.copyWith(
+            currentLocation: {
+              'latitude': initialPosition.latitude,
+              'longitude': initialPosition.longitude,
+              'accuracy': initialPosition.accuracy,
+              'timestamp': initialPosition.timestamp?.toIso8601String(),
+            },
+          );
+        }
+      } else {
+        print('❌ Failed to start location tracking');
+      }
+    } catch (e) {
+      print('❌ Error starting location tracking: $e');
+    }
+  }
+
+  /// Stop location tracking
+  Future<void> stopLocationTracking() async {
+    if (!_isLocationTracking) {
+      return;
+    }
+
+    try {
+      print('📍 Stopping location tracking...');
+      await LocationServiceResolver.stopTracking();
+      await _locationSubscription?.cancel();
+      _locationSubscription = null;
+      _isLocationTracking = false;
+      print('✅ Location tracking stopped');
+    } catch (e) {
+      print('❌ Error stopping location tracking: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    stopLocationTracking();
+    super.dispose();
   }
 
   /// Helper method to calculate unread count from notifications

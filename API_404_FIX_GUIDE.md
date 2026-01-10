@@ -2,7 +2,7 @@
 
 ## Problem
 The app is showing 404 errors:
-- `❌ API Error: 404 https://schooltransit-backend-staging.onrender.com/api/v1/parent/students/?limit=50`
+- `❌ API Error: 404 https://schooltransit-backend-staging-ixld.onrender.com/api/v1/parent/students/?limit=50`
 - Response is HTML instead of JSON: `<!doctype html><html lang="en">...`
 
 This means the API endpoint doesn't exist or the URL is incorrect.

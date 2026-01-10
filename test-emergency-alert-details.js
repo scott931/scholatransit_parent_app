@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 // Configuration
-const API_BASE_URL = 'https://schooltransit-backend-staging.onrender.com/api/v1';
+const API_BASE_URL = 'https://schooltransit-backend-staging-ixld.onrender.com/api/v1';
 const ALERT_ID = 2; // The alert ID from your example
 
 // Test the emergency alert details endpoint

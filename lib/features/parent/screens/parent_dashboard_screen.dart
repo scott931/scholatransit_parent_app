@@ -24,12 +24,24 @@ class ParentDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
+  MapboxMap? _mapboxMap;
+  PointAnnotationManager? _pointAnnotationManager;
+  PointAnnotation? _currentLocationAnnotation;
+  Map<String, dynamic>? _lastLocation;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeDashboard();
     });
+  }
+
+  @override
+  void dispose() {
+    _mapboxMap = null;
+    _pointAnnotationManager = null;
+    super.dispose();
   }
 
   void _initializeDashboard() {
@@ -39,8 +51,20 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
     // Start notification monitoring
     ref.read(parentProvider.notifier).startNotificationMonitoring();
 
+    // Start location tracking when user is authenticated
+    _startLocationTracking();
+
     // Auto-request notification listener permission if needed
     _autoRequestNotificationListenerPermission();
+  }
+
+  Future<void> _startLocationTracking() async {
+    try {
+      print('📍 Starting location tracking for authenticated parent...');
+      await ref.read(parentProvider.notifier).startLocationTracking();
+    } catch (e) {
+      print('❌ Failed to start location tracking: $e');
+    }
   }
 
   Future<void> _autoRequestNotificationListenerPermission() async {
@@ -495,6 +519,24 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
   }
 
   Widget _buildMapWidget(ParentState parentState) {
+    // Update location marker when location changes (using post-frame callback to avoid build issues)
+    if (_mapboxMap != null && 
+        _pointAnnotationManager != null && 
+        parentState.currentLocation != null) {
+      final currentLocation = parentState.currentLocation!;
+      final locationKey = '${currentLocation['latitude']}_${currentLocation['longitude']}';
+      final lastLocationKey = _lastLocation != null 
+          ? '${_lastLocation!['latitude']}_${_lastLocation!['longitude']}'
+          : null;
+      
+      if (locationKey != lastLocationKey) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _updateLocationMarker(currentLocation);
+        });
+        _lastLocation = Map<String, dynamic>.from(currentLocation);
+      }
+    }
+
     try {
       return MapWidget(
         key: const ValueKey("dashboardMapWidget"),
@@ -512,31 +554,25 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
                     AppConfig.defaultLatitude,
                   ),
                 ),
-          zoom: 12.0,
+          zoom: parentState.currentLocation != null ? 15.0 : 12.0,
         ),
         styleUri: MapboxStyles.MAPBOX_STREETS,
         onMapCreated: (MapboxMap mapboxMap) async {
           print('🗺️ Dashboard map created successfully');
+          _mapboxMap = mapboxMap;
+          
+          // Create annotation manager
+          try {
+            _pointAnnotationManager = await mapboxMap.annotations
+                .createPointAnnotationManager();
+            print('✅ Point annotation manager created');
+          } catch (e) {
+            print('❌ Failed to create annotation manager: $e');
+          }
+
           // Add current location marker if available
           if (parentState.currentLocation != null) {
-            try {
-              final pointAnnotationManager = await mapboxMap.annotations
-                  .createPointAnnotationManager();
-
-              await pointAnnotationManager.create(
-                PointAnnotationOptions(
-                  geometry: Point(
-                    coordinates: Position(
-                      parentState.currentLocation!['longitude'] as double,
-                      parentState.currentLocation!['latitude'] as double,
-                    ),
-                  ),
-                  image: await _createLocationMarker(),
-                ),
-              );
-            } catch (e) {
-              print('❌ Failed to add location marker: $e');
-            }
+            await _updateLocationMarker(parentState.currentLocation!);
           }
         },
       );
@@ -570,6 +606,55 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
     if (hour < 12) return 'Morning';
     if (hour < 17) return 'Afternoon';
     return 'Evening';
+  }
+
+  Future<void> _updateLocationMarker(Map<String, dynamic> location) async {
+    if (_mapboxMap == null || _pointAnnotationManager == null) {
+      return;
+    }
+
+    try {
+      final latitude = location['latitude'] as double;
+      final longitude = location['longitude'] as double;
+
+      print(
+        '📍 Updating location marker: $latitude, $longitude',
+      );
+
+      // Remove existing marker if any
+      if (_currentLocationAnnotation != null) {
+        try {
+          await _pointAnnotationManager!.delete(_currentLocationAnnotation!);
+        } catch (e) {
+          print('⚠️ Could not delete old marker: $e');
+        }
+        _currentLocationAnnotation = null;
+      }
+
+      // Create new marker
+      final locationPoint = Point(
+        coordinates: Position(longitude, latitude),
+      );
+
+      final locationMarker = PointAnnotationOptions(
+        geometry: locationPoint,
+        image: await _createLocationMarker(),
+      );
+
+      _currentLocationAnnotation = await _pointAnnotationManager!.create(locationMarker);
+
+      // Fly camera to location
+      if (_mapboxMap != null) {
+        _mapboxMap!.flyTo(
+          CameraOptions(center: locationPoint, zoom: 15.0),
+          MapAnimationOptions(duration: 1000),
+        );
+      }
+
+      print('✅ Location marker updated successfully');
+    } catch (e) {
+      print('❌ Failed to update location marker: $e');
+    }
   }
 
   Future<Uint8List> _createLocationMarker() async {

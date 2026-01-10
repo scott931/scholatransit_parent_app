@@ -1,7 +1,7 @@
 # API Centralization Summary
 
 ## 🎯 Objective
-Centralize all API endpoints to use the base URL `https://schooltransit-backend-staging.onrender.com/` to prevent URL confusion and ensure consistency across the app.
+Centralize all API endpoints to use the base URL `https://schooltransit-backend-staging-ixld.onrender.com/` to prevent URL confusion and ensure consistency across the app.
 
 ## 📁 Files Created/Modified
 
@@ -128,7 +128,7 @@ final response = await ApiService.get(ApiEndpoints.profile);
 ```dart
 // Test that URLs are constructed correctly
 print(ApiEndpoints.getFullUrl(ApiEndpoints.emergencyAlerts));
-// Output: https://schooltransit-backend-staging.onrender.com/api/v1/emergency/alerts/
+// Output: https://schooltransit-backend-staging-ixld.onrender.com/api/v1/emergency/alerts/
 ```
 
 ### 2. **Authentication Check**

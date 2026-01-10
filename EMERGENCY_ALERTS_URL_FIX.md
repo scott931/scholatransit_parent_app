@@ -6,8 +6,8 @@
 The emergency alerts API was failing with a 404 error due to **double `/api/v1` in the URL**:
 
 ```
-❌ WRONG URL: https://schooltransit-backend-staging.onrender.com/api/v1/api/v1/emergency/alerts/
-✅ CORRECT URL: https://schooltransit-backend-staging.onrender.com/api/v1/emergency/alerts/
+❌ WRONG URL: https://schooltransit-backend-staging-ixld.onrender.com/api/v1/api/v1/emergency/alerts/
+✅ CORRECT URL: https://schooltransit-backend-staging-ixld.onrender.com/api/v1/emergency/alerts/
 ```
 
 ### **Root Cause:**
@@ -38,7 +38,7 @@ static String deleteEmergencyAlert(int alertId) => '/emergency/alerts/$alertId/'
 Now when you test the emergency alerts API, you should see:
 
 ```
-🚀 API Request: GET https://schooltransit-backend-staging.onrender.com/api/v1/emergency/alerts/?limit=10
+🚀 API Request: GET https://schooltransit-backend-staging-ixld.onrender.com/api/v1/emergency/alerts/?limit=10
 📤 Headers: {Authorization: Bearer eyJhbGciOiJIUzI1NiIs...}
 📥 Response: 200 OK
 🚨 Emergency Alerts API Response:

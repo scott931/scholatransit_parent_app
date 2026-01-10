@@ -13,20 +13,20 @@
 1. **Check API Base URL**:
    ```dart
    // Current configuration in api_endpoints.dart
-   static const String baseUrl = 'https://schooltransit-backend-staging.onrender.com';
+   static const String baseUrl = 'https://schooltransit-backend-staging-ixld.onrender.com';
    static const String login = '/api/v1/users/login/';
    ```
 
 2. **Test API Connectivity**:
    ```bash
    # Test if the API server is reachable
-   curl -X GET https://schooltransit-backend-staging.onrender.com/
+   curl -X GET https://schooltransit-backend-staging-ixld.onrender.com/
    ```
 
 3. **Check Login Endpoint**:
    ```bash
    # Test login endpoint directly
-   curl -X POST https://schooltransit-backend-staging.onrender.com/api/v1/users/login/ \
+   curl -X POST https://schooltransit-backend-staging-ixld.onrender.com/api/v1/users/login/ \
      -H "Content-Type: application/json" \
      -d '{"email":"test@example.com","password":"test123","source":"mobile"}'
    ```
@@ -179,10 +179,10 @@ Use these commands to test the API:
 
 ```bash
 # Test server health
-curl -X GET https://schooltransit-backend-staging.onrender.com/
+curl -X GET https://schooltransit-backend-staging-ixld.onrender.com/
 
 # Test login endpoint
-curl -X POST https://schooltransit-backend-staging.onrender.com/api/v1/users/login/ \
+curl -X POST https://schooltransit-backend-staging-ixld.onrender.com/api/v1/users/login/ \
   -H "Content-Type: application/json" \
   -d '{
     "email": "your-email@example.com",
@@ -198,7 +198,7 @@ Verify these settings in your app:
 // In app_config.dart
 static const Duration apiTimeout = Duration(seconds: 30);
 static const Duration connectionTimeout = Duration(seconds: 15);
-static const String baseUrl = 'https://schooltransit-backend-staging.onrender.com';
+static const String baseUrl = 'https://schooltransit-backend-staging-ixld.onrender.com';
 ```
 
 ### **Step 4: Clear App Data**

@@ -1,7 +1,7 @@
 # API Cleanup Summary - Complete Base URL Centralization
 
 ## 🎯 Objective Achieved
-Successfully centralized all API references to use the base URL `https://schooltransit-backend-staging.onrender.com/` and eliminated all hardcoded URLs to prevent confusion.
+Successfully centralized all API references to use the base URL `https://schooltransit-backend-staging-ixld.onrender.com/` and eliminated all hardcoded URLs to prevent confusion.
 
 ## 📁 Files Updated
 
@@ -68,7 +68,7 @@ ApiEndpoints.markNotificationAsRead(notificationId)
 ## 🚀 Benefits Achieved
 
 ### 1. **URL Consistency**
-- ✅ All endpoints use the same base URL: `https://schooltransit-backend-staging.onrender.com/`
+- ✅ All endpoints use the same base URL: `https://schooltransit-backend-staging-ixld.onrender.com/`
 - ✅ No more double `/api/v1` issues
 - ✅ Consistent URL structure across the entire app
 
@@ -100,7 +100,7 @@ ApiEndpoints.markNotificationAsRead(notificationId)
 ```dart
 // All endpoints now use the correct base URL
 print(ApiEndpoints.getFullUrl(ApiEndpoints.emergencyAlerts));
-// Output: https://schooltransit-backend-staging.onrender.com/api/v1/emergency/alerts/
+// Output: https://schooltransit-backend-staging-ixld.onrender.com/api/v1/emergency/alerts/
 ```
 
 ### 2. **No Linter Errors**
@@ -122,7 +122,7 @@ print(ApiEndpoints.getFullUrl(ApiEndpoints.emergencyAlerts));
 - ❌ Difficult to maintain
 
 ### **After Cleanup:**
-- ✅ Single base URL: `https://schooltransit-backend-staging.onrender.com/`
+- ✅ Single base URL: `https://schooltransit-backend-staging-ixld.onrender.com/`
 - ✅ All endpoints centralized in `ApiEndpoints` class
 - ✅ Consistent URL patterns
 - ✅ Easy to maintain and update
@@ -147,7 +147,7 @@ print(ApiEndpoints.getFullUrl(ApiEndpoints.emergencyAlerts));
 
 ## 📋 Summary
 
-The API cleanup is now **100% complete**! All API references now use the centralized base URL `https://schooltransit-backend-staging.onrender.com/` through the `ApiEndpoints` class. This eliminates URL confusion and ensures consistency across the entire application.
+The API cleanup is now **100% complete**! All API references now use the centralized base URL `https://schooltransit-backend-staging-ixld.onrender.com/` through the `ApiEndpoints` class. This eliminates URL confusion and ensures consistency across the entire application.
 
 **Emergency alerts should now work correctly!** 🚨✨
 

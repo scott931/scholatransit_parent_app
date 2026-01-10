@@ -2,13 +2,13 @@
 
 ## Base URL
 ```
-https://schooltransit-backend-staging.onrender.com/
+https://schooltransit-backend-staging-ixld.onrender.com/
 ```
 
 ## API Documentation
-- **Swagger Docs**: https://schooltransit-backend-staging.onrender.com/swagger/
-- **ReDoc Docs**: https://schooltransit-backend-staging.onrender.com/redoc/
-- **Health Check**: https://schooltransit-backend-staging.onrender.com/
+- **Swagger Docs**: https://schooltransit-backend-staging-ixld.onrender.com/swagger/
+- **ReDoc Docs**: https://schooltransit-backend-staging-ixld.onrender.com/redoc/
+- **Health Check**: https://schooltransit-backend-staging-ixld.onrender.com/
 
 ## Quick Reference
 
@@ -134,9 +134,9 @@ final response = await ApiService.post<Map<String, dynamic>>(
 ## Testing with Postman
 
 ### Collection Setup
-1. **Base URL**: `https://schooltransit-backend-staging.onrender.com`
+1. **Base URL**: `https://schooltransit-backend-staging-ixld.onrender.com`
 2. **Environment Variables**:
-   - `baseUrl`: `https://schooltransit-backend-staging.onrender.com`
+   - `baseUrl`: `https://schooltransit-backend-staging-ixld.onrender.com`
    - `accessToken`: `{{your_access_token}}`
    - `refreshToken`: `{{your_refresh_token}}`
 
@@ -150,7 +150,7 @@ final response = await ApiService.post<Map<String, dynamic>>(
 
 #### Login
 ```http
-POST https://schooltransit-backend-staging.onrender.com/api/v1/users/login/
+POST https://schooltransit-backend-staging-ixld.onrender.com/api/v1/users/login/
 Content-Type: application/json
 
 {
@@ -162,13 +162,13 @@ Content-Type: application/json
 
 #### Get Emergency Alerts
 ```http
-GET https://schooltransit-backend-staging.onrender.com/api/v1/emergency/alerts/
+GET https://schooltransit-backend-staging-ixld.onrender.com/api/v1/emergency/alerts/
 Authorization: Bearer YOUR_ACCESS_TOKEN
 ```
 
 #### Create Emergency Alert
 ```http
-POST https://schooltransit-backend-staging.onrender.com/api/v1/emergency/alerts/
+POST https://schooltransit-backend-staging-ixld.onrender.com/api/v1/emergency/alerts/
 Authorization: Bearer YOUR_ACCESS_TOKEN
 Content-Type: application/json
 
@@ -185,8 +185,8 @@ Content-Type: application/json
 ### Common Issues
 
 #### 1. Double API Version in URL
-❌ **Wrong**: `https://schooltransit-backend-staging.onrender.com/api/v1/api/v1/emergency/alerts/`
-✅ **Correct**: `https://schooltransit-backend-staging.onrender.com/api/v1/emergency/alerts/`
+❌ **Wrong**: `https://schooltransit-backend-staging-ixld.onrender.com/api/v1/api/v1/emergency/alerts/`
+✅ **Correct**: `https://schooltransit-backend-staging-ixld.onrender.com/api/v1/emergency/alerts/`
 
 **Solution**: Use `ApiEndpoints.emergencyAlerts` instead of manually constructing URLs.
 
@@ -207,9 +207,9 @@ Content-Type: application/json
 ## Development Notes
 
 ### URL Construction
-- **Base URL**: `https://schooltransit-backend-staging.onrender.com/`
+- **Base URL**: `https://schooltransit-backend-staging-ixld.onrender.com/`
 - **API Version**: `/api/v1`
-- **Full API Base**: `https://schooltransit-backend-staging.onrender.com/api/v1`
+- **Full API Base**: `https://schooltransit-backend-staging-ixld.onrender.com/api/v1`
 
 ### Endpoint Patterns
 - **Static Endpoints**: Use `ApiEndpoints.endpointName`
@@ -226,6 +226,6 @@ Content-Type: application/json
 ## Support
 
 For API support and documentation:
-- **Swagger UI**: https://schooltransit-backend-staging.onrender.com/swagger/
-- **ReDoc**: https://schooltransit-backend-staging.onrender.com/redoc/
-- **Health Check**: https://schooltransit-backend-staging.onrender.com/
+- **Swagger UI**: https://schooltransit-backend-staging-ixld.onrender.com/swagger/
+- **ReDoc**: https://schooltransit-backend-staging-ixld.onrender.com/redoc/
+- **Health Check**: https://schooltransit-backend-staging-ixld.onrender.com/
