@@ -99,6 +99,74 @@ class NotificationNavigationService {
       }
     }
 
+    // Handle pickup and drop point alerts
+    if (type == 'student_pickup' || type == 'pickup_alert' || data.containsKey('pickup_alert')) {
+      final studentId = data['student_id'] ?? data['studentId'];
+      final tripId = data['trip_id'] ?? data['tripId'];
+      final stopId = data['stop_id'] ?? data['stopId'];
+      final stopName = data['stop_name'] ?? data['stopName'];
+      
+      print('🚌 Pickup alert received');
+      print('   - Student ID: $studentId');
+      print('   - Trip ID: $tripId');
+      print('   - Stop ID: $stopId');
+      print('   - Stop Name: $stopName');
+      
+      // Navigate to trip details if trip ID is available
+      if (tripId != null) {
+        final id = tripId is int ? tripId : int.tryParse(tripId.toString());
+        if (id != null) {
+          print('🚌 Navigating to trip details for pickup alert: $id');
+          _navigateTo('/trips/details/$id');
+          return;
+        }
+      }
+      
+      // Navigate to student details if student ID is available
+      if (studentId != null) {
+        final id = studentId is int ? studentId : int.tryParse(studentId.toString());
+        if (id != null) {
+          print('👨‍🎓 Navigating to student details for pickup alert: $id');
+          _navigateTo('/students/$id');
+          return;
+        }
+      }
+    }
+    
+    // Handle drop point alerts
+    if (type == 'student_dropoff' || type == 'dropoff_alert' || type == 'drop_point_alert' || data.containsKey('dropoff_alert') || data.containsKey('drop_point_alert')) {
+      final studentId = data['student_id'] ?? data['studentId'];
+      final tripId = data['trip_id'] ?? data['tripId'];
+      final stopId = data['stop_id'] ?? data['stopId'];
+      final stopName = data['stop_name'] ?? data['stopName'];
+      
+      print('📍 Drop point alert received');
+      print('   - Student ID: $studentId');
+      print('   - Trip ID: $tripId');
+      print('   - Stop ID: $stopId');
+      print('   - Stop Name: $stopName');
+      
+      // Navigate to trip details if trip ID is available
+      if (tripId != null) {
+        final id = tripId is int ? tripId : int.tryParse(tripId.toString());
+        if (id != null) {
+          print('🚌 Navigating to trip details for dropoff alert: $id');
+          _navigateTo('/trips/details/$id');
+          return;
+        }
+      }
+      
+      // Navigate to student details if student ID is available
+      if (studentId != null) {
+        final id = studentId is int ? studentId : int.tryParse(studentId.toString());
+        if (id != null) {
+          print('👨‍🎓 Navigating to student details for dropoff alert: $id');
+          _navigateTo('/students/$id');
+          return;
+        }
+      }
+    }
+
     // Handle student notifications
     if (type == 'student' || data.containsKey('student_id') || data.containsKey('studentId')) {
       final studentId = data['student_id'] ?? data['studentId'];
@@ -242,5 +310,35 @@ class NotificationNavigationService {
   /// Navigate to student details
   static void navigateToStudent(int studentId) {
     _navigateTo('/students/$studentId');
+  }
+
+  /// Navigate to trip details for pickup alert
+  static void navigateToPickupAlert({
+    int? tripId,
+    int? studentId,
+    String? stopName,
+  }) {
+    if (tripId != null) {
+      navigateToTrip(tripId);
+    } else if (studentId != null) {
+      navigateToStudent(studentId);
+    } else {
+      navigateToNotifications();
+    }
+  }
+
+  /// Navigate to trip details for drop point alert
+  static void navigateToDropPointAlert({
+    int? tripId,
+    int? studentId,
+    String? stopName,
+  }) {
+    if (tripId != null) {
+      navigateToTrip(tripId);
+    } else if (studentId != null) {
+      navigateToStudent(studentId);
+    } else {
+      navigateToNotifications();
+    }
   }
 }

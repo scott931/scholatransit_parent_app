@@ -420,23 +420,78 @@ class NotificationService {
     });
     print('═══════════════════════════════════════════════════════════');
 
+    // Check notification type
+    final notificationType = message.data['type']?.toString() ?? 
+                            message.data['notification_type']?.toString();
+    final isPickupAlert = notificationType == 'student_pickup' || 
+                         notificationType == 'pickup_alert' ||
+                         message.data.containsKey('pickup_alert');
+    final isDropPointAlert = notificationType == 'student_dropoff' || 
+                            notificationType == 'dropoff_alert' ||
+                            notificationType == 'drop_point_alert' ||
+                            message.data.containsKey('dropoff_alert') ||
+                            message.data.containsKey('drop_point_alert');
+    
     // CRITICAL: Extract body from BOTH notification payload AND data payload
     // This ensures we capture the body regardless of where it's stored
-    final notificationTitle = message.notification?.title ?? 
-                           message.data['title']?.toString() ??
-                           message.data['notification_title']?.toString() ??
-                           'Notification';
+    String notificationTitle;
+    String notificationBody;
     
-    final notificationBody = message.notification?.body ?? 
-                          message.data['body']?.toString() ??
-                          message.data['message']?.toString() ??
-                          message.data['notification_body']?.toString() ??
-                          message.data['description']?.toString() ??
-                          message.data['text']?.toString() ??
-                          message.data['content']?.toString() ??
-                          '';
+    if (isPickupAlert) {
+      // Customize for pickup alerts
+      final studentName = message.data['student_name']?.toString() ?? 
+                         message.data['studentName']?.toString() ?? 
+                         'Your child';
+      final stopName = message.data['stop_name']?.toString() ?? 
+                      message.data['stopName']?.toString() ?? 
+                      'pickup point';
+      final eta = message.data['eta']?.toString();
+      
+      notificationTitle = message.notification?.title ?? 
+                        message.data['title']?.toString() ??
+                        '🚌 Pickup Alert';
+      notificationBody = message.notification?.body ?? 
+                        message.data['body']?.toString() ??
+                        message.data['message']?.toString() ??
+                        '$studentName is being picked up at $stopName${eta != null ? ' (ETA: $eta)' : ''}';
+    } else if (isDropPointAlert) {
+      // Customize for drop point alerts
+      final studentName = message.data['student_name']?.toString() ?? 
+                         message.data['studentName']?.toString() ?? 
+                         'Your child';
+      final stopName = message.data['stop_name']?.toString() ?? 
+                      message.data['stopName']?.toString() ?? 
+                      'drop point';
+      final eta = message.data['eta']?.toString();
+      
+      notificationTitle = message.notification?.title ?? 
+                        message.data['title']?.toString() ??
+                        '📍 Drop Point Alert';
+      notificationBody = message.notification?.body ?? 
+                        message.data['body']?.toString() ??
+                        message.data['message']?.toString() ??
+                        '$studentName is being dropped off at $stopName${eta != null ? ' (ETA: $eta)' : ''}';
+    } else {
+      // Default extraction
+      notificationTitle = message.notification?.title ?? 
+                        message.data['title']?.toString() ??
+                        message.data['notification_title']?.toString() ??
+                        'Notification';
+      
+      notificationBody = message.notification?.body ?? 
+                        message.data['body']?.toString() ??
+                        message.data['message']?.toString() ??
+                        message.data['notification_body']?.toString() ??
+                        message.data['description']?.toString() ??
+                        message.data['text']?.toString() ??
+                        message.data['content']?.toString() ??
+                        '';
+    }
     
     print('📱 Extracted from foreground message:');
+    print('   - Type: $notificationType');
+    print('   - Is Pickup Alert: $isPickupAlert');
+    print('   - Is Drop Point Alert: $isDropPointAlert');
     print('   - Title: "$notificationTitle"');
     print('   - Body: "$notificationBody" (length: ${notificationBody.length})');
     
@@ -498,21 +553,71 @@ class NotificationService {
     final notificationType = message.data['type']?.toString() ?? 
         message.data['notification_type']?.toString();
     
+    // Check if this is a pickup or drop point alert
+    final isPickupAlert = notificationType == 'student_pickup' || 
+                         notificationType == 'pickup_alert' ||
+                         message.data.containsKey('pickup_alert');
+    final isDropPointAlert = notificationType == 'student_dropoff' || 
+                            notificationType == 'dropoff_alert' ||
+                            notificationType == 'drop_point_alert' ||
+                            message.data.containsKey('dropoff_alert') ||
+                            message.data.containsKey('drop_point_alert');
+    
     // CRITICAL: Extract title and body from ALL possible sources
     // Check notification payload first, then data payload, then all possible field names
-    final title = message.notification?.title ?? 
-                  message.data['title']?.toString() ??
-                  message.data['notification_title']?.toString() ??
-                  'Notification';
+    String title;
+    String body;
     
-    final body = message.notification?.body ?? 
-                 message.data['body']?.toString() ??
-                 message.data['message']?.toString() ??
-                 message.data['notification_body']?.toString() ??
-                 message.data['description']?.toString() ??
-                 message.data['text']?.toString() ??
-                 message.data['content']?.toString() ??
-                 '';
+    if (isPickupAlert) {
+      // Customize title and body for pickup alerts
+      final studentName = message.data['student_name']?.toString() ?? 
+                         message.data['studentName']?.toString() ?? 
+                         'Your child';
+      final stopName = message.data['stop_name']?.toString() ?? 
+                      message.data['stopName']?.toString() ?? 
+                      'pickup point';
+      final eta = message.data['eta']?.toString();
+      
+      title = message.notification?.title ?? 
+             message.data['title']?.toString() ??
+             '🚌 Pickup Alert';
+      body = message.notification?.body ?? 
+            message.data['body']?.toString() ??
+            message.data['message']?.toString() ??
+            '$studentName is being picked up at $stopName${eta != null ? ' (ETA: $eta)' : ''}';
+    } else if (isDropPointAlert) {
+      // Customize title and body for drop point alerts
+      final studentName = message.data['student_name']?.toString() ?? 
+                         message.data['studentName']?.toString() ?? 
+                         'Your child';
+      final stopName = message.data['stop_name']?.toString() ?? 
+                      message.data['stopName']?.toString() ?? 
+                      'drop point';
+      final eta = message.data['eta']?.toString();
+      
+      title = message.notification?.title ?? 
+             message.data['title']?.toString() ??
+             '📍 Drop Point Alert';
+      body = message.notification?.body ?? 
+            message.data['body']?.toString() ??
+            message.data['message']?.toString() ??
+            '$studentName is being dropped off at $stopName${eta != null ? ' (ETA: $eta)' : ''}';
+    } else {
+      // Default extraction for other notification types
+      title = message.notification?.title ?? 
+             message.data['title']?.toString() ??
+             message.data['notification_title']?.toString() ??
+             'Notification';
+      
+      body = message.notification?.body ?? 
+            message.data['body']?.toString() ??
+            message.data['message']?.toString() ??
+            message.data['notification_body']?.toString() ??
+            message.data['description']?.toString() ??
+            message.data['text']?.toString() ??
+            message.data['content']?.toString() ??
+            '';
+    }
     
     print('═══════════════════════════════════════════════════════════');
     print('📱 EXTRACTING FROM REMOTE MESSAGE');
@@ -854,6 +959,72 @@ class NotificationService {
       print('❌ Stack trace: $stackTrace');
       rethrow;
     }
+  }
+
+  /// Show pickup alert notification
+  static Future<void> showPickupAlert({
+    required String studentName,
+    required String stopName,
+    String? tripId,
+    String? studentId,
+    String? stopId,
+    String? eta,
+  }) async {
+    final title = '🚌 Pickup Alert';
+    final body = '$studentName is being picked up at $stopName${eta != null ? ' (ETA: $eta)' : ''}';
+    
+    final payload = {
+      'type': 'student_pickup',
+      'notification_type': 'student_pickup',
+      'title': title,
+      'body': body,
+      'student_name': studentName,
+      'stop_name': stopName,
+      if (tripId != null) 'trip_id': tripId,
+      if (studentId != null) 'student_id': studentId,
+      if (stopId != null) 'stop_id': stopId,
+      if (eta != null) 'eta': eta,
+    };
+    
+    await showLocalNotification(
+      title: title,
+      body: body,
+      payload: jsonEncode(payload),
+      id: DateTime.now().millisecondsSinceEpoch % 100000,
+    );
+  }
+
+  /// Show drop point alert notification
+  static Future<void> showDropPointAlert({
+    required String studentName,
+    required String stopName,
+    String? tripId,
+    String? studentId,
+    String? stopId,
+    String? eta,
+  }) async {
+    final title = '📍 Drop Point Alert';
+    final body = '$studentName is being dropped off at $stopName${eta != null ? ' (ETA: $eta)' : ''}';
+    
+    final payload = {
+      'type': 'student_dropoff',
+      'notification_type': 'student_dropoff',
+      'title': title,
+      'body': body,
+      'student_name': studentName,
+      'stop_name': stopName,
+      if (tripId != null) 'trip_id': tripId,
+      if (studentId != null) 'student_id': studentId,
+      if (stopId != null) 'stop_id': stopId,
+      if (eta != null) 'eta': eta,
+    };
+    
+    await showLocalNotification(
+      title: title,
+      body: body,
+      payload: jsonEncode(payload),
+      id: DateTime.now().millisecondsSinceEpoch % 100000,
+    );
   }
 
   static Future<void> showTripNotification({
