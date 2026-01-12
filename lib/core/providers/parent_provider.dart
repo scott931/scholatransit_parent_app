@@ -198,6 +198,8 @@ class ParentNotifier extends StateNotifier<ParentState> {
   @override
   void dispose() {
     stopLocationTracking();
+    stopTripTracking();
+    stopNotificationMonitoring();
     super.dispose();
   }
 
@@ -959,12 +961,6 @@ class ParentNotifier extends StateNotifier<ParentState> {
     }
   }
 
-  @override
-  void dispose() {
-    stopTripTracking();
-    stopNotificationMonitoring();
-    super.dispose();
-  }
 }
 
 final parentProvider = StateNotifierProvider<ParentNotifier, ParentState>((

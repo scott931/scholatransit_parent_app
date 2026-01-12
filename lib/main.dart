@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'dart:ui' as ui;
 
 import 'core/theme/app_theme.dart';
@@ -13,14 +14,31 @@ import 'core/services/storage_service.dart';
 import 'core/services/api_service.dart';
 import 'core/services/location_health_monitor.dart';
 import 'core/services/simple_communication_log_service.dart';
-import 'core/services/notification_service.dart';
 import 'core/services/android_notification_listener_service.dart';
 import 'core/widgets/system_back_button_handler.dart';
 import 'core/config/app_config.dart';
 import 'core/utils/hot_reload_handler.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+// Import background handler function - must be imported before Firebase init
+import 'core/services/notification_service.dart' show firebaseMessagingBackgroundHandler;
+import 'core/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Register background message handler BEFORE initializing Firebase
+  // This must be done before Firebase.initializeApp() is called
+  // The handler is defined in notification_service.dart as a top-level function
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+  // Initialize Firebase
+  try {
+    await Firebase.initializeApp();
+    print('✅ Firebase initialized successfully');
+  } catch (e) {
+    print('❌ Failed to initialize Firebase: $e');
+    print('⚠️ App will continue without Firebase functionality');
+  }
 
   // Initialize Hive for local storage
   await Hive.initFlutter();

@@ -333,6 +333,13 @@ class TripNotifier extends StateNotifier<TripState> {
         // Calculate ETA for the started trip
         await _calculateETAForTrip(trip, latitude, longitude);
 
+        // Send trip start notifications to parents
+        await _sendTripNotifications(
+          trip: trip,
+          notificationType: 'trip_started',
+          message: 'Trip ${trip.tripId} has started. Route: ${trip.routeName ?? "Unknown"}',
+        );
+
         return true;
       } else {
         state = state.copyWith(
@@ -396,6 +403,13 @@ class TripNotifier extends StateNotifier<TripState> {
 
         // Force a refresh of trips to ensure UI is updated
         await loadTrips();
+
+        // Send trip completion notifications to parents
+        await _sendTripNotifications(
+          trip: trip,
+          notificationType: 'trip_completed',
+          message: 'Trip ${trip.tripId} has been completed successfully.',
+        );
 
         return true;
       } else {
@@ -1373,6 +1387,92 @@ class TripNotifier extends StateNotifier<TripState> {
       }
     } catch (e) {
       print('❌ Trip Provider: Error calculating ETA: $e');
+    }
+  }
+
+  /// Send trip notifications to parents via API
+  /// Supports notification types: trip_started, trip_completed, student_pickup, 
+  /// student_dropoff, route_delay, emergency_alert, eta_update, arrival
+  Future<void> _sendTripNotifications({
+    required Trip trip,
+    required String notificationType,
+    required String message,
+    Map<String, dynamic>? additionalData,
+  }) async {
+    try {
+      print('📱 Trip Provider: Sending $notificationType notifications for trip ${trip.tripId}');
+
+      // Load students if not already loaded
+      List<Student> students = state.students;
+      if (students.isEmpty && trip.routeId != null) {
+        print('📱 Trip Provider: Loading students for route ${trip.routeId}');
+        await loadStudentsByRoute(trip.routeId!);
+        students = state.students;
+      }
+
+      if (students.isEmpty) {
+        print('⚠️ Trip Provider: No students found for trip ${trip.tripId}, skipping notifications');
+        return;
+      }
+
+      // Get unique parent IDs from students
+      final parentIds = students
+          .where((student) => student.parentId > 0)
+          .map((student) => student.parentId)
+          .toSet();
+
+      if (parentIds.isEmpty) {
+        print('⚠️ Trip Provider: No valid parent IDs found, skipping notifications');
+        return;
+      }
+
+      print('📱 Trip Provider: Sending notifications to ${parentIds.length} parents');
+
+      // Prepare trip data for notification
+      final tripData = {
+        'trip_id': trip.tripId,
+        'route_name': trip.routeName,
+        'vehicle_name': trip.vehicleName,
+        'driver_name': trip.driverName,
+        'start_location': trip.startLocation,
+        'end_location': trip.endLocation,
+        'start_time': trip.actualStart?.toIso8601String(),
+        'end_time': trip.actualEnd?.toIso8601String(),
+        'status': trip.status.toString(),
+        ...?additionalData,
+      };
+
+      // Send notifications to each parent
+      int successCount = 0;
+      int failureCount = 0;
+
+      for (final parentId in parentIds) {
+        try {
+          final response = await ParentNotificationService.sendTripUpdate(
+            parentId: parentId,
+            tripId: int.tryParse(trip.tripId) ?? trip.id,
+            updateType: notificationType,
+            message: message,
+            tripData: tripData,
+          );
+
+          if (response.success) {
+            successCount++;
+            print('✅ Trip Provider: Notification sent to parent $parentId');
+          } else {
+            failureCount++;
+            print('❌ Trip Provider: Failed to send notification to parent $parentId: ${response.error}');
+          }
+        } catch (e) {
+          failureCount++;
+          print('❌ Trip Provider: Error sending notification to parent $parentId: $e');
+        }
+      }
+
+      print('📱 Trip Provider: Notifications sent - Success: $successCount, Failed: $failureCount');
+    } catch (e) {
+      print('❌ Trip Provider: Error sending trip notifications: $e');
+      // Don't throw error - notifications are not critical for trip operations
     }
   }
 

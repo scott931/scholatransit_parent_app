@@ -12,6 +12,10 @@ class RegistrationRequest {
   final String emergencyContactPhone;
   final String source;
   final DeviceInfo deviceInfo;
+  // Optional student linking fields for auto-matching
+  final String? studentId;
+  final String? studentEmail;
+  final String? studentPhone;
 
   const RegistrationRequest({
     required this.username,
@@ -27,10 +31,13 @@ class RegistrationRequest {
     required this.emergencyContactPhone,
     required this.source,
     required this.deviceInfo,
+    this.studentId,
+    this.studentEmail,
+    this.studentPhone,
   });
 
   Map<String, dynamic> toJson() {
-    return {
+    final json = {
       'username': username,
       'email': email,
       'password': password,
@@ -45,6 +52,23 @@ class RegistrationRequest {
       'source': source,
       'device_info': deviceInfo.toJson(),
     };
+    
+    // Add optional student linking fields if provided
+    // These will be used by the backend for auto-matching
+    final studentIdValue = studentId;
+    if (studentIdValue != null && studentIdValue.isNotEmpty) {
+      json['student_id'] = studentIdValue;
+    }
+    final studentEmailValue = studentEmail;
+    if (studentEmailValue != null && studentEmailValue.isNotEmpty) {
+      json['student_email'] = studentEmailValue;
+    }
+    final studentPhoneValue = studentPhone;
+    if (studentPhoneValue != null && studentPhoneValue.isNotEmpty) {
+      json['student_phone'] = studentPhoneValue;
+    }
+    
+    return json;
   }
 
   factory RegistrationRequest.fromJson(Map<String, dynamic> json) {
@@ -64,6 +88,9 @@ class RegistrationRequest {
       deviceInfo: DeviceInfo.fromJson(
         json['device_info'] as Map<String, dynamic>,
       ),
+      studentId: json['student_id'] as String?,
+      studentEmail: json['student_email'] as String?,
+      studentPhone: json['student_phone'] as String?,
     );
   }
 }
