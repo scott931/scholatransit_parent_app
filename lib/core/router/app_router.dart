@@ -11,6 +11,7 @@ import '../../features/auth/screens/otp_screen.dart';
 import '../../features/auth/screens/forgot_password_screen.dart';
 // REMOVED: import '../../features/notifications/screens/notifications_screen.dart'; // Using parent notifications instead
 import '../../features/notifications/screens/alert_details_screen.dart';
+import '../../features/emergency/screens/emergency_alert_details_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../../features/settings/screens/notification_listener_settings_screen.dart';
 import '../../features/parent/screens/parent_dashboard_screen.dart';
@@ -213,7 +214,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/parent/notifications',
             name: 'parent-notifications',
-            builder: (context, state) => const ParentNotificationsScreen(),
+            builder: (context, state) {
+              // Check if we need to highlight a specific notification or add notification data
+              final extra = state.extra as Map<String, dynamic>?;
+              return ParentNotificationsScreen(
+                highlightNotificationId: extra?['highlight_notification_id'],
+                notificationData: extra?['notification_data'] as Map<String, dynamic>?,
+              );
+            },
+          ),
+          GoRoute(
+            path: '/parent/notifications/emergency/:id',
+            name: 'parent-emergency-alert-details',
+            builder: (context, state) {
+              final alertId = int.parse(state.pathParameters['id']!);
+              return EmergencyAlertDetailsScreen(alertId: alertId);
+            },
           ),
           GoRoute(
             path: '/parent/students',

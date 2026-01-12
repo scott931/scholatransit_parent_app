@@ -10,11 +10,50 @@ class NotificationDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = notification['title'] ?? 'Notification';
-    final body = notification['body'] ?? 'No content available';
-    final timestamp = DateTime.parse(notification['timestamp'] as String);
-    final type = notification['type'] as String;
-    final senderName = notification['sender_name'];
+    // Handle different field names for title
+    final title = notification['title']?.toString() ?? 
+                   notification['message']?.toString() ?? 
+                   'Notification';
+    
+    // CRITICAL: Check ALL possible sources for body content
+    // This ensures we capture the body regardless of where it's stored
+    final body = _extractBodyContent(notification);
+    
+    // Handle timestamp - try both 'timestamp' and 'created_at'
+    final timestampStr = notification['timestamp']?.toString() ?? 
+                         notification['created_at']?.toString();
+    final timestamp = timestampStr != null 
+        ? (DateTime.tryParse(timestampStr) ?? DateTime.now())
+        : DateTime.now();
+    
+    // Handle type - try both 'type' and 'notification_type'
+    final type = notification['type']?.toString() ?? 
+                 notification['notification_type']?.toString() ?? 
+                 'general';
+    
+    final senderName = notification['sender_name']?.toString();
+    
+    // Debug: Print notification structure
+    print('═══════════════════════════════════════════════════════════');
+    print('📱 NOTIFICATION DETAILS SCREEN - DEBUG');
+    print('═══════════════════════════════════════════════════════════');
+    print('📱 Notification keys: ${notification.keys.toList()}');
+    print('📱 Full notification: $notification');
+    print('📱 Title: "$title"');
+    print('📱 Body: "$body"');
+    print('📱 Body length: ${body.length}');
+    print('📱 Body isEmpty: ${body.isEmpty}');
+    print('📱 Body trim isEmpty: ${body.trim().isEmpty}');
+    
+    // Check all possible body sources
+    print('📱 Checking all body sources:');
+    final possibleFields = ['body', 'message', 'description', 'notification_body', 'text', 'content', 'alert'];
+    for (var field in possibleFields) {
+      final value = notification[field];
+      print('   - notification[\'$field\']: $value');
+    }
+    print('   - Final extracted body: "$body" (length: ${body.length})');
+    print('═══════════════════════════════════════════════════════════');
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -194,6 +233,11 @@ class NotificationDetailsScreen extends StatelessWidget {
   }
 
   Widget _buildMessageCard(String body) {
+    // If body is empty or just whitespace, show a helpful message
+    final displayBody = body.trim().isEmpty 
+        ? 'No message content available for this notification.'
+        : body;
+    
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(20.w),
@@ -228,11 +272,12 @@ class NotificationDetailsScreen extends StatelessWidget {
           ),
           SizedBox(height: 16.h),
           Text(
-            body,
+            displayBody,
             style: GoogleFonts.poppins(
               fontSize: 14.sp,
-              color: Colors.black87,
+              color: body.trim().isEmpty ? Colors.grey[500] : Colors.black87,
               height: 1.6,
+              fontStyle: body.trim().isEmpty ? FontStyle.italic : FontStyle.normal,
             ),
           ),
         ],
@@ -414,6 +459,51 @@ class NotificationDetailsScreen extends StatelessWidget {
 
       return '$day $month $year at $displayHour:$minuteStr $period';
     }
+  }
+
+  /// Extract body content from notification, checking all possible field names
+  String _extractBodyContent(Map<String, dynamic> notification) {
+    // Check all possible fields in order of priority
+    final possibleFields = [
+      'body',
+      'message',
+      'notification_body',
+      'description',
+      'text',
+      'content',
+      'alert',
+      'data_body', // In case body is nested in data
+    ];
+    
+    // First, try direct fields
+    for (var field in possibleFields) {
+      final value = notification[field];
+      if (value != null && value.toString().trim().isNotEmpty) {
+        final bodyStr = value.toString().trim();
+        if (bodyStr != 'No message content available' && 
+            bodyStr != 'No content available') {
+          return bodyStr;
+        }
+      }
+    }
+    
+    // Second, check if body is nested in data map
+    if (notification['data'] is Map) {
+      final dataMap = notification['data'] as Map<String, dynamic>;
+      for (var field in possibleFields) {
+        final value = dataMap[field];
+        if (value != null && value.toString().trim().isNotEmpty) {
+          final bodyStr = value.toString().trim();
+          if (bodyStr != 'No message content available' && 
+              bodyStr != 'No content available') {
+            return bodyStr;
+          }
+        }
+      }
+    }
+    
+    // Fallback
+    return 'No message content available';
   }
 
   void _shareNotification() {

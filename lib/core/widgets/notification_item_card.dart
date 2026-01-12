@@ -74,12 +74,9 @@ class _NotificationItemCardState extends ConsumerState<NotificationItemCard>
         widget.notification['message']?.toString() ??
         widget.notification['emergency_type_display']?.toString() ??
         'Notification';
-    final body =
-        widget.notification['body']?.toString() ??
-        widget.notification['description']?.toString() ??
-        widget.notification['message']?.toString() ??
-        widget.notification['emergency_type_display']?.toString() ??
-        'Tap to view details';
+    
+    // CRITICAL: Extract body from all possible sources
+    final body = _extractBodyContent(widget.notification);
     final timestampStr =
         widget.notification['timestamp']?.toString() ??
         widget.notification['created_at']?.toString();
@@ -374,8 +371,14 @@ class _NotificationItemCardState extends ConsumerState<NotificationItemCard>
   }
 
   Widget _buildDescription(String body, bool isRead) {
+    // Debug: Log body content
+    if (body.isEmpty || body == 'Tap to view details') {
+      print('⚠️ Notification body is empty or default. Notification: ${widget.notification}');
+      print('⚠️ Available fields: ${widget.notification.keys.toList()}');
+    }
+    
     return Text(
-      body,
+      body.isEmpty ? 'Tap to view details' : body,
       style: GoogleFonts.poppins(
         fontSize: 14.sp,
         color: isRead ? Colors.grey[500] : Colors.grey[700],
@@ -677,5 +680,51 @@ class _NotificationItemCardState extends ConsumerState<NotificationItemCard>
 
       return '$day $month $year at $displayHour:$minuteStr $period';
     }
+  }
+
+  /// Extract body content from notification, checking all possible field names
+  String _extractBodyContent(Map<String, dynamic> notification) {
+    // Check all possible fields in order of priority
+    final possibleFields = [
+      'body',
+      'message',
+      'notification_body',
+      'description',
+      'text',
+      'content',
+      'alert',
+      'emergency_type_display', // Fallback for emergency notifications
+    ];
+    
+    // First, try direct fields
+    for (var field in possibleFields) {
+      final value = notification[field];
+      if (value != null && value.toString().trim().isNotEmpty) {
+        final bodyStr = value.toString().trim();
+        if (bodyStr != 'No message content available' && 
+            bodyStr != 'No content available' &&
+            bodyStr != 'Tap to view details') {
+          return bodyStr;
+        }
+      }
+    }
+    
+    // Second, check if body is nested in data map
+    if (notification['data'] is Map) {
+      final dataMap = notification['data'] as Map<String, dynamic>;
+      for (var field in possibleFields) {
+        final value = dataMap[field];
+        if (value != null && value.toString().trim().isNotEmpty) {
+          final bodyStr = value.toString().trim();
+          if (bodyStr != 'No message content available' && 
+              bodyStr != 'No content available') {
+            return bodyStr;
+          }
+        }
+      }
+    }
+    
+    // Fallback
+    return 'Tap to view details';
   }
 }

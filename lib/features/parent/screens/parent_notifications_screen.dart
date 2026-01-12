@@ -5,10 +5,18 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/providers/parent_provider.dart';
 import '../../../core/providers/parent_auth_provider.dart';
 import '../../../core/widgets/notification_item_card.dart';
+import '../../../core/services/notification_navigation_service.dart';
 import 'package:go_router/go_router.dart';
 
 class ParentNotificationsScreen extends ConsumerStatefulWidget {
-  const ParentNotificationsScreen({super.key});
+  final dynamic highlightNotificationId;
+  final Map<String, dynamic>? notificationData;
+  
+  const ParentNotificationsScreen({
+    super.key,
+    this.highlightNotificationId,
+    this.notificationData,
+  });
 
   @override
   ConsumerState<ParentNotificationsScreen> createState() =>
@@ -16,13 +24,33 @@ class ParentNotificationsScreen extends ConsumerStatefulWidget {
 }
 
 class _ParentNotificationsScreenState
-    extends ConsumerState<ParentNotificationsScreen> {
+    extends ConsumerState<ParentNotificationsScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeNotifications();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // App came to foreground - refresh notifications to see any that were received in background
+      print('📱 App resumed - refreshing notifications to show background notifications');
+      final authState = ref.read(parentAuthProvider);
+      if (authState.isAuthenticated) {
+        ref.read(parentProvider.notifier).loadParentData();
+      }
+    }
   }
 
   void _initializeNotifications() {
@@ -36,6 +64,23 @@ class _ParentNotificationsScreenState
     print('  - isLoading: ${parentState.isLoading}');
     print('  - notifications count: ${parentState.notifications.length}');
     print('  - unread count: ${parentState.unreadCount}');
+    
+    // Check if we have notification data from navigation (from tapped notification)
+    // First check widget parameter (from router extra if available)
+    if (widget.notificationData != null) {
+      print('📱 Found notification data in widget parameter');
+      _addNotificationFromData(widget.notificationData!);
+    } else {
+      // Also check pending notification data from NotificationNavigationService
+      // This is needed because GoRouter's go() doesn't support extra parameters
+      final pendingData = NotificationNavigationService.getAndClearPendingNotificationData();
+      if (pendingData != null) {
+        print('📱 Found pending notification data from navigation service');
+        _addNotificationFromData(pendingData);
+      } else {
+        print('📱 No notification data found to add');
+      }
+    }
 
     // Debug: Print all notifications to see what we have
     for (int i = 0; i < parentState.notifications.length; i++) {
@@ -55,6 +100,193 @@ class _ParentNotificationsScreenState
       ref.read(parentProvider.notifier).loadParentData();
     } else if (!authState.isAuthenticated) {
       print('⚠️ Parent not authenticated, cannot load notifications');
+    }
+  }
+
+  /// Add a notification to the state from notification data (e.g., from tapped background notification)
+  Future<void> _addNotificationFromData(Map<String, dynamic> notificationData) async {
+    try {
+      print('═══════════════════════════════════════════════════════════');
+      print('📱 ADDING NOTIFICATION FROM DATA');
+      print('═══════════════════════════════════════════════════════════');
+      print('📱 Notification data received: $notificationData');
+      print('📱 Notification data type: ${notificationData.runtimeType}');
+      print('📱 Notification data keys: ${notificationData.keys.toList()}');
+      
+      // CRITICAL: Debug - print all values to see what we have
+      notificationData.forEach((key, value) {
+        print('   - $key: $value (type: ${value.runtimeType}, isEmpty: ${value?.toString().isEmpty ?? true})');
+      });
+      
+      // CRITICAL: Extract body with multiple fallbacks - check all possible locations
+      final title = notificationData['title']?.toString() ?? 
+                   notificationData['notification_title']?.toString() ??
+                   'Notification';
+      
+      // Try multiple sources for body - this is critical for displaying content
+      final body = notificationData['body']?.toString() ?? 
+                  notificationData['message']?.toString() ??
+                  notificationData['notification_body']?.toString() ??
+                  notificationData['description']?.toString() ??
+                  (notificationData['data'] is Map 
+                    ? (notificationData['data'] as Map<String, dynamic>)['body']?.toString() ??
+                      (notificationData['data'] as Map<String, dynamic>)['message']?.toString()
+                    : null) ??
+                  '';
+      
+      final data = notificationData['data'] as Map<String, dynamic>? ?? {};
+      final type = notificationData['type']?.toString() ?? 
+                  notificationData['notification_type']?.toString() ??
+                  'general';
+      
+      print('📱 Extracted values:');
+      print('   - Title: "$title" (length: ${title.length})');
+      print('   - Body: "$body" (length: ${body.length})');
+      print('   - Type: $type');
+      print('   - Data keys: ${data.keys.toList()}');
+      print('   - Full notificationData keys: ${notificationData.keys.toList()}');
+      
+      // Debug: Check if body is in nested data
+      if (body.isEmpty && data.isNotEmpty) {
+        print('⚠️ Body is empty, checking nested data...');
+        print('   - data[\'body\']: ${data['body']}');
+        print('   - data[\'message\']: ${data['message']}');
+      }
+      
+      // CRITICAL: If body is still empty, try to get it from data map
+      final finalBody = body.isNotEmpty 
+          ? body 
+          : (data['body']?.toString() ?? 
+             data['message']?.toString() ?? 
+             data['notification_body']?.toString() ?? 
+             '');
+      
+      print('📱 Final body after all fallbacks: "$finalBody" (length: ${finalBody.length})');
+      
+      // Create a notification object that matches both server format and NotificationDetailsScreen expectations
+      final now = DateTime.now();
+      
+      // CRITICAL: Create base notification with body/message FIRST, then spread data
+      // This ensures body/message are not overwritten by data spread
+      final notification = {
+        'id': DateTime.now().millisecondsSinceEpoch, // Temporary ID
+        'title': title,
+        // CRITICAL: Set body and message FIRST before spreading data
+        // This ensures they're not overwritten by empty values from data
+        'body': finalBody.isNotEmpty ? finalBody : 'No message content available',
+        'message': finalBody.isNotEmpty ? finalBody : 'No message content available',
+        // Include both 'notification_type' (for server format) and 'type' (for NotificationDetailsScreen)
+        'notification_type': type,
+        'type': type,
+        'notification_type_display': type.replaceAll('_', ' ').split(' ').map((word) => 
+          word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)
+        ).join(' '),
+        // Include both 'created_at' (for server format) and 'timestamp' (for NotificationDetailsScreen)
+        'created_at': now.toIso8601String(),
+        'timestamp': now.toIso8601String(),
+        'is_read': false,
+        'isRead': false,
+        // CRITICAL: Spread data LAST, but exclude body/message to prevent overwriting
+        // Filter out body/message from data if they're empty, so they don't overwrite our values
+        ...Map.fromEntries(
+          data.entries.where((entry) {
+            // Don't include body/message if they're empty strings - we'll set them explicitly
+            if ((entry.key == 'body' || entry.key == 'message') && 
+                (entry.value == null || entry.value.toString().isEmpty)) {
+              return false;
+            }
+            return true;
+          })
+        ),
+        // CRITICAL: Always set body and message explicitly AFTER spreading data
+        // Use finalBody if available, otherwise try data, otherwise use fallback
+        'body': finalBody.isNotEmpty 
+            ? finalBody 
+            : ((data['body']?.toString()?.isNotEmpty == true) 
+                ? data['body']!.toString() 
+                : ((data['message']?.toString()?.isNotEmpty == true)
+                    ? data['message']!.toString()
+                    : 'No message content available')),
+        'message': finalBody.isNotEmpty 
+            ? finalBody 
+            : ((data['message']?.toString()?.isNotEmpty == true) 
+                ? data['message']!.toString() 
+                : ((data['body']?.toString()?.isNotEmpty == true)
+                    ? data['body']!.toString()
+                    : 'No message content available')),
+      };
+      
+      print('📱 Created notification object:');
+      print('   - ID: ${notification['id']}');
+      print('   - Title: "${notification['title']}"');
+      print('   - Body: "${notification['body']}" (length: ${notification['body'].toString().length})');
+      print('   - Message: "${notification['message']}" (length: ${notification['message'].toString().length})');
+      print('   - Type: ${notification['type']}');
+      print('   - Timestamp: ${notification['timestamp']}');
+      print('═══════════════════════════════════════════════════════════');
+      
+      // Add to parent provider state
+      // Access the notifier through ref
+      final notifier = ref.read(parentProvider.notifier);
+      
+      // Use a private method to add notification - we'll need to make it public or use a different approach
+      // For now, let's add it directly to the state by calling loadParentData which will merge with server data
+      // But first, let's try to add it directly if there's a public method
+      
+      // Actually, we can't directly access _addNotification, so let's add it to a temporary list
+      // and it will be merged when loadParentData is called
+      // Or better: create a method in parent provider to add a notification
+      
+      // For now, let's just refresh to get server data, and the notification should appear
+      // But the issue is the server doesn't have it yet
+      
+      // Verify notification has body before adding
+      print('📱 Verifying notification before adding:');
+      print('   - Has title: ${notification['title'] != null && notification['title'].toString().isNotEmpty}');
+      print('   - Has body: ${notification['body'] != null && notification['body'].toString().isNotEmpty}');
+      print('   - Has message: ${notification['message'] != null && notification['message'].toString().isNotEmpty}');
+      print('   - Body value: "${notification['body']}"');
+      print('   - Message value: "${notification['message']}"');
+      
+      // CRITICAL: Double-check body before adding
+      print('📱 FINAL CHECK before adding to provider:');
+      print('   - Notification body: "${notification['body']}" (length: ${notification['body']?.toString().length ?? 0})');
+      print('   - Notification message: "${notification['message']}" (length: ${notification['message']?.toString().length ?? 0})');
+      print('   - Full notification object: $notification');
+      
+      // Add notification using the provider's public method
+      ref.read(parentProvider.notifier).addNotificationFromExternalSource(notification);
+      
+      // Verify it was added - wait a bit for state to update
+      await Future.delayed(Duration(milliseconds: 100));
+      final updatedState = ref.read(parentProvider);
+      print('✅ Added notification to state');
+      print('📱 Total notifications now: ${updatedState.notifications.length}');
+      if (updatedState.notifications.isNotEmpty) {
+        final addedNotification = updatedState.notifications.first;
+        print('═══════════════════════════════════════════════════════════');
+        print('📱 VERIFICATION - First notification in state:');
+        print('═══════════════════════════════════════════════════════════');
+        print('   - Title: "${addedNotification['title']}"');
+        print('   - Body: "${addedNotification['body']}" (length: ${addedNotification['body']?.toString().length ?? 0})');
+        print('   - Message: "${addedNotification['message']}" (length: ${addedNotification['message']?.toString().length ?? 0})');
+        print('   - Keys: ${addedNotification.keys.toList()}');
+        print('   - Full notification: $addedNotification');
+        print('═══════════════════════════════════════════════════════════');
+        
+        // CRITICAL: If body is still empty, log a warning
+        final bodyInState = addedNotification['body']?.toString() ?? '';
+        final messageInState = addedNotification['message']?.toString() ?? '';
+        if (bodyInState.isEmpty || bodyInState == 'No message content available') {
+          print('⚠️⚠️⚠️ WARNING: Body is still empty in state! ⚠️⚠️⚠️');
+          print('⚠️ This means the body was lost during the add process');
+        } else {
+          print('✅ Body is present in state: "$bodyInState"');
+        }
+      }
+    } catch (e, stackTrace) {
+      print('❌ Failed to add notification from data: $e');
+      print('❌ Stack trace: $stackTrace');
     }
   }
 

@@ -22,6 +22,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 // Import background handler function - must be imported before Firebase init
 import 'core/services/notification_service.dart' show firebaseMessagingBackgroundHandler;
 import 'core/services/notification_service.dart';
+import 'core/services/notification_navigation_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -119,6 +120,12 @@ class GoDropApp extends ConsumerWidget {
       HotReloadHandler.initialize(ref);
     }
 
+    // Get router for navigation service
+    final router = ref.watch(appRouterProvider);
+    
+    // Initialize notification navigation service with router
+    NotificationNavigationService.initialize(router: router);
+
     return ScreenUtilInit(
       designSize: const ui.Size(375, 812), // iPhone X design size
       minTextAdapt: true,
@@ -130,7 +137,7 @@ class GoDropApp extends ConsumerWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: ThemeMode.system,
-          routerConfig: ref.watch(appRouterProvider),
+          routerConfig: router,
           builder: (context, child) {
             return SystemBackButtonHandler(
               child: MediaQuery(

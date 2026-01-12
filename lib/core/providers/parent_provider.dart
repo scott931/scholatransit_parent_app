@@ -576,18 +576,53 @@ class ParentNotifier extends StateNotifier<ParentState> {
           }
         }
 
+        // CRITICAL FIX: Merge with existing notifications to preserve manually added ones
+        // Get existing notifications that aren't from the API (manually added)
+        final manuallyAddedNotifications = state.notifications.where((existing) {
+          // Check if this notification exists in the API response
+          final existingId = existing['id'];
+          final existsInApi = normalizedNotifications.any((api) {
+            final apiId = api['id'];
+            return apiId == existingId || apiId.toString() == existingId.toString();
+          });
+          // Keep notifications that don't exist in API (manually added)
+          return !existsInApi;
+        }).map((n) => Map<String, dynamic>.from(n)).toList();
+        
+        print('📱 Preserving ${manuallyAddedNotifications.length} manually added notifications');
+        
+        // Merge: API notifications first (newest), then manually added ones
+        final mergedNotifications = <Map<String, dynamic>>[
+          ...normalizedNotifications,
+          ...manuallyAddedNotifications,
+        ];
+        final mergedUnreadCount = _calculateUnreadCount(mergedNotifications);
+        
+        print('📱 Total notifications after merge: ${mergedNotifications.length} (${mergedUnreadCount} unread)');
+        
         state = state.copyWith(
-          notifications: normalizedNotifications,
-          unreadCount: unreadCount,
+          notifications: mergedNotifications,
+          unreadCount: mergedUnreadCount,
         );
       } else {
-        print('⚠️ No notifications found or API unavailable, using empty list');
-        state = state.copyWith(notifications: [], unreadCount: 0);
+        print('⚠️ No notifications found from API, preserving existing notifications');
+        // CRITICAL FIX: Don't overwrite existing notifications when API returns empty
+        // Preserve manually added notifications
+        final existingCount = state.notifications.length;
+        final existingUnreadCount = _calculateUnreadCount(state.notifications);
+        print('📱 Preserving $existingCount existing notifications ($existingUnreadCount unread)');
+        // Only update unread count, don't clear notifications
+        state = state.copyWith(unreadCount: existingUnreadCount);
       }
     } catch (e) {
       print('❌ Failed to load notifications: $e');
-      // Provide fallback empty list to prevent crashes
-      state = state.copyWith(notifications: [], unreadCount: 0);
+      // CRITICAL FIX: Don't clear existing notifications on error
+      // Preserve manually added notifications even if API fails
+      final existingCount = state.notifications.length;
+      final existingUnreadCount = _calculateUnreadCount(state.notifications);
+      print('📱 Error loading notifications, preserving $existingCount existing notifications');
+      // Only update unread count, don't clear notifications
+      state = state.copyWith(unreadCount: existingUnreadCount);
     }
   }
 
@@ -639,7 +674,24 @@ class ParentNotifier extends StateNotifier<ParentState> {
     state = state.copyWith(currentLocation: etaData);
   }
 
+  /// Add a notification from external source (e.g., background notification)
+  /// This is a public method that can be called from anywhere
+  void addNotificationFromExternalSource(Map<String, dynamic> notification) {
+    _addNotification(notification);
+  }
+
   void _addNotification(Map<String, dynamic> notification) {
+    // Debug: Log notification being added
+    print('═══════════════════════════════════════════════════════════');
+    print('📱 _addNotification called');
+    print('📱 Notification keys: ${notification.keys.toList()}');
+    print('📱 Notification title: ${notification['title']}');
+    print('📱 Notification body: ${notification['body']}');
+    print('📱 Notification message: ${notification['message']}');
+    print('📱 Body length: ${notification['body']?.toString().length ?? 0}');
+    print('📱 Message length: ${notification['message']?.toString().length ?? 0}');
+    print('═══════════════════════════════════════════════════════════');
+    
     // Validate notification data
     if (notification['id'] == null) {
       print('⚠️ Received invalid notification without ID: $notification');
@@ -735,6 +787,15 @@ class ParentNotifier extends StateNotifier<ParentState> {
     }
     final readAt = notification['read_at'] ?? notification['readAt'];
     final hasReadAt = readAt != null && readAt != '' && readAt.toString().isNotEmpty;
+    
+    // CRITICAL: Verify body is present before adding
+    final bodyValue = notification['body']?.toString() ?? notification['message']?.toString() ?? '';
+    print('📱 Adding notification to state:');
+    print('   - ID: $notificationId');
+    print('   - Title: ${notification['title']}');
+    print('   - Body: "$bodyValue" (length: ${bodyValue.length})');
+    print('   - Message: ${notification['message']}');
+    print('   - Is read: $isRead');
 
     // Only add if notification is unread
     if (!isRead && !hasReadAt) {
@@ -747,10 +808,26 @@ class ParentNotifier extends StateNotifier<ParentState> {
       final unreadCount = _calculateUnreadCount(updatedNotifications);
 
       print('🔔 New unread notification added: ${notification['title'] ?? notification['message']}');
+      print('📱 Notification body in state: "${notification['body']}"');
+      print('📱 Notification message in state: "${notification['message']}"');
+      print('📱 First notification in updated list body: "${updatedNotifications.first['body']}"');
+      print('📱 First notification in updated list message: "${updatedNotifications.first['message']}"');
+      
       state = state.copyWith(
         notifications: updatedNotifications,
         unreadCount: unreadCount,
       );
+      
+      // Verify after state update
+      final verifyState = state;
+      if (verifyState.notifications.isNotEmpty) {
+        final firstNotif = verifyState.notifications.first;
+        print('📱 VERIFICATION - First notification in state after update:');
+        print('   - Title: "${firstNotif['title']}"');
+        print('   - Body: "${firstNotif['body']}" (length: ${firstNotif['body']?.toString().length ?? 0})');
+        print('   - Message: "${firstNotif['message']}" (length: ${firstNotif['message']?.toString().length ?? 0})');
+        print('   - Keys: ${firstNotif.keys.toList()}');
+      }
     } else {
       print('✅ Skipping read notification when adding new: $notificationId, is_read: $isReadValue, read_at: $readAt');
     }
