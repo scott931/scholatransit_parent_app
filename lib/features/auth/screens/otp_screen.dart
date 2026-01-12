@@ -53,16 +53,25 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
     // Listen for successful authentication and errors from parent auth provider
     ref.listen<ParentAuthState>(parentAuthProvider, (previous, next) {
-      if ((previous == null || !previous.isAuthenticated) &&
-          next.isAuthenticated &&
-          next.parent != null &&
-          mounted) {
-        print(
-          '📱 DEBUG: Parent authentication successful, navigating to parent dashboard',
-        );
-        context.go('/parent/dashboard');
+      // Check for successful authentication
+      if (next.isAuthenticated && next.parent != null && mounted) {
+        // Only navigate if we weren't already authenticated (to avoid duplicate navigations)
+        if (previous == null || !previous.isAuthenticated || previous.parent == null) {
+          print(
+            '📱 DEBUG: Parent authentication successful, navigating to parent dashboard',
+          );
+          print('📱 DEBUG: Previous auth: ${previous?.isAuthenticated}, Next auth: ${next.isAuthenticated}');
+          print('📱 DEBUG: Previous parent: ${previous?.parent?.id}, Next parent: ${next.parent?.id}');
+          // Use a small delay to ensure state is fully settled
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted) {
+              context.go('/parent/dashboard');
+            }
+          });
+        }
         return;
       }
+      // Show error messages
       if (next.error != null && next.error != previous?.error && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -75,16 +84,25 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
     // Listen for successful authentication and errors from driver auth provider
     ref.listen<AuthState>(authProvider, (previous, next) {
-      if ((previous == null || !previous.isAuthenticated) &&
-          next.isAuthenticated &&
-          next.driver != null &&
-          mounted) {
-        print(
-          '📱 DEBUG: Driver authentication successful, navigating to driver dashboard',
-        );
-        context.go('/driver/dashboard');
+      // Check for successful authentication
+      if (next.isAuthenticated && next.driver != null && mounted) {
+        // Only navigate if we weren't already authenticated (to avoid duplicate navigations)
+        if (previous == null || !previous.isAuthenticated || previous.driver == null) {
+          print(
+            '📱 DEBUG: Driver authentication successful, navigating to driver dashboard',
+          );
+          print('📱 DEBUG: Previous auth: ${previous?.isAuthenticated}, Next auth: ${next.isAuthenticated}');
+          print('📱 DEBUG: Previous driver: ${previous?.driver?.id}, Next driver: ${next.driver?.id}');
+          // Use a small delay to ensure state is fully settled
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted) {
+              context.go('/driver/dashboard');
+            }
+          });
+        }
         return;
       }
+      // Show error messages
       if (next.error != null && next.error != previous?.error && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -361,10 +379,64 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       return;
     }
 
-    // Show error message if verification failed
-    if (!success && mounted) {
-      // Error message is already shown by the provider listener
-      // But we can show a generic message if needed
+    // Handle success/failure
+    if (!mounted) return;
+
+    if (success) {
+      // Check authentication state and navigate
+      final updatedParentAuthState = ref.read(parentAuthProvider);
+      final updatedAuthState = ref.read(authProvider);
+
+      // Priority 1: Parent authentication
+      if (updatedParentAuthState.isAuthenticated &&
+          updatedParentAuthState.parent != null) {
+        print('🔐 DEBUG: Parent OTP verified successfully, navigating to dashboard');
+        // Small delay to ensure state is fully updated
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (mounted) {
+          context.go('/parent/dashboard');
+        }
+        return;
+      }
+      // Priority 2: Driver authentication
+      else if (updatedAuthState.isAuthenticated &&
+          updatedAuthState.driver != null) {
+        print('🔐 DEBUG: Driver OTP verified successfully, navigating to dashboard');
+        // Small delay to ensure state is fully updated
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (mounted) {
+          context.go('/driver/dashboard');
+        }
+        return;
+      } else {
+        // Success but not authenticated yet - wait a bit and check again
+        print('⚠️ DEBUG: OTP verified but authentication state not updated yet');
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) {
+          final finalParentAuthState = ref.read(parentAuthProvider);
+          final finalAuthState = ref.read(authProvider);
+          
+          if (finalParentAuthState.isAuthenticated &&
+              finalParentAuthState.parent != null) {
+            context.go('/parent/dashboard');
+          } else if (finalAuthState.isAuthenticated &&
+              finalAuthState.driver != null) {
+            context.go('/driver/dashboard');
+          } else {
+            print('❌ DEBUG: OTP verified but authentication state still not set');
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'OTP verified but login failed. Please try again.',
+                ),
+                backgroundColor: AppTheme.errorColor,
+              ),
+            );
+          }
+        }
+      }
+    } else {
+      // Show error message if verification failed
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Invalid OTP code. Please check and try again.'),

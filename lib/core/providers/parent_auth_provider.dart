@@ -5,6 +5,7 @@ import '../models/registration_request.dart';
 import '../models/otp_response.dart';
 import '../models/email_completion_request.dart';
 import '../models/email_completion_response.dart';
+import '../models/user_role.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../config/app_config.dart';
@@ -149,6 +150,19 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
         if (data['tokens'] != null && data['parent'] != null) {
           final tokens = data['tokens'] as Map<String, dynamic>;
           final parentData = data['parent'] as Map<String, dynamic>;
+
+          // Validate that this is a parent account
+          try {
+            _ensureParentAccount(parentData);
+          } catch (e) {
+            print('❌ DEBUG: Login rejected - not a parent account: $e');
+            state = state.copyWith(
+              isLoading: false,
+              isAuthenticated: false,
+              error: e.toString(),
+            );
+            return false;
+          }
 
           // Save tokens
           await StorageService.saveAuthToken(tokens['access'] as String);
@@ -331,6 +345,21 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
             final completionResponse = EmailCompletionResponse.fromJson(data);
             
             if (completionResponse.success && completionResponse.tokens != null) {
+              // Validate user type before proceeding
+              if (completionResponse.user != null) {
+                final user = completionResponse.user!;
+                if (user.userType != UserRole.parent) {
+                  final accountType = user.userType.displayName;
+                  print('❌ DEBUG: Registration rejected - not a parent account: ${user.userType}');
+                  state = state.copyWith(
+                    isLoading: false,
+                    isAuthenticated: false,
+                    error: 'Access denied. This account is registered as a $accountType account. Please use the $accountType app to access your account.',
+                  );
+                  return false;
+                }
+              }
+
               // Save tokens
               await StorageService.saveAuthToken(completionResponse.tokens!.access);
               await StorageService.saveRefreshToken(completionResponse.tokens!.refresh);
@@ -361,19 +390,24 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
                 );
 
                 print('🔐 DEBUG: Parent registration OTP verification completed successfully');
+                print('🔐 DEBUG: State updated - isAuthenticated: ${state.isAuthenticated}');
+                print('🔐 DEBUG: State updated - parent ID: ${state.parent?.id}');
+                print('🔐 DEBUG: State updated - parent email: ${state.parent?.email}');
                 return true;
               } else {
                 // No user in response, but we have tokens - try loading profile
                 print('🔐 DEBUG: No user data in response, but tokens saved. Loading profile...');
                 try {
                   await _loadParentProfile();
-                  if (state.isAuthenticated) {
+                  if (state.isAuthenticated && state.parent != null) {
                     state = state.copyWith(
                       otpId: null,
                       registrationEmail: null,
                       isRegistrationFlow: false,
                     );
                     print('🔐 DEBUG: Profile loaded successfully after OTP verification');
+                    print('🔐 DEBUG: State updated - isAuthenticated: ${state.isAuthenticated}');
+                    print('🔐 DEBUG: State updated - parent ID: ${state.parent?.id}');
                     return true;
                   } else {
                     print('⚠️ DEBUG: Profile loading failed after OTP verification');
@@ -469,6 +503,24 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
             print('🔐 DEBUG: Processing user profile...');
             print('🔐 DEBUG: Profile keys: ${profileMap.keys.toList()}');
 
+            // Validate that this is a parent account
+            try {
+              _ensureParentAccount(profileMap);
+            } catch (e) {
+              print('❌ DEBUG: OTP verification rejected - not a parent account: $e');
+              // Clear any tokens that might have been saved
+              await StorageService.clearAuthTokens();
+              state = state.copyWith(
+                isLoading: false,
+                isAuthenticated: false,
+                error: e.toString(),
+                otpId: null,
+                registrationEmail: null,
+                isRegistrationFlow: false,
+              );
+              return false;
+            }
+
             final parent = _parentFromUserLike(profileMap);
             print('🔐 DEBUG: Parent created with ID: ${parent.id}');
             print('🔐 DEBUG: Parent email: ${parent.email}');
@@ -489,6 +541,9 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
             );
 
             print('🔐 DEBUG: Parent OTP verification completed successfully');
+            print('🔐 DEBUG: State updated - isAuthenticated: ${state.isAuthenticated}');
+            print('🔐 DEBUG: State updated - parent ID: ${state.parent?.id}');
+            print('🔐 DEBUG: State updated - parent email: ${state.parent?.email}');
             return true;
           } else {
             // No user/parent in response, but we have tokens - try loading profile
@@ -498,13 +553,15 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
             try {
               await _loadParentProfile();
               // Only return true if profile loading succeeded
-              if (state.isAuthenticated) {
+              if (state.isAuthenticated && state.parent != null) {
                 state = state.copyWith(
                   otpId: null,
                   registrationEmail: null,
                   isRegistrationFlow: false,
                 );
                 print('🔐 DEBUG: Profile loaded successfully after OTP verification');
+                print('🔐 DEBUG: State updated - isAuthenticated: ${state.isAuthenticated}');
+                print('🔐 DEBUG: State updated - parent ID: ${state.parent?.id}');
                 return true;
               } else {
                 print('⚠️ DEBUG: Profile loading failed after OTP verification');
@@ -691,6 +748,19 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
         print('🔍 DEBUG: User map keys: ${userMap.keys.toList()}');
         print('🔍 DEBUG: User map phone: ${userMap['phone']}');
         print('🔍 DEBUG: User map address: ${userMap['address']}');
+
+        // Validate that this is still a parent account
+        try {
+          _ensureParentAccount(userMap);
+        } catch (e) {
+          print('❌ DEBUG: Profile loading rejected - not a parent account: $e');
+          // Clear authentication and force re-login
+          await StorageService.clearAuthTokens();
+          await StorageService.clearUserProfile();
+          await StorageService.remove('parent_id');
+          state = const ParentAuthState();
+          return;
+        }
 
         final parent = _parentFromUserLike(userMap);
         print('🔍 DEBUG: Parsed parent data:');
@@ -1016,6 +1086,56 @@ final parentAuthProvider =
     StateNotifierProvider<ParentAuthNotifier, ParentAuthState>((ref) {
       return ParentAuthNotifier();
     });
+
+/// Validates that the user type in the response is 'parent'
+/// Returns the user type if valid, null if invalid or missing
+UserRole? _validateUserType(Map<String, dynamic> userData) {
+  // Check for user_type field (snake_case)
+  final userTypeStr = userData['user_type'] as String?;
+  if (userTypeStr != null) {
+    try {
+      final userRole = UserRole.fromString(userTypeStr);
+      return userRole;
+    } catch (e) {
+      print('⚠️ DEBUG: Invalid user_type format: $userTypeStr');
+      return null;
+    }
+  }
+
+  // Check for userType field (camelCase) - less common but possible
+  final userTypeCamel = userData['userType'] as String?;
+  if (userTypeCamel != null) {
+    try {
+      final userRole = UserRole.fromString(userTypeCamel);
+      return userRole;
+    } catch (e) {
+      print('⚠️ DEBUG: Invalid userType format: $userTypeCamel');
+      return null;
+    }
+  }
+
+  print('⚠️ DEBUG: No user_type field found in user data');
+  return null;
+}
+
+/// Checks if the user data represents a parent account
+/// Throws an exception with error message if not a parent
+void _ensureParentAccount(Map<String, dynamic> userData) {
+  final userRole = _validateUserType(userData);
+  
+  if (userRole == null) {
+    throw Exception(
+      'Invalid account type. This app is only for parent accounts. Please use the appropriate app for your account type.',
+    );
+  }
+
+  if (userRole != UserRole.parent) {
+    final accountType = userRole.displayName;
+    throw Exception(
+      'Access denied. This account is registered as a $accountType account. Please use the $accountType app to access your account.',
+    );
+  }
+}
 
 // Helper to adapt a generic user/parent payload into Parent model
 Parent _parentFromUserLike(Map<String, dynamic> json) {

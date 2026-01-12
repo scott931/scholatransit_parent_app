@@ -4,12 +4,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:go_router/go_router.dart';
 import '../config/app_config.dart';
 import '../services/api_service.dart';
 import 'notification_navigation_service.dart';
+
+/// Simple Time class for scheduling notifications
+class Time {
+  final int hour;
+  final int minute;
+  final int second;
+
+  const Time({
+    required this.hour,
+    required this.minute,
+    this.second = 0,
+  });
+
+  Time.fromDateTime(DateTime dateTime)
+      : hour = dateTime.hour,
+        minute = dateTime.minute,
+        second = dateTime.second;
+}
 
 // Background notification handler (must be top-level function)
 @pragma('vm:entry-point')
@@ -334,6 +353,9 @@ class NotificationService {
   static String? _fcmToken;
 
   static Future<void> init() async {
+    // Initialize timezone database for scheduled notifications
+    tz.initializeTimeZones();
+    
     await _initializeLocalNotifications();
     await _initializeFirebaseMessaging();
     await _requestNotificationPermission();
@@ -1118,6 +1140,173 @@ class NotificationService {
 
   static Future<void> cancelAllNotifications() async {
     await _localNotifications.cancelAll();
+  }
+
+  /// Get pending notifications
+  static Future<List<PendingNotificationRequest>> getPendingNotifications() async {
+    return await _localNotifications.pendingNotificationRequests();
+  }
+
+  /// Show a simple local notification (standalone, not from Firebase)
+  static Future<void> showSimpleNotification({
+    required String title,
+    required String body,
+    String? payload,
+    int? id,
+  }) async {
+    final notificationId = id ?? DateTime.now().millisecondsSinceEpoch % 100000;
+    await showLocalNotification(
+      title: title,
+      body: body,
+      payload: payload,
+      id: notificationId,
+    );
+  }
+
+  /// Schedule a daily repeating notification
+  static Future<void> scheduleDailyNotification({
+    required int id,
+    required String title,
+    required String body,
+    required Time time,
+    String? payload,
+  }) async {
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      AppConfig.notificationChannelId,
+      AppConfig.notificationChannelName,
+      channelDescription: AppConfig.notificationChannelDescription,
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _localNotifications.zonedSchedule(
+      id,
+      title,
+      body,
+      _nextInstanceOfTime(time),
+      details,
+      payload: payload,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
+  }
+
+  /// Schedule a weekly repeating notification
+  static Future<void> scheduleWeeklyNotification({
+    required int id,
+    required String title,
+    required String body,
+    required Time time,
+    required List<int> days, // 1 = Monday, 7 = Sunday
+    String? payload,
+  }) async {
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      AppConfig.notificationChannelId,
+      AppConfig.notificationChannelName,
+      channelDescription: AppConfig.notificationChannelDescription,
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    // Schedule for each day of the week
+    for (final day in days) {
+      final scheduledDate = _nextInstanceOfDayAndTime(day, time);
+      await _localNotifications.zonedSchedule(
+        id + day, // Unique ID for each day
+        title,
+        body,
+        scheduledDate,
+        details,
+        payload: payload,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+      );
+    }
+  }
+
+  /// Helper to get next instance of a specific time
+  static tz.TZDateTime _nextInstanceOfTime(Time time) {
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduledDate = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      time.hour,
+      time.minute,
+      time.second,
+    );
+    if (scheduledDate.isBefore(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+    return scheduledDate;
+  }
+
+  /// Helper to get next instance of a specific day and time
+  static tz.TZDateTime _nextInstanceOfDayAndTime(int day, Time time) {
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduledDate = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      time.hour,
+      time.minute,
+      time.second,
+    );
+    
+    // Calculate days until the target day
+    int daysUntilTarget = (day - now.weekday) % 7;
+    if (daysUntilTarget == 0) {
+      // If it's the same day, check if time has passed
+      if (scheduledDate.isBefore(now)) {
+        daysUntilTarget = 7; // Schedule for next week
+      }
+    }
+    
+    scheduledDate = scheduledDate.add(Duration(days: daysUntilTarget));
+    return scheduledDate;
+  }
+
+  /// Check if notifications are enabled
+  static Future<bool> areNotificationsEnabled() async {
+    if (Platform.isAndroid) {
+      final androidImplementation = _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      if (androidImplementation != null) {
+        return await androidImplementation.areNotificationsEnabled() ?? false;
+      }
+    } else if (Platform.isIOS) {
+      // For iOS, check permission status
+      final status = await Permission.notification.status;
+      return status.isGranted;
+    }
+    return false;
   }
 
   static Future<String?> getFCMToken() async {

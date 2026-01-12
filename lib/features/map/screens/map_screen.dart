@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:geocoding/geocoding.dart' as geocoding;
@@ -530,8 +531,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           '✅ GREEN Start location marker added: ${_getLocationName(currentTrip.startLatitude, currentTrip.startLongitude, currentTrip.startLocation)}',
         );
 
-        // Auto-zoom to trip route (shows both start and end)
-        _zoomToTripRoute(currentTrip);
+        // Auto-zoom to trip route only if current location is available
+        // This ensures we show the relevant area (current location + trip points)
+        if (_currentLocation != null) {
+          _zoomToTripRoute(currentTrip);
+        } else {
+          // If no current location, just center on trip start
+          _mapboxMap?.flyTo(
+            CameraOptions(center: startPoint, zoom: 15.0),
+            MapAnimationOptions(duration: 1200),
+          );
+        }
       } else {
         print('❌ DEBUG: Cannot create start marker - missing coordinates');
         print('❌ DEBUG: startLatitude: ${currentTrip.startLatitude}');
@@ -1289,6 +1299,32 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
+  /// Calculate distance between two coordinates in kilometers (Haversine formula)
+  double _calculateDistance(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const double earthRadiusKm = 6371.0;
+
+    final dLat = _degreesToRadians(lat2 - lat1);
+    final dLon = _degreesToRadians(lon2 - lon1);
+
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degreesToRadians(lat1)) *
+            math.cos(_degreesToRadians(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+
+    final c = 2 * math.asin(math.sqrt(a));
+    return earthRadiusKm * c;
+  }
+
+  double _degreesToRadians(double degrees) {
+    return degrees * (math.pi / 180.0);
+  }
+
   /// Get location name from coordinates (simplified version)
   String _getLocationName(
     double? latitude,
@@ -1353,45 +1389,139 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }();
   }
 
-  void _zoomToTripRoute(Trip trip) {
+  void _zoomToTripRoute(Trip trip) async {
     if (_mapboxMap == null) {
       print('❌ DEBUG: Cannot zoom - map not ready');
       return;
     }
 
-    Point? target;
-    if (trip.status == TripStatus.inProgress && _currentLocation != null) {
-      target = _currentLocation!; // exact current GPS
-    } else if (trip.status == TripStatus.pending &&
-        trip.startLatitude != null &&
-        trip.startLongitude != null) {
-      target = Point(
-        coordinates: Position(trip.startLongitude!, trip.startLatitude!),
-      );
-    } else if (trip.status == TripStatus.completed &&
-        trip.endLatitude != null &&
-        trip.endLongitude != null) {
-      target = Point(
-        coordinates: Position(trip.endLongitude!, trip.endLatitude!),
-      );
-    } else if (trip.startLatitude != null && trip.startLongitude != null) {
-      // Fallback to start if status unknown
-      target = Point(
-        coordinates: Position(trip.startLongitude!, trip.startLatitude!),
-      );
+    // Collect all relevant points to show
+    List<Position> pointsToShow = [];
+    const double maxReasonableDistanceKm = 50.0; // Maximum distance to include trip points
+
+    // Always prioritize current location if available
+    if (_currentLocation != null) {
+      pointsToShow.add(_currentLocation!.coordinates);
+      print('📍 Including current location in bounds');
+
+      // Check if trip locations are within reasonable distance
+      bool tripStartInRange = false;
+      bool tripEndInRange = false;
+
+      if (trip.startLatitude != null && trip.startLongitude != null) {
+        final distance = _calculateDistance(
+          _currentLocation!.coordinates.lat.toDouble(),
+          _currentLocation!.coordinates.lng.toDouble(),
+          trip.startLatitude!,
+          trip.startLongitude!,
+        );
+        if (distance <= maxReasonableDistanceKm) {
+          pointsToShow.add(Position(trip.startLongitude!, trip.startLatitude!));
+          tripStartInRange = true;
+          print('🚀 Including trip start in bounds (${distance.toStringAsFixed(1)}km away)');
+        } else {
+          print('⚠️ Trip start too far (${distance.toStringAsFixed(1)}km) - not including in bounds');
+        }
+      }
+
+      if (trip.endLatitude != null && trip.endLongitude != null) {
+        final distance = _calculateDistance(
+          _currentLocation!.coordinates.lat.toDouble(),
+          _currentLocation!.coordinates.lng.toDouble(),
+          trip.endLatitude!,
+          trip.endLongitude!,
+        );
+        if (distance <= maxReasonableDistanceKm) {
+          pointsToShow.add(Position(trip.endLongitude!, trip.endLatitude!));
+          tripEndInRange = true;
+          print('🏁 Including trip end in bounds (${distance.toStringAsFixed(1)}km away)');
+        } else {
+          print('⚠️ Trip end too far (${distance.toStringAsFixed(1)}km) - not including in bounds');
+        }
+      }
+
+      // If trip points are too far, just center on current location
+      if (!tripStartInRange && !tripEndInRange) {
+        print('📍 Trip locations too far - centering on current location only');
+        _mapboxMap!.flyTo(
+          CameraOptions(center: _currentLocation!, zoom: 16.0),
+          MapAnimationOptions(duration: 1200),
+        );
+        return;
+      }
+    } else {
+      // No current location - add trip points if available
+      if (trip.startLatitude != null && trip.startLongitude != null) {
+        pointsToShow.add(Position(trip.startLongitude!, trip.startLatitude!));
+        print('🚀 Including trip start in bounds (no current location)');
+      }
+      if (trip.endLatitude != null && trip.endLongitude != null) {
+        pointsToShow.add(Position(trip.endLongitude!, trip.endLatitude!));
+        print('🏁 Including trip end in bounds (no current location)');
+      }
     }
 
-    if (target != null) {
-      _mapboxMap!.flyTo(
-        CameraOptions(center: target, zoom: 15.5),
-        MapAnimationOptions(duration: 1200),
-      );
-      print(
-        '✅ DEBUG: Map zoomed to exact target for status ${trip.status.name}',
-      );
-    } else {
-      print('❌ DEBUG: No valid target to zoom to');
+    if (pointsToShow.isEmpty) {
+      print('❌ DEBUG: No valid points to zoom to');
+      return;
     }
+
+    // Calculate bounds to fit all points
+    double minLat = pointsToShow.first.lat.toDouble();
+    double maxLat = pointsToShow.first.lat.toDouble();
+    double minLng = pointsToShow.first.lng.toDouble();
+    double maxLng = pointsToShow.first.lng.toDouble();
+
+    for (final point in pointsToShow) {
+      final lat = point.lat.toDouble();
+      final lng = point.lng.toDouble();
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+    }
+
+    // Calculate center point
+    final centerLat = (minLat + maxLat) / 2;
+    final centerLng = (minLng + maxLng) / 2;
+
+    // Calculate zoom level based on bounds
+    // If points are close together, zoom in more; if far apart, zoom out
+    final latDiff = maxLat - minLat;
+    final lngDiff = maxLng - minLng;
+    final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
+
+    double zoom;
+    if (maxDiff > 0.1) {
+      // Points are far apart (more than ~11km)
+      zoom = 11.0;
+    } else if (maxDiff > 0.05) {
+      // Points are moderately apart (5-11km)
+      zoom = 12.0;
+    } else if (maxDiff > 0.01) {
+      // Points are close (1-5km)
+      zoom = 13.5;
+    } else {
+      // Points are very close (<1km)
+      zoom = 15.0;
+    }
+
+    // If we only have one point (current location), use a closer zoom
+    if (pointsToShow.length == 1 && _currentLocation != null) {
+      zoom = 16.0;
+    }
+
+    final centerPoint = Point(
+      coordinates: Position(centerLng, centerLat),
+    );
+
+    _mapboxMap!.flyTo(
+      CameraOptions(center: centerPoint, zoom: zoom),
+      MapAnimationOptions(duration: 1200),
+    );
+    print(
+      '✅ DEBUG: Map zoomed to fit ${pointsToShow.length} points (bounds: ${minLat.toStringAsFixed(4)}, ${minLng.toStringAsFixed(4)} to ${maxLat.toStringAsFixed(4)}, ${maxLng.toStringAsFixed(4)}, zoom: ${zoom.toStringAsFixed(1)})',
+    );
   }
 
   Future<void> _clearRoutePolyline() async {

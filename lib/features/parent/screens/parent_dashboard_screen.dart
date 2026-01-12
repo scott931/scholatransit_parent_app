@@ -12,6 +12,7 @@ import '../../../core/models/parent_trip_model.dart';
 import '../../../core/models/parent_model.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/services/android_notification_listener_service.dart';
+import '../../../core/services/location_service_resolver.dart';
 import '../widgets/bus_tracking_card.dart';
 import '../widgets/child_status_card.dart';
 
@@ -62,6 +63,21 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
     try {
       print('📍 Starting location tracking for authenticated parent...');
       await ref.read(parentProvider.notifier).startLocationTracking();
+      
+      // Get initial position immediately to show on map
+      final initialPosition = await LocationServiceResolver.getCurrentPosition();
+      if (initialPosition != null && mounted) {
+        print('📍 Got initial position: ${initialPosition.latitude}, ${initialPosition.longitude}');
+        // Update the map if it's already created
+        if (_mapboxMap != null && _pointAnnotationManager != null) {
+          await _updateLocationMarker({
+            'latitude': initialPosition.latitude,
+            'longitude': initialPosition.longitude,
+            'accuracy': initialPosition.accuracy,
+            'timestamp': initialPosition.timestamp?.toIso8601String(),
+          });
+        }
+      }
     } catch (e) {
       print('❌ Failed to start location tracking: $e');
     }
@@ -81,6 +97,37 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
   Widget build(BuildContext context) {
     final parentState = ref.watch(parentProvider);
     final authState = ref.watch(parentAuthProvider);
+
+    // Listen for authentication state changes and start location tracking
+    ref.listen<ParentAuthState>(parentAuthProvider, (previous, next) {
+      if ((previous == null || !previous.isAuthenticated) &&
+          next.isAuthenticated &&
+          mounted) {
+        print('🔐 User authenticated, starting location tracking...');
+        _startLocationTracking();
+      }
+    });
+
+    // Listen for location updates and update map marker
+    ref.listen<ParentState>(parentProvider, (previous, next) {
+      if (next.currentLocation != null &&
+          _mapboxMap != null &&
+          _pointAnnotationManager != null &&
+          mounted) {
+        final currentLocation = next.currentLocation!;
+        final locationKey = '${currentLocation['latitude']}_${currentLocation['longitude']}';
+        final lastLocationKey = _lastLocation != null 
+            ? '${_lastLocation!['latitude']}_${_lastLocation!['longitude']}'
+            : null;
+        
+        if (locationKey != lastLocationKey) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _updateLocationMarker(currentLocation);
+          });
+          _lastLocation = Map<String, dynamic>.from(currentLocation);
+        }
+      }
+    });
 
     // Check authentication first
     if (!authState.isAuthenticated) {
@@ -519,24 +566,6 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
   }
 
   Widget _buildMapWidget(ParentState parentState) {
-    // Update location marker when location changes (using post-frame callback to avoid build issues)
-    if (_mapboxMap != null && 
-        _pointAnnotationManager != null && 
-        parentState.currentLocation != null) {
-      final currentLocation = parentState.currentLocation!;
-      final locationKey = '${currentLocation['latitude']}_${currentLocation['longitude']}';
-      final lastLocationKey = _lastLocation != null 
-          ? '${_lastLocation!['latitude']}_${_lastLocation!['longitude']}'
-          : null;
-      
-      if (locationKey != lastLocationKey) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _updateLocationMarker(currentLocation);
-        });
-        _lastLocation = Map<String, dynamic>.from(currentLocation);
-      }
-    }
-
     try {
       return MapWidget(
         key: const ValueKey("dashboardMapWidget"),
@@ -573,6 +602,21 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
           // Add current location marker if available
           if (parentState.currentLocation != null) {
             await _updateLocationMarker(parentState.currentLocation!);
+          } else {
+            // Try to get current location immediately if not in state yet
+            try {
+              final position = await LocationServiceResolver.getCurrentPosition();
+              if (position != null) {
+                await _updateLocationMarker({
+                  'latitude': position.latitude,
+                  'longitude': position.longitude,
+                  'accuracy': position.accuracy,
+                  'timestamp': position.timestamp?.toIso8601String(),
+                });
+              }
+            } catch (e) {
+              print('⚠️ Could not get initial location: $e');
+            }
           }
         },
       );
@@ -658,21 +702,62 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
   }
 
   Future<Uint8List> _createLocationMarker() async {
-    const size = 40.0;
+    const size = 50.0;
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    final paint = Paint()
-      ..color = const Color(0xFF0052CC)
+    
+    // Pushpin head (circular top)
+    final headRadius = size * 0.25;
+    final headCenter = Offset(size / 2, headRadius + 2);
+    
+    // Draw shadow for depth
+    final shadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.2)
       ..style = PaintingStyle.fill;
-
-    // Draw circle
-    canvas.drawCircle(Offset(size / 2, size / 2), size / 2 - 2, paint);
-
-    // Draw white center
-    final centerPaint = Paint()
+    canvas.drawCircle(
+      Offset(headCenter.dx + 1, headCenter.dy + 1),
+      headRadius,
+      shadowPaint,
+    );
+    
+    // Draw pushpin head (red circle)
+    final headPaint = Paint()
+      ..color = Colors.red
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(headCenter, headRadius, headPaint);
+    
+    // Draw highlight on head
+    final highlightPaint = Paint()
+      ..color = Colors.white.withOpacity(0.6)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(
+      Offset(headCenter.dx - headRadius * 0.3, headCenter.dy - headRadius * 0.3),
+      headRadius * 0.4,
+      highlightPaint,
+    );
+    
+    // Draw pin point (triangle pointing down)
+    final pinPaint = Paint()
+      ..color = Colors.red.shade700
+      ..style = PaintingStyle.fill;
+    
+    final pinTop = headCenter.dy + headRadius;
+    final pinBottom = size - 2;
+    final pinWidth = size * 0.15;
+    
+    final pinPath = Path()
+      ..moveTo(size / 2, pinTop)
+      ..lineTo(size / 2 - pinWidth, pinBottom)
+      ..lineTo(size / 2 + pinWidth, pinBottom)
+      ..close();
+    
+    canvas.drawPath(pinPath, pinPaint);
+    
+    // Draw white center dot
+    final dotPaint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(Offset(size / 2, size / 2), size / 4, centerPaint);
+    canvas.drawCircle(headCenter, headRadius * 0.3, dotPaint);
 
     final picture = recorder.endRecording();
     final image = await picture.toImage(size.toInt(), size.toInt());

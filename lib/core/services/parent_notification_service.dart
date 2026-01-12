@@ -242,12 +242,6 @@ class ParentNotificationService {
     Map<String, dynamic> notification,
   ) async {
     try {
-      final title = notification['title'] as String? ??
-                    notification['message'] as String? ??
-                    'New Notification';
-      final message = notification['message'] as String? ??
-                      notification['title'] as String? ??
-                      'You have a new notification';
       final notificationId = notification['id'];
       final notificationType = notification['notification_type'] as String? ??
                               notification['type'] as String? ??
@@ -258,13 +252,81 @@ class ParentNotificationService {
                          notificationType == 'emergency_alert' ||
                          notification['severity'] == 'critical';
 
+      // Check if this is a pickup or drop point alert
+      final isPickupAlert = notificationType == 'student_pickup' || 
+                           notificationType == 'pickup_alert';
+      final isDropPointAlert = notificationType == 'student_dropoff' || 
+                              notificationType == 'dropoff_alert' ||
+                              notificationType == 'drop_point_alert';
+
       if (isEmergency) {
+        final title = notification['title'] as String? ??
+                      notification['message'] as String? ??
+                      'Emergency Alert';
+        final message = notification['message'] as String? ??
+                        notification['title'] as String? ??
+                        'You have an emergency alert';
+        
         await NotificationService.showEmergencyNotification(
           title: title,
           body: message,
           emergencyId: notificationId?.toString(),
         );
+      } else if (isPickupAlert) {
+        // Handle pickup alert with special formatting
+        final studentName = _extractStudentName(notification) ?? 'Your child';
+        final stopName = _extractStopName(notification) ?? 'pickup point';
+        final eta = _extractETA(notification);
+        final tripId = notification['trip_id']?.toString() ?? 
+                      (notification['metadata'] is Map 
+                       ? (notification['metadata'] as Map)['trip_id']?.toString() 
+                       : null);
+        final studentId = notification['student_id']?.toString() ?? 
+                         (notification['student'] is Map 
+                          ? (notification['student'] as Map)['id']?.toString() 
+                          : null);
+        final stopId = notification['stop_id']?.toString();
+
+        await NotificationService.showPickupAlert(
+          studentName: studentName,
+          stopName: stopName,
+          tripId: tripId,
+          studentId: studentId,
+          stopId: stopId,
+          eta: eta,
+        );
+      } else if (isDropPointAlert) {
+        // Handle drop point alert with special formatting
+        final studentName = _extractStudentName(notification) ?? 'Your child';
+        final stopName = _extractStopName(notification) ?? 'drop point';
+        final eta = _extractETA(notification);
+        final tripId = notification['trip_id']?.toString() ?? 
+                      (notification['metadata'] is Map 
+                       ? (notification['metadata'] as Map)['trip_id']?.toString() 
+                       : null);
+        final studentId = notification['student_id']?.toString() ?? 
+                         (notification['student'] is Map 
+                          ? (notification['student'] as Map)['id']?.toString() 
+                          : null);
+        final stopId = notification['stop_id']?.toString();
+
+        await NotificationService.showDropPointAlert(
+          studentName: studentName,
+          stopName: stopName,
+          tripId: tripId,
+          studentId: studentId,
+          stopId: stopId,
+          eta: eta,
+        );
       } else {
+        // Default notification handling
+        final title = notification['title'] as String? ??
+                      notification['message'] as String? ??
+                      'New Notification';
+        final message = notification['message'] as String? ??
+                        notification['title'] as String? ??
+                        'You have a new notification';
+
         await NotificationService.showLocalNotification(
           title: title,
           body: message,
@@ -275,10 +337,85 @@ class ParentNotificationService {
         );
       }
 
-      print('🔔 Local notification shown: $title');
+      print('🔔 Local notification shown for type: $notificationType');
     } catch (e) {
       print('❌ Failed to show local notification: $e');
     }
+  }
+
+  /// Extract student name from notification data
+  static String? _extractStudentName(Map<String, dynamic> notification) {
+    // Try multiple possible locations for student name
+    if (notification['student_name'] != null) {
+      return notification['student_name'].toString();
+    }
+    if (notification['studentName'] != null) {
+      return notification['studentName'].toString();
+    }
+    // Check if student is an object with name fields
+    if (notification['student'] is Map) {
+      final student = notification['student'] as Map;
+      if (student['full_name'] != null) {
+        return student['full_name'].toString();
+      }
+      if (student['first_name'] != null && student['last_name'] != null) {
+        return '${student['first_name']} ${student['last_name']}';
+      }
+      if (student['name'] != null) {
+        return student['name'].toString();
+      }
+    }
+    // Try metadata
+    if (notification['metadata'] is Map) {
+      final metadata = notification['metadata'] as Map;
+      if (metadata['student_name'] != null) {
+        return metadata['student_name'].toString();
+      }
+    }
+    return null;
+  }
+
+  /// Extract stop name from notification data
+  static String? _extractStopName(Map<String, dynamic> notification) {
+    // Try multiple possible locations for stop name
+    if (notification['stop_name'] != null) {
+      return notification['stop_name'].toString();
+    }
+    if (notification['stopName'] != null) {
+      return notification['stopName'].toString();
+    }
+    // Try metadata
+    if (notification['metadata'] is Map) {
+      final metadata = notification['metadata'] as Map;
+      if (metadata['stop_name'] != null) {
+        return metadata['stop_name'].toString();
+      }
+    }
+    return null;
+  }
+
+  /// Extract ETA from notification data
+  static String? _extractETA(Map<String, dynamic> notification) {
+    // Try multiple possible locations for ETA
+    if (notification['eta'] != null) {
+      return notification['eta'].toString();
+    }
+    if (notification['eta_minutes'] != null) {
+      final minutes = notification['eta_minutes'];
+      return '$minutes ${minutes == 1 ? 'minute' : 'minutes'}';
+    }
+    // Try metadata
+    if (notification['metadata'] is Map) {
+      final metadata = notification['metadata'] as Map;
+      if (metadata['eta'] != null) {
+        return metadata['eta'].toString();
+      }
+      if (metadata['eta_minutes'] != null) {
+        final minutes = metadata['eta_minutes'];
+        return '$minutes ${minutes == 1 ? 'minute' : 'minutes'}';
+      }
+    }
+    return null;
   }
 
   /// Clear processed notification IDs (useful for testing or reset)
