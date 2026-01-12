@@ -1024,16 +1024,16 @@ class TripNotifier extends StateNotifier<TripState> {
     }
   }
 
-  /// Send notification to parent
+  /// Send notification to parent(s)
   Future<void> _sendParentStatusNotification(
     Student student,
     ChildStatus status,
   ) async {
     try {
-      // Only send if parent contact info is available
-      if (student.parentPhone == null && student.parentEmail == null) {
+      // Check if student has any parent information
+      if (student.parents.isEmpty) {
         print(
-          '⚠️ Trip Provider: No parent contact info for ${student.fullName}',
+          '⚠️ Trip Provider: No parent information found for ${student.fullName}',
         );
         return;
       }
@@ -1041,22 +1041,60 @@ class TripNotifier extends StateNotifier<TripState> {
       // Convert StudentStatus to ChildStatus for parent notification
       final childStatus = _convertToChildStatus(status);
 
-      // For now, we'll use a placeholder parent ID since we don't have parent data
-      // In a real implementation, you'd need to fetch or store parent IDs
-      const parentId = 1; // This should be fetched from student data or API
+      // Get unique parent IDs (in case there are duplicates)
+      final parentIds = student.parents
+          .where((p) => p.parent > 0)
+          .map((p) => p.parent)
+          .toSet();
 
-      await ParentNotificationService.sendChildStatusUpdate(
-        parentId: parentId,
-        childId: student.id,
-        status: childStatus,
-        additionalData: {
-          'trip_id': state.currentTrip?.id,
-          'timestamp': DateTime.now().toIso8601String(),
-        },
-      );
+      if (parentIds.isEmpty) {
+        print(
+          '⚠️ Trip Provider: No valid parent IDs found for ${student.fullName}',
+        );
+        return;
+      }
 
       print(
-        '📱 Trip Provider: Parent notification sent for ${student.fullName}',
+        '📱 Trip Provider: Sending status update notifications to ${parentIds.length} parent(s) for ${student.fullName}',
+      );
+
+      // Send notification to all parents associated with this student
+      int successCount = 0;
+      int failureCount = 0;
+
+      for (final parentId in parentIds) {
+        try {
+          final response = await ParentNotificationService.sendChildStatusUpdate(
+            parentId: parentId,
+            childId: student.id,
+            status: childStatus,
+            additionalData: {
+              'trip_id': state.currentTrip?.id,
+              'timestamp': DateTime.now().toIso8601String(),
+            },
+          );
+
+          if (response.success) {
+            successCount++;
+            print(
+              '✅ Trip Provider: Notification sent to parent $parentId for ${student.fullName}',
+            );
+          } else {
+            failureCount++;
+            print(
+              '❌ Trip Provider: Failed to send notification to parent $parentId for ${student.fullName}: ${response.error}',
+            );
+          }
+        } catch (e) {
+          failureCount++;
+          print(
+            '❌ Trip Provider: Error sending notification to parent $parentId for ${student.fullName}: $e',
+          );
+        }
+      }
+
+      print(
+        '📱 Trip Provider: Status update notifications completed for ${student.fullName} - Success: $successCount, Failed: $failureCount',
       );
     } catch (e) {
       print('❌ Trip Provider: Error sending parent notification: $e');

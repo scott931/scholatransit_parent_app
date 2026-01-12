@@ -205,6 +205,107 @@ class ParentNotifier extends StateNotifier<ParentState> {
 
   /// Helper method to calculate unread count from notifications
   /// Uses consistent logic to determine if a notification is read
+  /// Get the authenticated parent's ID
+  /// Returns null if parent is not authenticated
+  int? _getAuthenticatedParentId() {
+    // First try to get from state
+    if (state.parent != null && state.parent!.id > 0) {
+      return state.parent!.id;
+    }
+    
+    // Fallback to storage
+    final parentId = StorageService.getInt('parent_id');
+    if (parentId != null && parentId > 0) {
+      return parentId;
+    }
+    
+    return null;
+  }
+
+  /// Check if a notification belongs to the authenticated parent
+  /// Returns true if parent is not authenticated (to allow notifications during login flow)
+  /// Returns false if notification's parent_id doesn't match authenticated parent
+  bool _isNotificationForAuthenticatedParent(Map<String, dynamic> notification) {
+    final authenticatedParentId = _getAuthenticatedParentId();
+    
+    // If parent is not authenticated, allow notification (might be during login flow)
+    if (authenticatedParentId == null) {
+      print('⚠️ SECURITY: No authenticated parent ID found, allowing notification (may be during login)');
+      return true;
+    }
+
+    // Extract parent_id from notification (try multiple field names)
+    dynamic notificationParentId = notification['parent_id'] ?? 
+                                    notification['parentId'] ?? 
+                                    notification['parent']?['id'] ??
+                                    notification['parent'];
+
+    // Handle different types (int, string, etc.)
+    int? notificationParentIdInt;
+    if (notificationParentId is int) {
+      notificationParentIdInt = notificationParentId;
+    } else if (notificationParentId is String) {
+      notificationParentIdInt = int.tryParse(notificationParentId);
+    } else if (notificationParentId != null) {
+      notificationParentIdInt = int.tryParse(notificationParentId.toString());
+    }
+
+    // If notification doesn't have a parent_id, log warning but allow it
+    // (some notifications might not have parent_id field)
+    if (notificationParentIdInt == null) {
+      print(
+        '⚠️ SECURITY: Notification ${notification['id']} has no parent_id field - allowing but logging warning',
+      );
+      return true;
+    }
+
+    // Check if parent IDs match
+    final matches = notificationParentIdInt == authenticatedParentId;
+    
+    if (!matches) {
+      print(
+        '🚨 SECURITY ALERT: Notification ${notification['id']} has parent_id=$notificationParentIdInt but authenticated parent_id=$authenticatedParentId',
+      );
+      print(
+        '🚨 SECURITY: This notification was filtered out - backend may have a security issue!',
+      );
+    }
+
+    return matches;
+  }
+
+  /// Filter notifications to only include those belonging to the authenticated parent
+  List<Map<String, dynamic>> _filterNotificationsByParentId(
+    List<Map<String, dynamic>> notifications,
+  ) {
+    final authenticatedParentId = _getAuthenticatedParentId();
+    
+    // If parent is not authenticated, return all notifications (might be during login flow)
+    if (authenticatedParentId == null) {
+      print('⚠️ SECURITY: No authenticated parent ID found, returning all notifications (may be during login)');
+      return notifications;
+    }
+
+    final filtered = <Map<String, dynamic>>[];
+    int filteredOutCount = 0;
+
+    for (final notification in notifications) {
+      if (_isNotificationForAuthenticatedParent(notification)) {
+        filtered.add(notification);
+      } else {
+        filteredOutCount++;
+      }
+    }
+
+    if (filteredOutCount > 0) {
+      print(
+        '🔒 SECURITY: Filtered out $filteredOutCount notification(s) that did not belong to parent $authenticatedParentId',
+      );
+    }
+
+    return filtered;
+  }
+
   int _calculateUnreadCount(List<Map<String, dynamic>> notifications) {
     return notifications.where((n) {
       // Normalize and check is_read field
@@ -560,11 +661,21 @@ class ParentNotifier extends StateNotifier<ParentState> {
           return normalized;
         }).toList();
 
+        // SECURITY: Filter notifications to ensure parent only sees their own children's notifications
+        final filteredNotifications = _filterNotificationsByParentId(normalizedNotifications);
+        
+        if (filteredNotifications.length != normalizedNotifications.length) {
+          final filteredCount = normalizedNotifications.length - filteredNotifications.length;
+          print(
+            '⚠️ SECURITY: Filtered out $filteredCount notification(s) that did not belong to authenticated parent',
+          );
+        }
+
         // Calculate unread count using the helper method
-        final unreadCount = _calculateUnreadCount(normalizedNotifications);
+        final unreadCount = _calculateUnreadCount(filteredNotifications);
 
         print(
-          '📱 Total loaded ${normalizedNotifications.length} notifications, $unreadCount unread, ${normalizedNotifications.length - unreadCount} read',
+          '📱 Total loaded ${filteredNotifications.length} notifications (after parent filtering), $unreadCount unread, ${filteredNotifications.length - unreadCount} read',
         );
 
         // Debug: Print first few notifications to see their read status
@@ -592,9 +703,11 @@ class ParentNotifier extends StateNotifier<ParentState> {
         print('📱 Preserving ${manuallyAddedNotifications.length} manually added notifications');
         
         // Merge: API notifications first (newest), then manually added ones
+        // Also filter manually added notifications for security
+        final filteredManuallyAdded = _filterNotificationsByParentId(manuallyAddedNotifications);
         final mergedNotifications = <Map<String, dynamic>>[
-          ...normalizedNotifications,
-          ...manuallyAddedNotifications,
+          ...filteredNotifications,
+          ...filteredManuallyAdded,
         ];
         final mergedUnreadCount = _calculateUnreadCount(mergedNotifications);
         
@@ -607,22 +720,30 @@ class ParentNotifier extends StateNotifier<ParentState> {
       } else {
         print('⚠️ No notifications found from API, preserving existing notifications');
         // CRITICAL FIX: Don't overwrite existing notifications when API returns empty
-        // Preserve manually added notifications
-        final existingCount = state.notifications.length;
-        final existingUnreadCount = _calculateUnreadCount(state.notifications);
-        print('📱 Preserving $existingCount existing notifications ($existingUnreadCount unread)');
-        // Only update unread count, don't clear notifications
-        state = state.copyWith(unreadCount: existingUnreadCount);
+        // Preserve manually added notifications, but filter for security
+        final filteredExisting = _filterNotificationsByParentId(state.notifications);
+        final existingCount = filteredExisting.length;
+        final existingUnreadCount = _calculateUnreadCount(filteredExisting);
+        print('📱 Preserving $existingCount existing notifications (after parent filtering) ($existingUnreadCount unread)');
+        // Update with filtered notifications to ensure security
+        state = state.copyWith(
+          notifications: filteredExisting,
+          unreadCount: existingUnreadCount,
+        );
       }
     } catch (e) {
       print('❌ Failed to load notifications: $e');
       // CRITICAL FIX: Don't clear existing notifications on error
-      // Preserve manually added notifications even if API fails
-      final existingCount = state.notifications.length;
-      final existingUnreadCount = _calculateUnreadCount(state.notifications);
-      print('📱 Error loading notifications, preserving $existingCount existing notifications');
-      // Only update unread count, don't clear notifications
-      state = state.copyWith(unreadCount: existingUnreadCount);
+      // Preserve manually added notifications even if API fails, but filter for security
+      final filteredExisting = _filterNotificationsByParentId(state.notifications);
+      final existingCount = filteredExisting.length;
+      final existingUnreadCount = _calculateUnreadCount(filteredExisting);
+      print('📱 Error loading notifications, preserving $existingCount existing notifications (after parent filtering)');
+      // Update with filtered notifications to ensure security
+      state = state.copyWith(
+        notifications: filteredExisting,
+        unreadCount: existingUnreadCount,
+      );
     }
   }
 
@@ -699,6 +820,15 @@ class ParentNotifier extends StateNotifier<ParentState> {
     }
 
     final notificationId = notification['id'];
+
+    // SECURITY: Filter notification to ensure it belongs to authenticated parent
+    // Check this early before any processing
+    if (!_isNotificationForAuthenticatedParent(notification)) {
+      print(
+        '⚠️ SECURITY: Rejecting notification $notificationId - does not belong to authenticated parent',
+      );
+      return;
+    }
 
     // Check if notification already exists in the list
     final existingIndex = state.notifications.indexWhere(
