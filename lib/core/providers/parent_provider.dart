@@ -455,15 +455,92 @@ class ParentNotifier extends StateNotifier<ParentState> {
     }
   }
 
+  /// Get all child IDs that belong to the authenticated parent
+  /// Returns a set of child IDs from both parent.children and students
+  Set<int> _getParentChildIds() {
+    final parentId = _getAuthenticatedParentId();
+    if (parentId == null) {
+      print('⚠️ No authenticated parent ID found for child filtering');
+      return <int>{};
+    }
+
+    final childIds = <int>{};
+
+    // Get child IDs from parent.children (Child model)
+    if (state.parent != null) {
+      for (final child in state.parent!.children) {
+        childIds.add(child.id);
+      }
+    }
+
+    // Get child IDs from students where parent has a relationship
+    for (final student in state.students) {
+      // Check if this student has a parent relationship with the authenticated parent
+      final hasParentRelationship = student.parents.any(
+        (parentInfo) => parentInfo.parent == parentId,
+      );
+      if (hasParentRelationship) {
+        childIds.add(student.id);
+      }
+    }
+
+    print('🔒 SECURITY: Found ${childIds.length} child IDs for parent $parentId');
+    return childIds;
+  }
+
+  /// Filter trips to only include those where the parent has a relationship with at least one child
+  List<ParentTrip> _filterTripsByParentChildRelationship(
+    List<ParentTrip> trips,
+  ) {
+    final parentChildIds = _getParentChildIds();
+    
+    // If no child IDs found, return empty list (parent has no children)
+    if (parentChildIds.isEmpty) {
+      print('⚠️ No children found for parent, filtering out all trips');
+      return [];
+    }
+
+    final filteredTrips = trips.where((trip) {
+      // Check if any child in the trip belongs to this parent
+      final hasRelatedChild = trip.children.any(
+        (child) => parentChildIds.contains(child.id),
+      );
+      
+      if (!hasRelatedChild) {
+        print(
+          '🔒 SECURITY: Filtered out trip ${trip.id} - parent has no relationship with any child in this trip',
+        );
+      }
+      
+      return hasRelatedChild;
+    }).toList();
+
+    final filteredCount = trips.length - filteredTrips.length;
+    if (filteredCount > 0) {
+      print(
+        '🔒 SECURITY: Filtered out $filteredCount trip(s) that did not belong to parent\'s children',
+      );
+    }
+
+    return filteredTrips;
+  }
+
   Future<void> loadActiveTrips() async {
     try {
       final response = await ParentTrackingService.getActiveTrips();
       if (response.success && response.data != null) {
         final tripsData = _extractDataFromResponse(response.data!);
-        final trips = tripsData
+        final allTrips = tripsData
             .map((json) => ParentTrip.fromJson(json))
             .toList();
-        state = state.copyWith(activeTrips: trips);
+        
+        // Filter trips to only show those for parent's children
+        final filteredTrips = _filterTripsByParentChildRelationship(allTrips);
+        
+        print(
+          '✅ Loaded ${filteredTrips.length} active trips (filtered from ${allTrips.length} total)',
+        );
+        state = state.copyWith(activeTrips: filteredTrips);
       } else {
         print('⚠️ No active trips found or API unavailable, using empty list');
         state = state.copyWith(activeTrips: []);
@@ -484,10 +561,17 @@ class ParentNotifier extends StateNotifier<ParentState> {
       );
       if (response.success && response.data != null) {
         final tripHistoryData = _extractDataFromResponse(response.data!);
-        final tripHistory = tripHistoryData
+        final allTripHistory = tripHistoryData
             .map((json) => ParentTrip.fromJson(json))
             .toList();
-        state = state.copyWith(tripHistory: tripHistory);
+        
+        // Filter trip history to only show those for parent's children
+        final filteredTripHistory = _filterTripsByParentChildRelationship(allTripHistory);
+        
+        print(
+          '✅ Loaded ${filteredTripHistory.length} trip history items (filtered from ${allTripHistory.length} total)',
+        );
+        state = state.copyWith(tripHistory: filteredTripHistory);
       } else {
         print('⚠️ No trip history found or API unavailable, using empty list');
         state = state.copyWith(tripHistory: []);
@@ -778,6 +862,21 @@ class ParentNotifier extends StateNotifier<ParentState> {
   }
 
   void _updateActiveTrip(ParentTrip trip) {
+    // Filter trip to ensure parent has relationship with at least one child
+    final parentChildIds = _getParentChildIds();
+    
+    // Check if parent has relationship with any child in this trip
+    final hasRelatedChild = parentChildIds.isNotEmpty && trip.children.any(
+      (child) => parentChildIds.contains(child.id),
+    );
+    
+    if (!hasRelatedChild) {
+      print(
+        '🔒 SECURITY: Ignoring trip update ${trip.id} - parent has no relationship with any child in this trip',
+      );
+      return;
+    }
+    
     final updatedTrips = List<ParentTrip>.from(state.activeTrips);
     final index = updatedTrips.indexWhere((t) => t.id == trip.id);
 
