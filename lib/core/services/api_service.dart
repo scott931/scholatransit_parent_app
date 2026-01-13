@@ -162,10 +162,28 @@ class ApiService {
       },
       onError: (error, handler) {
         if (AppConfig.enableLogging) {
+          final statusCode = error.response?.statusCode;
+          final errorType = error.type.toString();
+          final errorMessage = error.message ?? 'No error message';
+          final responseData = error.response?.data;
+          
           print(
-            '❌ API Error: ${error.response?.statusCode} ${error.requestOptions.uri}',
+            '❌ API Error: ${statusCode ?? "No Status"} ${error.requestOptions.uri}',
           );
-          print('📥 Error: ${error.response?.data}');
+          print('❌ Error Type: $errorType');
+          print('❌ Error Message: $errorMessage');
+          if (responseData != null) {
+            print('📥 Response Data: $responseData');
+          } else {
+            print('📥 Response Data: null (Connection/Network Error)');
+          }
+          // Log the handled error message for better debugging
+          try {
+            final handledError = _handleDioError(error);
+            print('📥 Handled Error Message: $handledError');
+          } catch (e) {
+            print('⚠️ Could not generate handled error message: $e');
+          }
         }
         handler.next(error);
       },
@@ -336,6 +354,56 @@ class ApiService {
     }
   }
 
+  /// Extracts validation errors from nested error structures
+  /// Handles formats like:
+  /// - {'field': ['error message']}
+  /// - {'field': [ErrorDetail(string='message', code='invalid')]}
+  /// - {'field': {'message': 'error'}}
+  static String _extractValidationErrors(dynamic errorData) {
+    if (errorData is! Map<String, dynamic>) {
+      return '';
+    }
+
+    final errors = <String>[];
+    
+    errorData.forEach((field, value) {
+      String? errorMessage;
+      
+      if (value is List && value.isNotEmpty) {
+        // Handle list of errors: [ErrorDetail(...)] or ['error message']
+        final firstError = value.first;
+        if (firstError is Map<String, dynamic>) {
+          // ErrorDetail format: {string: 'message', code: 'invalid'}
+          errorMessage = firstError['string'] as String? ?? 
+                        firstError['message'] as String? ??
+                        firstError.toString();
+        } else {
+          // Simple string list: ['error message']
+          errorMessage = firstError.toString();
+        }
+      } else if (value is Map<String, dynamic>) {
+        // Nested error object: {message: 'error'}
+        errorMessage = value['string'] as String? ?? 
+                      value['message'] as String? ??
+                      value.toString();
+      } else if (value is String) {
+        errorMessage = value;
+      }
+      
+      if (errorMessage != null && errorMessage.isNotEmpty) {
+        // Capitalize field name and format error
+        final fieldName = field.replaceAll('_', ' ').split(' ').map(
+          (word) => word.isEmpty 
+            ? word 
+            : word[0].toUpperCase() + word.substring(1)
+        ).join(' ');
+        errors.add('$fieldName: $errorMessage');
+      }
+    });
+    
+    return errors.join('\n');
+  }
+
   static String _handleDioError(DioException error) {
     switch (error.type) {
       case DioExceptionType.connectionTimeout:
@@ -350,13 +418,27 @@ class ApiService {
         if (data is Map<String, dynamic>) {
           // First check for direct message field
           if (data.containsKey('message')) {
-            return data['message'] as String;
+            final message = data['message'] as String;
+            // If there's also an error field with validation details, append them
+            if (data.containsKey('error')) {
+              final validationErrors = _extractValidationErrors(data['error']);
+              if (validationErrors.isNotEmpty) {
+                return '$message\n\n$validationErrors';
+              }
+            }
+            return message;
           }
 
           // Check for error field with nested structure
           if (data.containsKey('error')) {
             final errorData = data['error'];
             if (errorData is Map<String, dynamic>) {
+              // Extract field-specific validation errors
+              final validationErrors = _extractValidationErrors(errorData);
+              if (validationErrors.isNotEmpty) {
+                return validationErrors;
+              }
+              
               if (errorData.containsKey('non_field_errors')) {
                 final nonFieldErrors = errorData['non_field_errors'] as List?;
                 if (nonFieldErrors != null && nonFieldErrors.isNotEmpty) {
@@ -388,6 +470,28 @@ class ApiService {
         } else if (statusCode == 422) {
           return 'Validation error. Please check your input.';
         } else if (statusCode == 500) {
+          // Try to extract specific error message from 500 response
+          if (data is Map<String, dynamic>) {
+            // Check for common error message fields
+            if (data.containsKey('message')) {
+              return data['message'] as String;
+            }
+            if (data.containsKey('error')) {
+              final errorMsg = data['error'];
+              if (errorMsg is String) {
+                return errorMsg;
+              }
+              if (errorMsg is Map<String, dynamic>) {
+                final validationErrors = _extractValidationErrors(errorMsg);
+                if (validationErrors.isNotEmpty) {
+                  return validationErrors;
+                }
+              }
+            }
+            if (data.containsKey('detail')) {
+              return data['detail'] as String;
+            }
+          }
           return 'Server error. Please try again later.';
         } else {
           return 'Request failed with status code $statusCode.';

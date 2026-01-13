@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/providers/parent_auth_provider.dart';
 import '../../../core/models/registration_request.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/services/school_service.dart';
+import '../../../core/widgets/searchable_dropdown_field.dart';
 import 'dart:io' show Platform;
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -24,6 +26,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _phoneNumberController = TextEditingController(); // For digits after +254
+  final _schoolController = TextEditingController();
   final _addressController = TextEditingController();
   final _emergencyContactNameController = TextEditingController();
   final _emergencyPhoneNumberController = TextEditingController(); // For digits after +254
@@ -35,10 +38,102 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _obscureConfirmPassword = true;
   bool _agreeToTerms = false;
   final String _userType = 'parent';
+  
+  // School dropdown state
+  List<School> _schools = [];
+  bool _isLoadingSchools = false;
+  School? _selectedSchool; // Track selected school to get ID
 
   @override
   void initState() {
     super.initState();
+    _loadSchools();
+    // Listen for changes to school controller to detect custom input
+    _schoolController.addListener(_onSchoolTextChanged);
+  }
+  
+  void _onSchoolTextChanged() {
+    // Check if the typed text matches any school in the list
+    final typedText = _schoolController.text.trim();
+    if (typedText.isNotEmpty) {
+      try {
+        final matchingSchool = _schools.firstWhere(
+          (school) => school.name == typedText,
+        );
+        // Update selected school if it matches
+        if (_selectedSchool?.id != matchingSchool.id) {
+          setState(() {
+            _selectedSchool = matchingSchool;
+          });
+        }
+      } catch (e) {
+        // No matching school found - user typed custom name
+        // Clear selected school so we send school name instead of ID
+        if (_selectedSchool != null) {
+          setState(() {
+            _selectedSchool = null;
+          });
+        }
+      }
+    } else {
+      // Clear selection if field is empty
+      if (_selectedSchool != null) {
+        setState(() {
+          _selectedSchool = null;
+        });
+      }
+    }
+  }
+  
+  /// Load all active schools on page load (equivalent to getAllSchools)
+  Future<void> _loadSchools() async {
+    setState(() {
+      _isLoadingSchools = true;
+    });
+    
+    try {
+      // Use getAllSchools() to fetch only active schools
+      final response = await SchoolService.getAllSchools();
+      if (response.success && response.data != null) {
+        setState(() {
+          _schools = response.data!;
+          _isLoadingSchools = false;
+        });
+      } else {
+        setState(() {
+          _isLoadingSchools = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading schools: $e');
+      setState(() {
+        _isLoadingSchools = false;
+      });
+    }
+  }
+  
+  /// Search schools (only active schools)
+  Future<List<School>> _searchSchools(String query) async {
+    if (query.isEmpty) {
+      return _schools;
+    }
+    
+    try {
+      // Search only active schools
+      final response = await SchoolService.getAllSchools(search: query);
+      if (response.success && response.data != null) {
+        return response.data!;
+      }
+    } catch (e) {
+      print('Error searching schools: $e');
+    }
+    
+    // Fallback to local filtering (only active schools from loaded list)
+    return _schools
+        .where((school) =>
+            school.name.toLowerCase().contains(query.toLowerCase()) &&
+            school.active)
+        .toList();
   }
 
   @override
@@ -50,6 +145,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _phoneNumberController.dispose();
+    _schoolController.dispose();
     _addressController.dispose();
     _emergencyContactNameController.dispose();
     _emergencyPhoneNumberController.dispose();
@@ -202,6 +298,35 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         }
                         if (!RegExp(r'^[0-9]+$').hasMatch(digits)) {
                           return 'Phone number must contain only digits';
+                        }
+                        return null;
+                      },
+                    ),
+                    SizedBox(height: 16.h),
+
+                    // School Field - Searchable Dropdown with Free Text Input
+                    SearchableDropdownField<School>(
+                      controller: _schoolController,
+                      label: 'School',
+                      hintText: 'Search or type school name',
+                      icon: Icons.school_outlined,
+                      options: _schools,
+                      getDisplayText: (school) => school.name,
+                      isLoading: _isLoadingSchools,
+                      onSearch: _searchSchools,
+                      onSelected: (school) {
+                        // Track selected school to get ID
+                        setState(() {
+                          _selectedSchool = school;
+                        });
+                      },
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please select your school';
+                        }
+                        // Validate that a school from the list is selected (not custom text)
+                        if (_selectedSchool == null) {
+                          return 'Please select a school from the list';
                         }
                         return null;
                       },
@@ -758,6 +883,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           userAgent: 'Flutter (${Platform.operatingSystem})',
           deviceType: 'mobile',
         ),
+        // Send school as integer ID (matching desktop behavior)
+        // Only send if we have a valid school ID from dropdown selection
+        school: null, // Don't send school name
+        schoolId: _selectedSchool?.id, // Send ID which will be converted to 'school' field in toJson()
         // Optional student linking fields for backend auto-matching
         studentId: studentId.isNotEmpty ? studentId : null,
         studentEmail: studentEmail.isNotEmpty ? studentEmail : null,

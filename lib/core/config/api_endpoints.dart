@@ -290,6 +290,18 @@ class ApiEndpoints {
       '/api/v1/routes/routes/$routeId/schedules/';
 
   // ============================================================================
+  // SCHOOL ENDPOINTS
+  // ============================================================================
+
+  /// GET /api/v1/schools/
+  /// Get all schools
+  static const String schools = '/api/v1/schools/';
+
+  /// GET /api/v1/schools/{id}/
+  /// Get specific school details
+  static String schoolDetails(int schoolId) => '/api/v1/schools/$schoolId/';
+
+  // ============================================================================
   // STUDENT ENDPOINTS
   // ============================================================================
 
