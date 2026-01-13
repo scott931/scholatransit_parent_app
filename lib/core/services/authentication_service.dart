@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'storage_service.dart';
 import 'api_service.dart';
@@ -49,10 +50,27 @@ class AuthenticationService {
 
       print('🔐 AuthService: Token found, validating with API...');
 
-      // Check if token is valid by making a simple API call
-      final response = await ApiService.get<Map<String, dynamic>>(
-        ApiEndpoints.profile,
-      );
+      // Check if token is valid by making a simple API call with timeout
+      // Use a shorter timeout (15 seconds) to prevent dashboard from hanging
+      ApiResponse<Map<String, dynamic>> response;
+      try {
+        response = await ApiService.get<Map<String, dynamic>>(
+          ApiEndpoints.profile,
+        ).timeout(
+          const Duration(seconds: 15),
+        );
+      } on TimeoutException catch (e) {
+        print('⏰ AuthService: Authentication validation timed out');
+        // If token exists but validation times out, assume token is valid
+        // This prevents blocking the dashboard on slow networks
+        print('⚠️ AuthService: Assuming token is valid due to timeout');
+        return true;
+      } catch (e) {
+        print('❌ AuthService: Error during API call: $e');
+        // If there's a network error but token exists, assume valid
+        // Individual API calls will handle auth errors properly
+        return true;
+      }
 
       if (response.success) {
         print('✅ AuthService: Authentication token is valid');

@@ -367,20 +367,38 @@ class ParentNotifier extends StateNotifier<ParentState> {
   }
 
   /// Validate authentication using centralized service
+  /// Returns true if user has a token (quick check), false only if no token exists
   Future<bool> _validateAuthentication() async {
-    // For StateNotifier, we need to get the ref from the provider context
-    // Since we can't access ref directly in StateNotifier, we'll use a simpler approach
-    return await AuthenticationService.validateAndRefreshAuth(null);
+    try {
+      // Quick check: if token exists, assume authenticated
+      // This prevents blocking on slow API calls
+      final token = StorageService.getAuthToken();
+      if (token == null || token.isEmpty) {
+        print('🔐 No auth token found, user needs to login');
+        return false;
+      }
+
+      // Token exists, proceed with data loading
+      // Don't block on API validation - let individual API calls handle auth errors
+      print('🔐 Auth token found, proceeding with data load');
+      return true;
+    } catch (e) {
+      print('❌ Error checking authentication: $e');
+      // If we can't check, assume authenticated to prevent blocking
+      return true;
+    }
   }
 
   Future<void> loadParentData() async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      // Enhanced authentication check
-      if (!await _validateAuthentication()) {
+      // Quick authentication check - only fails if no token exists
+      // Don't block on API validation to prevent timeouts
+      final hasToken = await _validateAuthentication();
+      if (!hasToken) {
         DebugLogger.logAuthDebug(
-          'Authentication validation failed, skipping data load',
+          'No authentication token found, user needs to login',
         );
         state = StateManagementHelper.setErrorState(
           state,
@@ -390,28 +408,73 @@ class ParentNotifier extends StateNotifier<ParentState> {
         return;
       }
 
-      // Load students
-      await loadStudents();
-
-      // Load active trips
-      await loadActiveTrips();
-
-      // Load trip history
-      await loadTripHistory();
-
-      // Load notifications
-      await loadNotifications();
+      // Load all data in parallel to reduce total loading time
+      // This prevents sequential timeouts from blocking the dashboard
+      final results = await Future.wait([
+        // Load students with timeout handling
+        loadStudents().timeout(
+          const Duration(seconds: 25),
+          onTimeout: () {
+            print('⏰ Students load timed out, continuing with other data');
+            return Future.value();
+          },
+        ).catchError((e) {
+          print('❌ Error loading students: $e');
+          return Future.value();
+        }),
+        
+        // Load active trips with timeout handling
+        loadActiveTrips().timeout(
+          const Duration(seconds: 25),
+          onTimeout: () {
+            print('⏰ Active trips load timed out, continuing with other data');
+            return Future.value();
+          },
+        ).catchError((e) {
+          print('❌ Error loading active trips: $e');
+          return Future.value();
+        }),
+        
+        // Load trip history with timeout handling
+        loadTripHistory().timeout(
+          const Duration(seconds: 25),
+          onTimeout: () {
+            print('⏰ Trip history load timed out, continuing with other data');
+            return Future.value();
+          },
+        ).catchError((e) {
+          print('❌ Error loading trip history: $e');
+          return Future.value();
+        }),
+        
+        // Load notifications with timeout handling
+        loadNotifications().timeout(
+          const Duration(seconds: 30),
+          onTimeout: () {
+            print('⏰ Notifications load timed out, continuing with other data');
+            return Future.value();
+          },
+        ).catchError((e) {
+          print('❌ Error loading notifications: $e');
+          return Future.value();
+        }),
+      ], eagerError: false); // Don't fail all if one fails
 
       // Start real-time notification monitoring if parent is loaded
       if (state.parent != null) {
-        await startNotificationMonitoring();
+        // Don't wait for this, let it run in background
+        startNotificationMonitoring().catchError((e) {
+          print('❌ Error starting notification monitoring: $e');
+        });
       }
 
       state = state.copyWith(isLoading: false);
+      print('✅ Dashboard data loading completed (some may have timed out)');
     } catch (e) {
+      print('❌ Critical error loading parent data: $e');
       state = state.copyWith(
         isLoading: false,
-        error: 'Failed to load parent data: $e',
+        error: 'Failed to load some dashboard data. Please try refreshing.',
       );
     }
   }

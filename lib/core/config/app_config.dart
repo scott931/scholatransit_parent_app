@@ -122,9 +122,10 @@ class AppConfig {
   static const int qrCodeSize = 200;
 
   // Timeout Configuration
-  static const Duration apiTimeout = Duration(seconds: 30);
+  // Increased timeouts to handle slower networks and prevent dashboard timeouts
+  static const Duration apiTimeout = Duration(seconds: 45);
   static const Duration locationTimeout = Duration(seconds: 30);
-  static const Duration connectionTimeout = Duration(seconds: 15);
+  static const Duration connectionTimeout = Duration(seconds: 20);
 
   // Retry Configuration
   static const int maxRetryAttempts = 3;

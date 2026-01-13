@@ -2,7 +2,23 @@
 
 ## Issues Encountered
 
-### 1. APK Build Path Issues
+### 1. Shader Compilation Error (Exit Code -9)
+**Error**: `ShaderCompilerException: Shader compilation failed with exit code -9`
+**Cause**: Process killed due to memory/resource constraints or corrupted shader cache
+**Solution**: 
+- Run `./fix_shader_compilation.sh` (macOS/Linux) or clean manually:
+  ```bash
+  flutter clean
+  rm -rf build/app/intermediates/flutter/debug/flutter_assets/shaders
+  rm -rf android/app/build android/build
+  flutter pub get
+  flutter build apk --debug --no-shrink
+  ```
+- If still failing, try: `flutter build apk --debug --no-shrink --split-per-abi`
+- Increase system memory or close other applications
+- Check `android/gradle.properties` has sufficient memory: `-Xmx8G`
+
+### 2. APK Build Path Issues
 **Error**: `Asset path android\app\build\outputs\apk\debug\app-debug.apk is neither a directory nor file`
 **Solution**: Clean build and rebuild
 
