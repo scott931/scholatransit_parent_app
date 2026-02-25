@@ -11,6 +11,53 @@ import '../services/storage_service.dart';
 import '../config/app_config.dart';
 import '../config/api_endpoints.dart';
 
+/// Returns true if the user_type is allowed to log in to the parent app (parents only).
+/// Admin, driver, and other non-parent roles are blocked. Unknown/null user_type is blocked
+/// to prevent other user types from accessing the parent app.
+bool _isAllowedUserType(String? userType) {
+  if (userType == null || userType.toString().trim().isEmpty) return false;
+  final role = UserRole.fromString(userType);
+  return role == UserRole.parent;
+}
+
+/// Message shown when a non-parent (admin, driver, etc.) tries to access the parent app.
+const String _kNonParentBlockedMessage =
+    'Only parents can access the application. Contact your admin for further assistance.';
+
+/// Safely converts API/JSON maps (often Map<dynamic, dynamic>) to Map<String, dynamic>.
+Map<String, dynamic>? _toStringKeyMap(dynamic value) {
+  if (value == null) return null;
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return Map<String, dynamic>.from(value);
+  return null;
+}
+
+/// Extracts user_type from login/OTP response. Checks user object, profile_data, and root data.
+/// Also checks 'role' as some backends use that field instead of 'user_type'.
+String? _extractUserType(dynamic userObj, Map<String, dynamic>? data) {
+  String? getFromMap(Map<String, dynamic>? m) {
+    if (m == null) return null;
+    final t = m['user_type'] as String? ?? m['role'] as String?;
+    if (t != null) {
+      final s = t.toString().trim();
+      if (s.isNotEmpty) return s;
+    }
+    return null;
+  }
+  final map = _toStringKeyMap(userObj);
+  if (map != null) {
+    final t = getFromMap(map);
+    if (t != null) return t;
+    final pd = _toStringKeyMap(map['profile_data']);
+    if (pd != null) {
+      final pt = getFromMap(pd);
+      if (pt != null) return pt;
+    }
+  }
+  final dataMap = _toStringKeyMap(data);
+  return getFromMap(dataMap);
+}
+
 class ParentAuthState {
   final bool isLoading;
   final bool isAuthenticated;
@@ -94,12 +141,18 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
       // Clear any existing tokens before login
       await StorageService.clearAuthTokens();
 
+      // Use client: 'parent_app' so backend can reject non-parents BEFORE sending OTP
       final response = await ApiService.post<Map<String, dynamic>>(
         AppConfig.loginEndpoint,
         data: {
           'email': email,
           'password': password,
           'source': 'mobile',
+          'client': 'parent_app',
+          'device_info': {
+            'user_agent': 'Flutter (${Platform.operatingSystem})',
+            'device_type': 'mobile',
+          },
         },
       );
 
@@ -120,6 +173,30 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
       if (response.success && response.data != null) {
         final data = response.data!;
         print('🔐 DEBUG: Parent login successful, processing response data');
+
+        // Block non-parents BEFORE OTP so drivers/admins never reach the OTP screen.
+        // Backend must include user_type in login response (user object or root-level).
+        final userObj = data['user'] ?? data['user_data'];
+        String? userType;
+        if (userObj != null) {
+          userType = _extractUserType(userObj, data);
+        } else {
+          userType = _extractUserType(data, data);
+        }
+        if (userType != null && !_isAllowedUserType(userType)) {
+          print('🔐 DEBUG: User type "$userType" not allowed - blocking before OTP');
+          state = state.copyWith(
+            isLoading: false,
+            isAuthenticated: false,
+            error: _kNonParentBlockedMessage,
+            otpId: null,
+            registrationEmail: null,
+          );
+          return false;
+        }
+        if (userType != null) {
+          print('🔐 DEBUG: User type "$userType" allowed (parent) - proceeding');
+        }
 
         int? otpId;
         if (data['otp_id'] is int) {
