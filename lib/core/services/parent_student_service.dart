@@ -147,6 +147,108 @@ class ParentStudentService {
     }
   }
 
+  /// Get students available to link (not linked to current parent, from parent's school).
+  /// Backend filters by parent's school automatically.
+  static Future<ApiResponse<List<Student>>> getAvailableStudents() async {
+    try {
+      final response = await ApiService.get<dynamic>(
+        ApiEndpoints.availableStudents,
+      );
+
+      if (response.success && response.data != null) {
+        final raw = response.data!;
+        List<dynamic> list;
+        if (raw is List<dynamic>) {
+          list = raw;
+        } else if (raw is Map<String, dynamic>) {
+          list = raw['results'] as List<dynamic>? ?? [];
+        } else {
+          return ApiResponse<List<Student>>.error('Unexpected response format');
+        }
+        final students = list
+            .map(
+              (e) => Student.fromJson(e as Map<String, dynamic>),
+            )
+            .toList();
+        return ApiResponse<List<Student>>.success(students);
+      }
+      return ApiResponse<List<Student>>.error(
+        response.error ?? 'Failed to load available students',
+      );
+    } catch (e) {
+      print('❌ Error fetching available students: $e');
+      return ApiResponse<List<Student>>.error(
+        'Failed to load available students: $e',
+      );
+    }
+  }
+
+  /// Request to link the current parent to an existing student.
+  /// School admin will review and approve. Options: is_primary_contact, can_pickup, can_dropoff.
+  static Future<ApiResponse<Map<String, dynamic>>> requestStudentLink({
+    required int studentId,
+    bool isPrimaryContact = false,
+    bool canPickup = true,
+    bool canDropoff = true,
+  }) async {
+    try {
+      final response = await ApiService.post<Map<String, dynamic>>(
+        ApiEndpoints.linkRequests,
+        data: {
+          'student': studentId,
+          'is_primary_contact': isPrimaryContact,
+          'can_pickup': canPickup,
+          'can_dropoff': canDropoff,
+        },
+      );
+
+      if (response.success && response.data != null) {
+        return ApiResponse<Map<String, dynamic>>.success(response.data!);
+      }
+      return ApiResponse<Map<String, dynamic>>.error(
+        response.error ?? 'Failed to submit link request',
+      );
+    } catch (e) {
+      print('❌ Error requesting student link: $e');
+      return ApiResponse<Map<String, dynamic>>.error(
+        'Failed to submit link request: $e',
+      );
+    }
+  }
+
+  /// Get the current parent's link requests (pending, approved, rejected).
+  /// Optional [statusFilter]: 'pending', 'approved', 'rejected'.
+  static Future<ApiResponse<List<Map<String, dynamic>>>> getMyLinkRequests({
+    String? statusFilter,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{};
+      if (statusFilter != null && statusFilter.isNotEmpty) {
+        queryParams['status'] = statusFilter;
+      }
+      final response = await ApiService.get<Map<String, dynamic>>(
+        ApiEndpoints.myLinkRequests,
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      );
+      if (response.success && response.data != null) {
+        final data = response.data!;
+        final list = data['requests'] as List<dynamic>? ?? [];
+        final requests = list
+            .map((e) => e as Map<String, dynamic>)
+            .toList();
+        return ApiResponse<List<Map<String, dynamic>>>.success(requests);
+      }
+      return ApiResponse<List<Map<String, dynamic>>>.error(
+        response.error ?? 'Failed to load your link requests',
+      );
+    } catch (e) {
+      print('❌ Error fetching my link requests: $e');
+      return ApiResponse<List<Map<String, dynamic>>>.error(
+        'Failed to load your link requests: $e',
+      );
+    }
+  }
+
   /// Get student's attendance history
   static Future<ApiResponse<List<Map<String, dynamic>>>> getStudentAttendance({
     required int studentId,

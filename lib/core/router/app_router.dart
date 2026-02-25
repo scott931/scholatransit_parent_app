@@ -23,6 +23,7 @@ import '../../features/attendance/screens/attendance_history_screen.dart';
 import '../../features/parent/screens/parent_notifications_screen.dart';
 import '../../features/parent/screens/parent_profile_screen.dart';
 import '../../features/parent/screens/parent_students_screen.dart';
+import '../../features/parent/screens/request_student_link_screen.dart';
 import '../../features/communication/screens/whatsapp_redirect_screen.dart';
 import '../../features/communication/screens/contact_demo_screen.dart';
 import '../../features/students/screens/qr_scanner_screen.dart';
@@ -237,6 +238,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const ParentStudentsScreen(),
           ),
           GoRoute(
+            path: '/parent/request-student-link',
+            name: 'parent-request-student-link',
+            builder: (context, state) => const RequestStudentLinkScreen(),
+          ),
+          GoRoute(
             path: '/parent/attendance-history',
             name: 'parent-attendance-history',
             builder: (context, state) => const AttendanceHistoryScreen(),
@@ -284,6 +290,8 @@ class ParentMainShell extends ConsumerWidget {
         return 'Notifications';
       case '/parent/students':
         return 'Students';
+      case '/parent/request-student-link':
+        return 'Link to student';
       case '/parent/attendance-history':
         return 'Attendance History';
       case '/parent/profile':

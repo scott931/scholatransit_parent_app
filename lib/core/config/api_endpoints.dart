@@ -111,6 +111,18 @@ class ApiEndpoints {
   /// Get students (using general students endpoint for parents)
   static const String parentStudents = '/api/v1/students/students/';
 
+  /// GET /api/v1/students/available-students/
+  /// Get students available to link (not yet linked to current parent, from parent's school)
+  static const String availableStudents = '/api/v1/students/available-students/';
+
+  /// POST /api/v1/students/link-requests/
+  /// Request to link current parent to an existing student (requires school approval)
+  static const String linkRequests = '/api/v1/students/link-requests/';
+
+  /// GET /api/v1/students/my-link-requests/
+  /// Get current parent's link requests (pending, approved, rejected)
+  static const String myLinkRequests = '/api/v1/students/my-link-requests/';
+
   /// GET /api/v1/trips/
   /// Get parent's active trips (using general trips endpoint)
   static const String parentActiveTrips = '/api/v1/trips/';

@@ -121,11 +121,42 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
 
       return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
-        floatingActionButton: FloatingActionButton(
-          onPressed: _toggleDebugMode,
-          backgroundColor: const Color(0xFF0052CC),
-          child: Icon(_isDebugMode ? Icons.close : Icons.bug_report),
-          tooltip: _isDebugMode ? 'Exit Debug Mode' : 'Debug Students',
+        floatingActionButton: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            if (_isDebugMode)
+              Padding(
+                padding: EdgeInsets.only(bottom: 12.h),
+                child: FloatingActionButton(
+                  heroTag: 'debug',
+                  mini: true,
+                  onPressed: _toggleDebugMode,
+                  backgroundColor: Colors.grey[700],
+                  child: const Icon(Icons.close),
+                  tooltip: 'Exit Debug Mode',
+                ),
+              )
+            else
+              Padding(
+                padding: EdgeInsets.only(bottom: 12.h),
+                child: FloatingActionButton(
+                  heroTag: 'debug',
+                  mini: true,
+                  onPressed: _toggleDebugMode,
+                  backgroundColor: Colors.grey[600],
+                  child: const Icon(Icons.bug_report),
+                  tooltip: 'Debug Students',
+                ),
+              ),
+            FloatingActionButton.extended(
+              heroTag: 'addChild',
+              onPressed: () => context.push('/parent/request-student-link'),
+              backgroundColor: const Color(0xFF0052CC),
+              icon: const Icon(Icons.person_add),
+              label: const Text('Add child'),
+              tooltip: 'Request to link to a student',
+            ),
+          ],
         ),
         body: _isDebugMode
             ? _buildDebugBody()
@@ -289,6 +320,17 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
               textAlign: TextAlign.center,
             ),
             SizedBox(height: 32.h),
+            FilledButton.icon(
+              onPressed: () => context.push('/parent/request-student-link'),
+              icon: const Icon(Icons.person_add),
+              label: const Text('Request to link to a student'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF0052CC),
+                padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 14.h),
+                textStyle: TextStyle(fontSize: 16.sp),
+              ),
+            ),
+            SizedBox(height: 24.h),
             Container(
               padding: EdgeInsets.all(20.w),
               decoration: BoxDecoration(
@@ -316,7 +358,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
                   ),
                   SizedBox(height: 8.h),
                   Text(
-                    '• Contact school administration\n• Verify your account details\n• Check if students are properly linked\n• Refresh to try again',
+                    '• Request to link to a student from your school\n• Contact school administration\n• Verify your account details\n• Refresh to try again',
                     style: TextStyle(
                       fontSize: 12.sp,
                       color: Colors.grey[600],
