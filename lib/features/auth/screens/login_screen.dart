@@ -370,15 +370,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         if (parentSuccess) {
           context.go('/otp');
         } else {
-          // Show error message
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Invalid credentials. Please check your email and password.',
+          // Error is shown by ref.listen; only show generic message if no specific error
+          final error = ref.read(parentAuthProvider).error;
+          if (error == null || error.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Invalid credentials. Please check your email and password.',
+                ),
+                backgroundColor: AppTheme.errorColor,
               ),
-              backgroundColor: AppTheme.errorColor,
-            ),
-          );
+            );
+          }
         }
       }
     }

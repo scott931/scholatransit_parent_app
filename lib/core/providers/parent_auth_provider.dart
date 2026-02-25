@@ -213,6 +213,46 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
         }
 
         if (otpId != null) {
+          // MUST confirm user_type is parent before showing OTP - never lead non-parents to OTP
+          final userData = data['user'] as Map<String, dynamic>? ??
+              data['user_data'] as Map<String, dynamic>? ??
+              data['parent'] as Map<String, dynamic>?;
+
+          if (userData == null) {
+            print('❌ DEBUG: Login rejected - no user data to confirm account type');
+            state = state.copyWith(
+              isLoading: false,
+              isAuthenticated: false,
+              error:
+                  'Unable to verify account type. This app is only for parent accounts. Please contact support if you have a parent account.',
+            );
+            return false;
+          }
+
+          final userRole = _validateUserType(userData);
+          if (userRole == null) {
+            print('❌ DEBUG: Login rejected - could not determine user type');
+            state = state.copyWith(
+              isLoading: false,
+              isAuthenticated: false,
+              error:
+                  'Unable to verify account type. This app is only for parent accounts. Please contact support if you have a parent account.',
+            );
+            return false;
+          }
+
+          if (userRole != UserRole.parent) {
+            final accountType = userRole.displayName;
+            print('❌ DEBUG: Login rejected - $accountType cannot access parent app');
+            state = state.copyWith(
+              isLoading: false,
+              isAuthenticated: false,
+              error:
+                  'Access denied. This app is only for parent accounts. Your account is registered as $accountType. Please use the $accountType app.',
+            );
+            return false;
+          }
+
           state = state.copyWith(
             isLoading: false,
             otpId: otpId,
@@ -392,7 +432,9 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
         requestData = {
           'otp_code': otp,
           'otp_id': state.otpId.toString(),
+          'otp': {'otp_type': 'login'},
           'source': 'mobile',
+          'client': 'parent_app',
           'device_info': {
             'user_agent': 'Flutter (${Platform.operatingSystem})',
             'device_type': 'mobile',
