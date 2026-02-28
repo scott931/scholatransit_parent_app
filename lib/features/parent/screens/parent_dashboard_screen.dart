@@ -11,7 +11,6 @@ import '../../../core/providers/parent_auth_provider.dart';
 import '../../../core/models/parent_trip_model.dart';
 import '../../../core/models/parent_model.dart';
 import '../../../core/config/app_config.dart';
-import '../../../core/services/android_notification_listener_service.dart';
 import '../../../core/services/location_service_resolver.dart';
 import '../widgets/bus_tracking_card.dart';
 import '../widgets/child_status_card.dart';
@@ -55,8 +54,8 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
     // Start location tracking when user is authenticated
     _startLocationTracking();
 
-    // Auto-request notification listener permission if needed
-    _autoRequestNotificationListenerPermission();
+    // Notification listener disabled to prevent app blocking on some devices
+    // _autoRequestNotificationListenerPermission();
   }
 
   Future<void> _startLocationTracking() async {
@@ -80,16 +79,6 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
       }
     } catch (e) {
       print('❌ Failed to start location tracking: $e');
-    }
-  }
-
-  Future<void> _autoRequestNotificationListenerPermission() async {
-    // Import needed at top of file
-    try {
-      // Check and initialize notification listener service
-      await AndroidNotificationListenerService.initialize();
-    } catch (e) {
-      print('❌ Failed to auto-request notification listener: $e');
     }
   }
 

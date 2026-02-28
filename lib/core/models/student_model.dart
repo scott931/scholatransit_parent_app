@@ -134,45 +134,80 @@ class Student {
     this.longitude,
   });
 
+  /// Safely parse a value to String, handling int/num from API.
+  static String _str(dynamic v, [String fallback = '']) {
+    if (v == null) return fallback;
+    if (v is String) return v;
+    if (v is int || v is num) return v.toString();
+    return v.toString();
+  }
+
+  /// Safely parse a value to String?, handling int/num from API.
+  static String? _strOrNull(dynamic v) {
+    if (v == null) return null;
+    if (v is String) return v;
+    if (v is int || v is num) return v.toString();
+    return v.toString();
+  }
+
+  /// Safely parse DateTime from String (ISO8601) or int (Unix timestamp).
+  static DateTime? _parseDateTime(dynamic v) {
+    if (v == null) return null;
+    if (v is DateTime) return v;
+    if (v is String) return DateTime.tryParse(v);
+    if (v is int) {
+      final ms = v > 9999999999 ? v : v * 1000;
+      return DateTime.fromMillisecondsSinceEpoch(ms);
+    }
+    if (v is num) return _parseDateTime(v.toInt());
+    return null;
+  }
+
   factory Student.fromJson(Map<String, dynamic> json) {
     return Student(
-      id: json['id'] ?? 0,
-      studentId: json['student_id'] ?? '',
-      firstName: json['first_name'] ?? '',
-      lastName: json['last_name'] ?? '',
-      middleName: json['middle_name'],
-      fullName: json['full_name'] ?? '',
-      dateOfBirth: json['date_of_birth'] ?? '',
-      gender: json['gender'] ?? '',
-      grade: json['grade'] ?? '',
-      status: json['status'] ?? '',
-      approvalStatus: json['approval_status'] ?? '',
-      age: json['age'] ?? 0,
-      phoneNumber: json['phone_number'] ?? '',
-      email: json['email'] ?? '',
-      address: json['address'] ?? '',
-      city: json['city'] ?? '',
-      state: json['state'] ?? '',
-      postalCode: json['postal_code'] ?? '',
-      country: json['country'] ?? '',
-      schoolName: json['school_name'] ?? '',
-      schoolAddress: json['school_address'] ?? '',
-      assignedRoute: json['assigned_route'],
-      pickupStop: json['pickup_stop'],
-      dropoffStop: json['dropoff_stop'],
-      hasRouteAssignment: json['has_route_assignment'] ?? false,
-      routeName: json['route_name'],
-      routeDescription: json['route_description'],
-      routeType: json['route_type'],
-      routeStatus: json['route_status'],
-      assignedDriverName: json['assigned_driver_name'],
-      assignedVehicleLicense: json['assigned_vehicle_license'],
-      pickupStopName: json['pickup_stop_name'],
-      pickupStopAddress: json['pickup_stop_address'],
+      id: json['id'] is int ? json['id'] as int : (int.tryParse(_str(json['id'])) ?? 0),
+      studentId: _str(json['student_id']),
+      firstName: _str(json['first_name']),
+      lastName: _str(json['last_name']),
+      middleName: _strOrNull(json['middle_name']),
+      fullName: _str(json['full_name']),
+      dateOfBirth: _str(json['date_of_birth']),
+      gender: _str(json['gender']),
+      grade: _str(json['grade']),
+      status: _str(json['status']),
+      approvalStatus: _str(json['approval_status']),
+      age: json['age'] is int ? json['age'] as int : (int.tryParse(_str(json['age'])) ?? 0),
+      phoneNumber: _str(json['phone_number']),
+      email: _str(json['email']),
+      address: _str(json['address']),
+      city: _str(json['city']),
+      state: _str(json['state']),
+      postalCode: _str(json['postal_code']),
+      country: _str(json['country']),
+      schoolName: _str(json['school_name']),
+      schoolAddress: _str(json['school_address']),
+      assignedRoute: json['assigned_route'] is int
+          ? json['assigned_route'] as int?
+          : (json['assigned_route'] != null ? int.tryParse(_str(json['assigned_route'])) : null),
+      pickupStop: json['pickup_stop'] is int
+          ? json['pickup_stop'] as int?
+          : (json['pickup_stop'] != null ? int.tryParse(_str(json['pickup_stop'])) : null),
+      dropoffStop: json['dropoff_stop'] is int
+          ? json['dropoff_stop'] as int?
+          : (json['dropoff_stop'] != null ? int.tryParse(_str(json['dropoff_stop'])) : null),
+      hasRouteAssignment: json['has_route_assignment'] == true,
+      routeName: _strOrNull(json['route_name']),
+      routeDescription: _strOrNull(json['route_description']),
+      routeType: _strOrNull(json['route_type']),
+      routeStatus: _strOrNull(json['route_status']),
+      assignedDriverName: _strOrNull(json['assigned_driver_name']),
+      assignedVehicleLicense: _strOrNull(json['assigned_vehicle_license']),
+      pickupStopName: _strOrNull(json['pickup_stop_name']),
+      pickupStopAddress: _strOrNull(json['pickup_stop_address']),
       currentTrip: json['current_trip'] != null
           ? CurrentTrip.fromJson(json['current_trip'])
           : null,
-      upcomingTrips: json['upcoming_trips'] ?? [],
+      upcomingTrips: json['upcoming_trips'] is List ? json['upcoming_trips'] as List<dynamic> : [],
       parents:
           (json['parents'] as List<dynamic>?)
               ?.map(
@@ -180,18 +215,12 @@ class Student {
               )
               .toList() ??
           [],
-      createdAt: DateTime.parse(
-        json['created_at'] ?? DateTime.now().toIso8601String(),
-      ),
-      updatedAt: DateTime.parse(
-        json['updated_at'] ?? DateTime.now().toIso8601String(),
-      ),
-      profileImage: json['profile_image'],
-      school: json['school'],
-      lastSeen: json['last_seen'] != null
-          ? DateTime.parse(json['last_seen'])
-          : null,
-      parentName: json['parent_name'],
+      createdAt: _parseDateTime(json['created_at']) ?? DateTime.now(),
+      updatedAt: _parseDateTime(json['updated_at']) ?? DateTime.now(),
+      profileImage: _strOrNull(json['profile_image']),
+      school: _strOrNull(json['school']),
+      lastSeen: _parseDateTime(json['last_seen']),
+      parentName: _strOrNull(json['parent_name']),
       latitude: json['latitude']?.toDouble(),
       longitude: json['longitude']?.toDouble(),
     );
@@ -400,15 +429,15 @@ class CurrentTrip {
 
   factory CurrentTrip.fromJson(Map<String, dynamic> json) {
     return CurrentTrip(
-      tripId: json['trip_id'] ?? '',
-      tripType: json['trip_type'] ?? '',
-      status: json['status'] ?? '',
-      scheduledStart: json['scheduled_start'] ?? '',
-      scheduledEnd: json['scheduled_end'] ?? '',
-      actualStart: json['actual_start'] ?? '',
-      actualEnd: json['actual_end'] ?? '',
-      driverName: json['driver_name'] ?? '',
-      vehicleLicense: json['vehicle_license'] ?? '',
+      tripId: Student._str(json['trip_id']),
+      tripType: Student._str(json['trip_type']),
+      status: Student._str(json['status']),
+      scheduledStart: Student._str(json['scheduled_start']),
+      scheduledEnd: Student._str(json['scheduled_end']),
+      actualStart: Student._str(json['actual_start']),
+      actualEnd: Student._str(json['actual_end']),
+      driverName: Student._str(json['driver_name']),
+      vehicleLicense: Student._str(json['vehicle_license']),
     );
   }
 
@@ -454,20 +483,16 @@ class ParentInfo {
 
   factory ParentInfo.fromJson(Map<String, dynamic> json) {
     return ParentInfo(
-      id: json['id'] ?? 0,
-      student: json['student'] ?? 0,
-      parent: json['parent'] ?? 0,
-      studentName: json['student_name'] ?? '',
-      parentName: json['parent_name'] ?? '',
-      isPrimaryContact: json['is_primary_contact'] ?? false,
-      canPickup: json['can_pickup'] ?? false,
-      canDropoff: json['can_dropoff'] ?? false,
-      createdAt: DateTime.parse(
-        json['created_at'] ?? DateTime.now().toIso8601String(),
-      ),
-      updatedAt: DateTime.parse(
-        json['updated_at'] ?? DateTime.now().toIso8601String(),
-      ),
+      id: json['id'] is int ? json['id'] as int : (int.tryParse(Student._str(json['id'])) ?? 0),
+      student: json['student'] is int ? json['student'] as int : (int.tryParse(Student._str(json['student'])) ?? 0),
+      parent: json['parent'] is int ? json['parent'] as int : (int.tryParse(Student._str(json['parent'])) ?? 0),
+      studentName: Student._str(json['student_name']),
+      parentName: Student._str(json['parent_name']),
+      isPrimaryContact: json['is_primary_contact'] == true,
+      canPickup: json['can_pickup'] == true,
+      canDropoff: json['can_dropoff'] == true,
+      createdAt: Student._parseDateTime(json['created_at']) ?? DateTime.now(),
+      updatedAt: Student._parseDateTime(json['updated_at']) ?? DateTime.now(),
     );
   }
 

@@ -2,7 +2,9 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" />
+    <!-- Commented out to prevent app from being blocked by device security policies.
+         This reads notifications from OTHER apps - not needed for in-app chat or push notifications. -->
+    <!-- <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" /> -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -42,7 +44,9 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- Notification Listener Service -->
+        <!-- Notification Listener Service - Commented out to prevent app blocking.
+             Only reads notifications from OTHER apps; does not affect in-app chat or FCM push. -->
+        <!--
         <service
             android:name=".AppNotificationListenerService"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
@@ -51,6 +55,7 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+        -->
 
         <!-- Firebase Cloud Messaging Service -->
         <service
