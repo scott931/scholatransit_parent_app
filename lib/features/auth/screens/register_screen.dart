@@ -388,104 +388,104 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                     SizedBox(height: 16.h),
 
-                    // Student Information Section (Optional)
-                    // Divider with label
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Divider(
-                            color: Colors.grey[300],
-                            thickness: 1,
-                          ),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16.w),
-                          child: Text(
-                            'Student Information (Optional)',
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Divider(
-                            color: Colors.grey[300],
-                            thickness: 1,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 8.h),
-                    Text(
-                      'Provide student information to automatically link your account. You can also link students later.',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        color: Colors.grey[600],
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                    SizedBox(height: 16.h),
+                    // Student Information Section (Optional) - COMMENTED OUT
+                    // // Divider with label
+                    // Row(
+                    //   children: [
+                    //     Expanded(
+                    //       child: Divider(
+                    //         color: Colors.grey[300],
+                    //         thickness: 1,
+                    //       ),
+                    //     ),
+                    //     Padding(
+                    //       padding: EdgeInsets.symmetric(horizontal: 16.w),
+                    //       child: Text(
+                    //         'Student Information (Optional)',
+                    //         style: TextStyle(
+                    //           fontSize: 14.sp,
+                    //           color: Colors.grey[600],
+                    //           fontWeight: FontWeight.w500,
+                    //         ),
+                    //       ),
+                    //     ),
+                    //     Expanded(
+                    //       child: Divider(
+                    //         color: Colors.grey[300],
+                    //         thickness: 1,
+                    //       ),
+                    //     ),
+                    //   ],
+                    // ),
+                    // SizedBox(height: 8.h),
+                    // Text(
+                    //   'Provide student information to automatically link your account. You can also link students later.',
+                    //   style: TextStyle(
+                    //     fontSize: 12.sp,
+                    //     color: Colors.grey[600],
+                    //     fontStyle: FontStyle.italic,
+                    //   ),
+                    // ),
+                    // SizedBox(height: 16.h),
 
-                    // Student ID Field (Optional)
-                    _buildInputField(
-                      controller: _studentIdController,
-                      label: 'Student ID (Optional)',
-                      icon: Icons.badge_outlined,
-                      hintText: 'e.g. STU001',
-                      validator: (value) {
-                        // Optional field, no validation needed
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 16.h),
+                    // // Student ID Field (Optional)
+                    // _buildInputField(
+                    //   controller: _studentIdController,
+                    //   label: 'Student ID (Optional)',
+                    //   icon: Icons.badge_outlined,
+                    //   hintText: 'e.g. STU001',
+                    //   validator: (value) {
+                    //     // Optional field, no validation needed
+                    //     return null;
+                    //   },
+                    // ),
+                    // SizedBox(height: 16.h),
 
-                    // Student Email Field (Optional)
-                    _buildInputField(
-                      controller: _studentEmailController,
-                      label: 'Student Email (Optional)',
-                      icon: Icons.email_outlined,
-                      keyboardType: TextInputType.emailAddress,
-                      hintText: 'student@example.com',
-                      validator: (value) {
-                        // Optional field, but if provided, validate email format
-                        if (value != null && value.isNotEmpty) {
-                          if (!RegExp(
-                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                          ).hasMatch(value)) {
-                            return 'Please enter a valid email';
-                          }
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 16.h),
+                    // // Student Email Field (Optional)
+                    // _buildInputField(
+                    //   controller: _studentEmailController,
+                    //   label: 'Student Email (Optional)',
+                    //   icon: Icons.email_outlined,
+                    //   keyboardType: TextInputType.emailAddress,
+                    //   hintText: 'student@example.com',
+                    //   validator: (value) {
+                    //     // Optional field, but if provided, validate email format
+                    //     if (value != null && value.isNotEmpty) {
+                    //       if (!RegExp(
+                    //         r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                    //       ).hasMatch(value)) {
+                    //         return 'Please enter a valid email';
+                    //       }
+                    //     }
+                    //     return null;
+                    //   },
+                    // ),
+                    // SizedBox(height: 16.h),
 
-                    // Student Phone Field (Optional)
-                    _buildPhoneInputField(
-                      controller: _studentPhoneController,
-                      label: 'Student Phone (Optional)',
-                      icon: Icons.phone_outlined,
-                      hintText: 'e.g. 712345678',
-                      validator: (value) {
-                        // Optional field, but if provided, validate phone format
-                        if (value != null && value.isNotEmpty && value != '+254') {
-                          if (!value.startsWith('+254')) {
-                            return 'Phone number must start with +254';
-                          }
-                          final digits = value.replaceAll('+254', '').replaceAll(' ', '');
-                          if (digits.length < 9) {
-                            return 'Please enter a valid 9-digit phone number';
-                          }
-                          if (!RegExp(r'^[0-9]+$').hasMatch(digits)) {
-                            return 'Phone number must contain only digits';
-                          }
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 16.h),
+                    // // Student Phone Field (Optional)
+                    // _buildPhoneInputField(
+                    //   controller: _studentPhoneController,
+                    //   label: 'Student Phone (Optional)',
+                    //   icon: Icons.phone_outlined,
+                    //   hintText: 'e.g. 712345678',
+                    //   validator: (value) {
+                    //     // Optional field, but if provided, validate phone format
+                    //     if (value != null && value.isNotEmpty && value != '+254') {
+                    //       if (!value.startsWith('+254')) {
+                    //         return 'Phone number must start with +254';
+                    //       }
+                    //       final digits = value.replaceAll('+254', '').replaceAll(' ', '');
+                    //       if (digits.length < 9) {
+                    //         return 'Please enter a valid 9-digit phone number';
+                    //       }
+                    //       if (!RegExp(r'^[0-9]+$').hasMatch(digits)) {
+                    //         return 'Phone number must contain only digits';
+                    //       }
+                    //     }
+                    //     return null;
+                    //   },
+                    // ),
+                    // SizedBox(height: 16.h),
 
                     // Password Field
                     _buildInputField(
