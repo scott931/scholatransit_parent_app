@@ -56,6 +56,15 @@ class _SearchableDropdownFieldState<T>
   }
 
   @override
+  void didUpdateWidget(covariant SearchableDropdownField<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Sync _filteredOptions when options load asynchronously (e.g., schools from API)
+    if (widget.options != oldWidget.options) {
+      _filteredOptions = widget.options;
+    }
+  }
+
+  @override
   void dispose() {
     _focusNode.removeListener(_onFocusChange);
     widget.controller.removeListener(_onTextChanged);

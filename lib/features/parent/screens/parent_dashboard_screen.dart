@@ -237,20 +237,11 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Good ${_getGreeting()}!',
+            'Good ${_getGreeting()}, ${(parent?.fullName ?? '').trim().isEmpty ? 'Parent' : (parent?.fullName ?? 'Parent').trim()}!',
             style: GoogleFonts.poppins(
               fontSize: 22.sp,
               fontWeight: FontWeight.w700,
               color: const Color(0xFF0052CC),
-            ),
-          ),
-          SizedBox(height: 8.h),
-          Text(
-            parent?.fullName ?? 'Parent',
-            style: GoogleFonts.poppins(
-              fontSize: 18.sp,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[800],
             ),
           ),
           SizedBox(height: 4.h),

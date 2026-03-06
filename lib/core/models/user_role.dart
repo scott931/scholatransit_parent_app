@@ -9,6 +9,7 @@ enum UserRole {
       case 'driver':
         return UserRole.driver;
       case 'parent':
+      case 'guardian':
         return UserRole.parent;
       case 'admin':
         return UserRole.admin;

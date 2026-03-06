@@ -32,12 +32,16 @@ Map<String, dynamic>? _toStringKeyMap(dynamic value) {
   return null;
 }
 
-/// Extracts user_type from login/OTP response. Checks user object, profile_data, and root data.
-/// Also checks 'role' as some backends use that field instead of 'user_type'.
+/// Extracts user_type from login/OTP response. Aligns with web frontend extraction.
+/// Checks: user_type, role, role_type, user_role, type (from user object, profile_data, or root).
 String? _extractUserType(dynamic userObj, Map<String, dynamic>? data) {
   String? getFromMap(Map<String, dynamic>? m) {
     if (m == null) return null;
-    final t = m['user_type'] as String? ?? m['role'] as String?;
+    final t = m['user_type'] as String? ??
+        m['role'] as String? ??
+        m['role_type'] as String? ??
+        m['user_role'] as String? ??
+        m['type'] as String?;
     if (t != null) {
       final s = t.toString().trim();
       if (s.isNotEmpty) return s;
@@ -174,15 +178,14 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
         final data = response.data!;
         print('🔐 DEBUG: Parent login successful, processing response data');
 
-        // Block non-parents BEFORE OTP so drivers/admins never reach the OTP screen.
-        // Backend must include user_type in login response (user object or root-level).
-        final userObj = data['user'] ?? data['user_data'];
-        String? userType;
-        if (userObj != null) {
-          userType = _extractUserType(userObj, data);
-        } else {
-          userType = _extractUserType(data, data);
-        }
+        // Block non-parents BEFORE OTP when user_type is present and not parent.
+        // Backend may return user: {user_type: "admin", id: 3} for admins, or omit user for parents.
+        // When user_type is missing, allow OTP (backend should reject non-parents via client: 'parent_app').
+        final userObj = data['user'] ?? data['user_data'] ?? data['parent'];
+        final userType = userObj != null
+            ? _extractUserType(userObj, data)
+            : _extractUserType(data, data);
+
         if (userType != null && !_isAllowedUserType(userType)) {
           print('🔐 DEBUG: User type "$userType" not allowed - blocking before OTP');
           state = state.copyWith(
@@ -194,8 +197,8 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
           );
           return false;
         }
-        if (userType != null) {
-          print('🔐 DEBUG: User type "$userType" allowed (parent) - proceeding');
+        if (userType == null) {
+          print('🔐 DEBUG: No user_type in response - proceeding (backend should validate via client: parent_app)');
         }
 
         int? otpId;
@@ -213,46 +216,6 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
         }
 
         if (otpId != null) {
-          // MUST confirm user_type is parent before showing OTP - never lead non-parents to OTP
-          final userData = data['user'] as Map<String, dynamic>? ??
-              data['user_data'] as Map<String, dynamic>? ??
-              data['parent'] as Map<String, dynamic>?;
-
-          if (userData == null) {
-            print('❌ DEBUG: Login rejected - no user data to confirm account type');
-            state = state.copyWith(
-              isLoading: false,
-              isAuthenticated: false,
-              error:
-                  'Unable to verify account type. This app is only for parent accounts. Please contact support if you have a parent account.',
-            );
-            return false;
-          }
-
-          final userRole = _validateUserType(userData);
-          if (userRole == null) {
-            print('❌ DEBUG: Login rejected - could not determine user type');
-            state = state.copyWith(
-              isLoading: false,
-              isAuthenticated: false,
-              error:
-                  'Unable to verify account type. This app is only for parent accounts. Please contact support if you have a parent account.',
-            );
-            return false;
-          }
-
-          if (userRole != UserRole.parent) {
-            final accountType = userRole.displayName;
-            print('❌ DEBUG: Login rejected - $accountType cannot access parent app');
-            state = state.copyWith(
-              isLoading: false,
-              isAuthenticated: false,
-              error:
-                  'Access denied. This app is only for parent accounts. Your account is registered as $accountType. Please use the $accountType app.',
-            );
-            return false;
-          }
-
           state = state.copyWith(
             isLoading: false,
             otpId: otpId,
@@ -514,36 +477,8 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
                 print('🔐 DEBUG: State updated - parent email: ${state.parent?.email}');
                 return true;
               } else {
-                // No user in response, but we have tokens - try loading profile
                 print('🔐 DEBUG: No user data in response, but tokens saved. Loading profile...');
-                try {
-                  await _loadParentProfile();
-                  if (state.isAuthenticated && state.parent != null) {
-                    state = state.copyWith(
-                      otpId: null,
-                      registrationEmail: null,
-                      isRegistrationFlow: false,
-                    );
-                    print('🔐 DEBUG: Profile loaded successfully after OTP verification');
-                    print('🔐 DEBUG: State updated - isAuthenticated: ${state.isAuthenticated}');
-                    print('🔐 DEBUG: State updated - parent ID: ${state.parent?.id}');
-                    return true;
-                  } else {
-                    print('⚠️ DEBUG: Profile loading failed after OTP verification');
-                    state = state.copyWith(
-                      isLoading: false,
-                      error: 'OTP verified but failed to load profile. Please try again.',
-                    );
-                    return false;
-                  }
-                } catch (e) {
-                  print('🔐 DEBUG: Profile loading failed: $e');
-                  state = state.copyWith(
-                    isLoading: false,
-                    error: 'OTP verified but failed to load profile: $e',
-                  );
-                  return false;
-                }
+                return _completeAuthWithProfileLoad();
               }
             } else {
               print('❌ DEBUG: Registration completion failed: ${completionResponse.message}');
@@ -599,9 +534,9 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
 
         // If we have tokens, try to get user/parent data
         if (tokensSaved) {
-          // Accept either 'parent' or 'user' object
+          // Accept parent, user, or user_data object
           final parentObj = data['parent'];
-          final userObj = data['user'];
+          final userObj = data['user'] ?? data['user_data'];
           print(
             '🔐 DEBUG: Parent object: ${parentObj != null ? "Present" : "Missing"}',
           );
@@ -665,39 +600,10 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
             print('🔐 DEBUG: State updated - parent email: ${state.parent?.email}');
             return true;
           } else {
-            // No user/parent in response, but we have tokens - try loading profile
             print(
               '🔐 DEBUG: No user/parent data in OTP response, but tokens saved. Loading profile...',
             );
-            try {
-              await _loadParentProfile();
-              // Only return true if profile loading succeeded
-              if (state.isAuthenticated && state.parent != null) {
-                state = state.copyWith(
-                  otpId: null,
-                  registrationEmail: null,
-                  isRegistrationFlow: false,
-                );
-                print('🔐 DEBUG: Profile loaded successfully after OTP verification');
-                print('🔐 DEBUG: State updated - isAuthenticated: ${state.isAuthenticated}');
-                print('🔐 DEBUG: State updated - parent ID: ${state.parent?.id}');
-                return true;
-              } else {
-                print('⚠️ DEBUG: Profile loading failed after OTP verification');
-                state = state.copyWith(
-                  isLoading: false,
-                  error: 'OTP verified but failed to load profile. Please try again.',
-                );
-                return false;
-              }
-            } catch (e) {
-              print('🔐 DEBUG: Profile loading failed: $e');
-              state = state.copyWith(
-                isLoading: false,
-                error: 'OTP verified but failed to load profile: $e',
-              );
-              return false;
-            }
+            return _completeAuthWithProfileLoad();
           }
         } else {
           // No tokens in response - this is a real failure
@@ -844,6 +750,33 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
     }
   }
 
+  /// Loads parent profile after OTP verification when tokens exist but no user/parent in response.
+  /// Returns true if profile loaded successfully, false otherwise.
+  Future<bool> _completeAuthWithProfileLoad() async {
+    try {
+      await _loadParentProfile();
+      if (state.isAuthenticated && state.parent != null) {
+        state = state.copyWith(
+          otpId: null,
+          registrationEmail: null,
+          isRegistrationFlow: false,
+        );
+        return true;
+      }
+      state = state.copyWith(
+        isLoading: false,
+        error: 'OTP verified but failed to load profile. Please try again.',
+      );
+      return false;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'OTP verified but failed to load profile: $e',
+      );
+      return false;
+    }
+  }
+
   Future<void> _loadParentProfile() async {
     try {
       final response = await ApiService.get<Map<String, dynamic>>(
@@ -860,12 +793,23 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
         print('  - Emergency phone: ${data['emergency_phone']}');
 
         // Handle either direct profile map or nested { user: {...} }
-        final userMap = (data['user'] is Map<String, dynamic>)
-            ? data['user'] as Map<String, dynamic>
-            : data;
+        Map<String, dynamic> userMap =
+            (data['user'] is Map<String, dynamic>)
+                ? Map<String, dynamic>.from(data['user'] as Map)
+                : Map<String, dynamic>.from(data);
+
+        // Merge profile_data and profile into userMap (API may nest personal info there)
+        final profileData = _toStringKeyMap(userMap['profile_data']);
+        final profile = _toStringKeyMap(userMap['profile']);
+        if (profileData != null && profileData.isNotEmpty) {
+          userMap = {...userMap, ...profileData};
+        }
+        if (profile != null && profile.isNotEmpty) {
+          userMap = {...userMap, ...profile};
+        }
 
         print('🔍 DEBUG: User map keys: ${userMap.keys.toList()}');
-        print('🔍 DEBUG: User map phone: ${userMap['phone']}');
+        print('🔍 DEBUG: User map phone: ${userMap['phone']} / phone_number: ${userMap['phone_number']}');
         print('🔍 DEBUG: User map address: ${userMap['address']}');
 
         // Validate that this is still a parent account
@@ -1208,31 +1152,25 @@ final parentAuthProvider =
 
 /// Validates that the user type in the response is 'parent'
 /// Returns the user type if valid, null if invalid or missing
+/// Uses same field names as web: user_type, role, role_type, user_role, type, userType
 UserRole? _validateUserType(Map<String, dynamic> userData) {
-  // Check for user_type field (snake_case)
-  final userTypeStr = userData['user_type'] as String?;
+  final userTypeStr = userData['user_type'] as String? ??
+      userData['role'] as String? ??
+      userData['role_type'] as String? ??
+      userData['user_role'] as String? ??
+      userData['type'] as String? ??
+      userData['userType'] as String?;
   if (userTypeStr != null) {
-    try {
-      final userRole = UserRole.fromString(userTypeStr);
-      return userRole;
-    } catch (e) {
-      print('⚠️ DEBUG: Invalid user_type format: $userTypeStr');
-      return null;
+    final s = userTypeStr.toString().trim();
+    if (s.isNotEmpty) {
+      try {
+        return UserRole.fromString(s);
+      } catch (e) {
+        print('⚠️ DEBUG: Invalid user_type format: $userTypeStr');
+        return null;
+      }
     }
   }
-
-  // Check for userType field (camelCase) - less common but possible
-  final userTypeCamel = userData['userType'] as String?;
-  if (userTypeCamel != null) {
-    try {
-      final userRole = UserRole.fromString(userTypeCamel);
-      return userRole;
-    } catch (e) {
-      print('⚠️ DEBUG: Invalid userType format: $userTypeCamel');
-      return null;
-    }
-  }
-
   print('⚠️ DEBUG: No user_type field found in user data');
   return null;
 }
@@ -1267,12 +1205,26 @@ Parent _parentFromUserLike(Map<String, dynamic> json) {
     return DateTime.now();
   }
 
+  // Support full_name when first_name/last_name are missing (e.g. from some API responses)
+  String firstName =
+        (json['first_name'] as String?) ?? (json['firstName'] as String?) ?? '';
+  String lastName =
+        (json['last_name'] as String?) ?? (json['lastName'] as String?) ?? '';
+  final fullNameRaw =
+        (json['full_name'] as String?) ?? (json['fullName'] as String?);
+  if (firstName.isEmpty &&
+      lastName.isEmpty &&
+      fullNameRaw != null &&
+      fullNameRaw.trim().isNotEmpty) {
+    final parts = fullNameRaw.trim().split(RegExp(r'\s+'));
+    firstName = parts.first;
+    lastName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+  }
+
   return Parent(
     id: (json['id'] as int?) ?? 0,
-    firstName:
-        (json['first_name'] as String?) ?? (json['firstName'] as String?) ?? '',
-    lastName:
-        (json['last_name'] as String?) ?? (json['lastName'] as String?) ?? '',
+    firstName: firstName,
+    lastName: lastName,
     email: (json['email'] as String?) ?? '',
     phone:
         (json['phone'] as String?) ?? (json['phone_number'] as String?) ?? '',

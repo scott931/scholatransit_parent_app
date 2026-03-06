@@ -7,11 +7,18 @@ import '../../../core/providers/parent_auth_provider.dart';
 import '../../../core/providers/parent_provider.dart';
 import '../../../core/theme/app_theme.dart';
 
-class ParentProfileScreen extends ConsumerWidget {
+class ParentProfileScreen extends ConsumerStatefulWidget {
   const ParentProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ParentProfileScreen> createState() => _ParentProfileScreenState();
+}
+
+class _ParentProfileScreenState extends ConsumerState<ParentProfileScreen> {
+  bool _hasFetchedProfile = false;
+
+  @override
+  Widget build(BuildContext context) {
     final parentAuthState = ref.watch(parentAuthProvider);
     final parentState = ref.watch(parentProvider);
 
@@ -25,12 +32,16 @@ class ParentProfileScreen extends ConsumerWidget {
       }
     });
 
-    // Load parent data when the screen is built
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (parentAuthState.parent != null && parentState.students.isEmpty) {
-        ref.read(parentProvider.notifier).loadParentData();
-      }
-    });
+    // Fetch fresh profile data when screen first loads (ensures personal info is fetched)
+    if (parentAuthState.parent != null && !_hasFetchedProfile) {
+      _hasFetchedProfile = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(parentAuthProvider.notifier).refreshParentProfile();
+        if (parentState.students.isEmpty) {
+          ref.read(parentProvider.notifier).loadParentData();
+        }
+      });
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,

@@ -227,18 +227,22 @@ class ApiService {
       // Handle type conversion safely
       T data;
       try {
-        // Bypass special-case conversions for communication APIs to avoid
-        // accidental casting to unrelated models (e.g., TripLogsResponse)
+        // Bypass special-case conversions for APIs that return paginated
+        // responses (count + results) but are NOT trip logs (e.g., schools)
         final reqPath = response.requestOptions.path;
         final isCommunicationApi = reqPath.contains('/communication/');
+        final isSchoolsApi = reqPath.contains('/schools/');
 
-        if (isCommunicationApi) {
+        if (isCommunicationApi || isSchoolsApi) {
           data = response.data as T;
         } else if (response.data is Map<String, dynamic>) {
           final responseData = response.data as Map<String, dynamic>;
 
-          // Check if this looks like a TripLogsResponse by checking for required fields
-          if (responseData.containsKey('count') &&
+          // Only convert to TripLogsResponse for tracking/trips endpoints
+          // (schools and other APIs also return count+results paginated format)
+          final isTripsApi = reqPath.contains('/tracking/') || reqPath.contains('/trips/');
+          if (isTripsApi &&
+              responseData.containsKey('count') &&
               responseData.containsKey('results')) {
             data = TripLogsResponse.fromJson(responseData) as T;
           }
