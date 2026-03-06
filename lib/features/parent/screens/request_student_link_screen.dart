@@ -23,11 +23,36 @@ class _RequestStudentLinkScreenState
   List<Map<String, dynamic>> _myRequests = [];
   bool _loading = true;
   String? _error;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  final Set<String> _notifiedRequestKeys = {};
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _searchController.addListener(() {
+      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Student> get _filteredStudents {
+    if (_searchQuery.isEmpty) return _availableStudents;
+    return _availableStudents.where((s) {
+      final q = _searchQuery;
+      return s.fullName.toLowerCase().contains(q) ||
+          s.firstName.toLowerCase().contains(q) ||
+          s.lastName.toLowerCase().contains(q) ||
+          s.grade.toLowerCase().contains(q) ||
+          s.schoolName.toLowerCase().contains(q) ||
+          s.studentId.toLowerCase().contains(q);
+    }).toList();
   }
 
   Future<void> _loadData() async {
@@ -42,6 +67,7 @@ class _RequestStudentLinkScreenState
     if (!mounted) return;
     final availResp = results[0] as ApiResponse<List<Student>>;
     final myResp = results[1] as ApiResponse<List<Map<String, dynamic>>>;
+    final myRequests = myResp.success && myResp.data != null ? myResp.data! : <Map<String, dynamic>>[];
     setState(() {
       _loading = false;
       if (availResp.success && availResp.data != null) {
@@ -50,10 +76,82 @@ class _RequestStudentLinkScreenState
       } else {
         _error = availResp.error ?? 'Failed to load students';
       }
-      if (myResp.success && myResp.data != null) {
-        _myRequests = myResp.data!;
-      } else {
-        _myRequests = [];
+      _myRequests = myRequests;
+    });
+    _showApprovedRejectedNotifications(myRequests);
+  }
+
+  void _showApprovedRejectedNotifications(List<Map<String, dynamic>> requests) {
+    final approved = requests.where((r) => (r['status'] as String?) == 'approved').toList();
+    final rejected = requests.where((r) => (r['status'] as String?) == 'rejected').toList();
+    if (approved.isEmpty && rejected.isEmpty) return;
+    final newApproved = approved.where((r) {
+      final key = '${r['id'] ?? ''}_${r['student_name']}_${r['created_at']}';
+      if (_notifiedRequestKeys.contains(key)) return false;
+      _notifiedRequestKeys.add(key);
+      return true;
+    }).toList();
+    final newRejected = rejected.where((r) {
+      final key = '${r['id'] ?? ''}_${r['student_name']}_${r['created_at']}';
+      if (_notifiedRequestKeys.contains(key)) return false;
+      _notifiedRequestKeys.add(key);
+      return true;
+    }).toList();
+    if (newApproved.isEmpty && newRejected.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      final parentNotifier = ref.read(parentProvider.notifier);
+
+      if (newApproved.isNotEmpty) {
+        final names = newApproved.map((r) => r['student_name'] ?? 'student').join(', ');
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              newApproved.length == 1
+                  ? 'Link request for $names was approved.'
+                  : 'Link requests for $names were approved.',
+            ),
+            backgroundColor: Colors.green[700],
+          ),
+        );
+        for (final r in newApproved) {
+          final name = r['student_name'] ?? 'student';
+          final parentId = ref.read(parentProvider).parent?.id;
+          parentNotifier.addNotificationFromExternalSource({
+            'id': 'link_approved_${r['id'] ?? ''}_${r['student_name']}_${r['created_at']}',
+            'title': 'Link Request Approved',
+            'body': 'Link request for $name was approved.',
+            'is_read': false,
+            'notification_type': 'link_request',
+            if (parentId != null) 'parent_id': parentId,
+          });
+        }
+      }
+      if (newRejected.isNotEmpty) {
+        final names = newRejected.map((r) => r['student_name'] ?? 'student').join(', ');
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              newRejected.length == 1
+                  ? 'Link request for $names was rejected.'
+                  : 'Link requests for $names were rejected.',
+            ),
+            backgroundColor: Colors.red[700],
+          ),
+        );
+        for (final r in newRejected) {
+          final name = r['student_name'] ?? 'student';
+          final parentId = ref.read(parentProvider).parent?.id;
+          parentNotifier.addNotificationFromExternalSource({
+            'id': 'link_rejected_${r['id'] ?? ''}_${r['student_name']}_${r['created_at']}',
+            'title': 'Link Request Rejected',
+            'body': 'Link request for $name was rejected.',
+            'is_read': false,
+            'notification_type': 'link_request',
+            if (parentId != null) 'parent_id': parentId,
+          });
+        }
       }
     });
   }
@@ -96,16 +194,6 @@ class _RequestStudentLinkScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Link to a student'),
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF0052CC),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
-      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -117,25 +205,90 @@ class _RequestStudentLinkScreenState
     );
   }
 
+  List<Map<String, dynamic>> get _pendingRequests =>
+      _myRequests.where((r) => (r['status'] as String?) == 'pending').toList();
+
   Widget _buildContent(BuildContext context) {
-    final hasRequests = _myRequests.isNotEmpty;
+    final hasRequests = _pendingRequests.isNotEmpty;
     final hasAvailable = _availableStudents.isNotEmpty;
+    final filtered = _filteredStudents;
+    final hasFiltered = filtered.isNotEmpty;
+
     if (!hasRequests && !hasAvailable) return _buildEmpty(context);
 
-    return ListView(
-      padding: EdgeInsets.all(16.w),
-      children: [
-        if (hasRequests) _buildMyRequestsSection(context),
-        if (hasRequests && hasAvailable) SizedBox(height: 24.h),
-        if (hasAvailable) _buildAvailableSectionHeader(context),
-        if (hasAvailable) ..._availableStudents.map((s) => _buildStudentCard(context, s)),
-      ],
+    return MediaQuery.removePadding(
+      context: context,
+      removeTop: true,
+      child: ListView(
+        padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 16.w),
+        children: [
+          if (hasRequests) _buildMyRequestsSection(context),
+          if (hasRequests && hasAvailable) SizedBox(height: 24.h),
+          if (hasAvailable) ...[
+            _buildSearchBar(context),
+            SizedBox(height: 12.h),
+            _buildAvailableSectionHeader(context),
+            if (hasFiltered)
+              ...filtered.map((s) => _buildStudentCard(context, s))
+            else
+              _buildNoSearchResults(context),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(BuildContext context) {
+    return TextField(
+      controller: _searchController,
+      decoration: InputDecoration(
+        hintText: 'Search by name, grade, or school...',
+        prefixIcon: const Icon(Icons.search, color: Color(0xFF0052CC)),
+        suffixIcon: _searchQuery.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, color: Color(0xFF0052CC)),
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _searchQuery = '');
+                },
+              )
+            : null,
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12.r),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+      ),
+      style: TextStyle(fontSize: 15.sp),
+      onChanged: (_) => setState(() {}),
+    );
+  }
+
+  Widget _buildNoSearchResults(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 32.h),
+      child: Column(
+        children: [
+          Icon(
+            Icons.search_off,
+            size: 48.w,
+            color: Colors.grey[400],
+          ),
+          SizedBox(height: 12.h),
+          Text(
+            'No students match "$_searchQuery"',
+            style: TextStyle(fontSize: 15.sp, color: Colors.grey[600]),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildMyRequestsSection(BuildContext context) {
-    final pending = _myRequests.where((r) => (r['status'] as String?) == 'pending').toList();
-    final other = _myRequests.where((r) => (r['status'] as String?) != 'pending').toList();
+    final pending = _pendingRequests;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -147,29 +300,15 @@ class _RequestStudentLinkScreenState
             color: const Color(0xFF0052CC),
           ),
         ),
-        SizedBox(height: 12.h),
-        ...pending.map((r) => _buildRequestCard(context, r, isPending: true)),
-        ...other.map((r) => _buildRequestCard(context, r, isPending: false)),
+        SizedBox(height: 6.h),
+        ...pending.map((r) => _buildRequestCard(context, r)),
       ],
     );
   }
 
-  Widget _buildRequestCard(BuildContext context, Map<String, dynamic> r, {required bool isPending}) {
-    final status = r['status'] as String? ?? '';
+  Widget _buildRequestCard(BuildContext context, Map<String, dynamic> r) {
     final studentName = r['student_name'] as String? ?? 'Student';
     final createdAt = r['created_at'] as String?;
-    String statusLabel = status;
-    Color statusColor = Colors.grey;
-    if (status == 'pending') {
-      statusLabel = 'Pending';
-      statusColor = Colors.orange;
-    } else if (status == 'approved') {
-      statusLabel = 'Approved';
-      statusColor = Colors.green;
-    } else if (status == 'rejected') {
-      statusLabel = 'Rejected';
-      statusColor = Colors.red;
-    }
     return Card(
       margin: EdgeInsets.only(bottom: 10.h),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
@@ -180,8 +319,8 @@ class _RequestStudentLinkScreenState
             CircleAvatar(
               backgroundColor: const Color(0xFF0052CC).withOpacity(0.2),
               child: Icon(
-                isPending ? Icons.schedule : (status == 'approved' ? Icons.check_circle : Icons.cancel),
-                color: statusColor,
+                Icons.schedule,
+                color: Colors.orange,
                 size: 22.w,
               ),
             ),
@@ -205,12 +344,12 @@ class _RequestStudentLinkScreenState
             Container(
               padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
               decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.15),
+                color: Colors.orange.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(8.r),
               ),
               child: Text(
-                statusLabel,
-                style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w500, color: statusColor),
+                'Pending',
+                style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w500, color: Colors.orange),
               ),
             ),
           ],

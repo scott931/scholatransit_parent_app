@@ -107,8 +107,12 @@ class ApiEndpoints {
   // PARENT ENDPOINTS
   // ============================================================================
 
+  /// GET /api/v1/students/my-students/
+  /// Get only students linked to the authenticated parent (parent-student relationship)
+  static const String parentLinkedStudents = '/api/v1/students/my-students/';
+
   /// GET /api/v1/students/students/
-  /// Get students (using general students endpoint for parents)
+  /// Get students (general endpoint - filtered client-side when used for parents)
   static const String parentStudents = '/api/v1/students/students/';
 
   /// GET /api/v1/students/available-students/

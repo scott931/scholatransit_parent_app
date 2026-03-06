@@ -70,12 +70,8 @@ class StudentDetailsScreen extends ConsumerWidget {
                             // Back Button
                             IconButton(
                               onPressed: () {
-                                if (context.canPop()) {
-                                  context.pop();
-                                } else {
-                                  // Fallback to a default route if no previous page
-                                  context.go('/parent/dashboard');
-                                }
+                                // Always navigate back to My Students page
+                                context.go('/parent/students');
                               },
                               icon: Icon(
                                 Icons.arrow_back,
@@ -494,12 +490,8 @@ class StudentDetailsScreen extends ConsumerWidget {
             SizedBox(height: 24.h),
             ElevatedButton(
               onPressed: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  // Fallback to a default route if no previous page
-                  context.go('/parent/dashboard');
-                }
+                // Always navigate back to My Students page
+                context.go('/parent/students');
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryColor,

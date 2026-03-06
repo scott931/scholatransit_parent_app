@@ -16,26 +16,38 @@ class ParentStudentsFix {
     if (limit != null) queryParams['limit'] = limit;
     if (offset != null) queryParams['offset'] = offset;
 
-    // Try the original endpoint first
-    print('🔄 Trying original endpoint: ${ApiEndpoints.parentStudents}');
-    final originalResponse = await ApiService.get<Map<String, dynamic>>(
+    // Try parent-linked endpoint first (returns only linked students)
+    print('🔄 Trying parent-linked endpoint: ${ApiEndpoints.parentLinkedStudents}');
+    var response = await ApiService.get<Map<String, dynamic>>(
+      ApiEndpoints.parentLinkedStudents,
+      queryParameters: queryParams,
+    );
+
+    if (response.success) {
+      print('✅ Parent-linked endpoint working!');
+      return response;
+    }
+
+    print('❌ Parent-linked endpoint failed: ${response.error}');
+
+    // Try general students endpoint
+    print('🔄 Trying general endpoint: ${ApiEndpoints.parentStudents}');
+    response = await ApiService.get<Map<String, dynamic>>(
       ApiEndpoints.parentStudents,
       queryParameters: queryParams,
     );
 
-    if (originalResponse.success) {
-      print('✅ Original endpoint working!');
-      return originalResponse;
+    if (response.success) {
+      print('✅ General endpoint working!');
+      return response;
     }
 
-    print('❌ Original endpoint failed: ${originalResponse.error}');
+    print('❌ General endpoint failed: ${response.error}');
 
     // Try alternative endpoints
     final alternatives = [
       '/api/v1/students/',
-      '/api/v1/students/students/',
       '/api/v1/users/students/',
-      '/api/v1/students/students/',
     ];
 
     for (final alternative in alternatives) {

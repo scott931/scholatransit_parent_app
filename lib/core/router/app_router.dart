@@ -289,7 +289,7 @@ class ParentMainShell extends ConsumerWidget {
       case '/parent/notifications':
         return 'Notifications';
       case '/parent/students':
-        return 'Students';
+        return 'My Students';
       case '/parent/request-student-link':
         return 'Link to student';
       case '/parent/attendance-history':
