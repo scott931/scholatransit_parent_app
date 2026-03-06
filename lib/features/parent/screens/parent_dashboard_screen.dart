@@ -11,6 +11,7 @@ import '../../../core/providers/parent_auth_provider.dart';
 import '../../../core/models/parent_trip_model.dart';
 import '../../../core/models/parent_model.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/services/location_service_resolver.dart';
 import '../widgets/bus_tracking_card.dart';
 import '../widgets/child_status_card.dart';
@@ -126,43 +127,27 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
     // Show loading state
     if (parentState.isLoading) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    // Show error state
-    if (parentState.error != null) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: AppTheme.backgroundColor,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 64.w, color: Colors.red[300]),
-              SizedBox(height: 16.h),
-              Text(
-                'Something went wrong',
-                style: GoogleFonts.poppins(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[800],
+              SizedBox(
+                width: 48.w,
+                height: 48.h,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
                 ),
               ),
-              SizedBox(height: 8.h),
+              SizedBox(height: 20.h),
               Text(
-                parentState.error!,
+                'Loading your dashboard...',
                 style: GoogleFonts.poppins(
-                  fontSize: 14.sp,
-                  color: Colors.grey[600],
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w500,
+                  color: AppTheme.textPrimary,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 24.h),
-              ElevatedButton(
-                onPressed: () =>
-                    ref.read(parentProvider.notifier).refreshData(),
-                child: Text('Try Again'),
               ),
             ],
           ),
@@ -170,8 +155,70 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
       );
     }
 
+    // Show error state
+    if (parentState.error != null) {
+      return Scaffold(
+        backgroundColor: AppTheme.backgroundColor,
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 32.w),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(24.w),
+                  decoration: BoxDecoration(
+                    color: AppTheme.errorColor.withOpacity(0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.error_outline_rounded,
+                    size: 56.w,
+                    color: AppTheme.errorColor,
+                  ),
+                ),
+                SizedBox(height: 24.h),
+                Text(
+                  'Something went wrong',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                SizedBox(height: 12.h),
+                Text(
+                  parentState.error!,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14.sp,
+                    color: AppTheme.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 28.h),
+                FilledButton.icon(
+                  onPressed: () =>
+                      ref.read(parentProvider.notifier).refreshData(),
+                  icon: Icon(Icons.refresh_rounded, size: 20.w),
+                  label: Text('Try Again'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 14.h),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.r),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppTheme.backgroundColor,
       body: RefreshIndicator(
         onRefresh: () async {
           await ref.read(parentProvider.notifier).refreshData();
@@ -181,7 +228,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Welcome Section
+              // Welcome Section - Modern gradient header
               _buildWelcomeSection(authState.parent),
 
               // Active Trips Section
@@ -196,9 +243,9 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
                 SizedBox(height: 20.h),
               ],
 
-              // Bus Tracking Map
-              _buildBusTrackingMap(parentState),
-              SizedBox(height: 20.h),
+              // Bus Tracking Map - commented out for mobile
+              // _buildBusTrackingMap(parentState),
+              // SizedBox(height: 20.h),
 
               // Quick Actions
               _buildQuickActionsSection(),
@@ -206,7 +253,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
 
               // Recent Notifications
               _buildRecentNotificationsSection(parentState.notifications),
-              SizedBox(height: 20.h),
+              SizedBox(height: 32.h),
             ],
           ),
         ),
@@ -216,40 +263,81 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
 
   Widget _buildWelcomeSection(parent) {
     return Container(
-      margin: EdgeInsets.fromLTRB(20.w, 10.w, 20.w, 20.w),
-      padding: EdgeInsets.all(20.w),
+      margin: EdgeInsets.fromLTRB(16.w, 16.w, 16.w, 24.w),
+      padding: EdgeInsets.all(24.w),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16.r),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppTheme.primaryColor,
+            AppTheme.primaryVariant,
+            const Color(0xFF1E40AF),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: AppTheme.primaryColor.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(
-          color: const Color(0xFF0052CC).withOpacity(0.1),
-          width: 1,
-        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            'Good ${_getGreeting()}, ${(parent?.fullName ?? '').trim().isEmpty ? 'Parent' : (parent?.fullName ?? 'Parent').trim()}!',
-            style: GoogleFonts.poppins(
-              fontSize: 22.sp,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF0052CC),
+          Container(
+            width: 56.w,
+            height: 56.w,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16.r),
+            ),
+            child: Icon(
+              Icons.person_rounded,
+              size: 28.w,
+              color: Colors.white,
             ),
           ),
-          SizedBox(height: 4.h),
-          Text(
-            'Track your children\'s safety in real-time',
-            style: GoogleFonts.poppins(
-              fontSize: 14.sp,
-              color: Colors.grey[600],
+          SizedBox(width: 16.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Good ${_getGreeting()}!',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+                SizedBox(height: 4.h),
+                Text(
+                  (parent?.fullName ?? '').trim().isEmpty
+                      ? 'Parent'
+                      : (parent?.fullName ?? 'Parent').trim(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 22.sp,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                SizedBox(height: 6.h),
+                Text(
+                  'Track your children\'s safety in real-time',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13.sp,
+                    color: Colors.white.withOpacity(0.85),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -259,19 +347,15 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
 
   Widget _buildActiveTripsSection(List<ParentTrip> activeTrips) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20.w),
+      margin: EdgeInsets.symmetric(horizontal: 16.w),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Active Trips',
-            style: GoogleFonts.poppins(
-              fontSize: 18.sp,
-              fontWeight: FontWeight.w600,
-              color: Colors.black,
-            ),
+          _buildSectionHeader(
+            icon: Icons.directions_bus_rounded,
+            title: 'Active Trips',
           ),
-          SizedBox(height: 12.h),
+          SizedBox(height: 14.h),
           ...activeTrips.map((trip) => BusTrackingCard(trip: trip)),
         ],
       ),
@@ -280,22 +364,42 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
 
   Widget _buildChildrenStatusSection(List<Child> children) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20.w),
+      margin: EdgeInsets.symmetric(horizontal: 16.w),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Children Status',
-            style: GoogleFonts.poppins(
-              fontSize: 18.sp,
-              fontWeight: FontWeight.w600,
-              color: Colors.black,
-            ),
+          _buildSectionHeader(
+            icon: Icons.family_restroom_rounded,
+            title: 'Children Status',
           ),
-          SizedBox(height: 12.h),
+          SizedBox(height: 14.h),
           ...children.map((child) => ChildStatusCard(child: child)),
         ],
       ),
+    );
+  }
+
+  Widget _buildSectionHeader({required IconData icon, required String title}) {
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(8.w),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10.r),
+          ),
+          child: Icon(icon, size: 20.w, color: AppTheme.primaryColor),
+        ),
+        SizedBox(width: 12.w),
+        Text(
+          title,
+          style: GoogleFonts.poppins(
+            fontSize: 18.sp,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+      ],
     );
   }
 
@@ -369,24 +473,20 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
 
   Widget _buildQuickActionsSection() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20.w),
+      margin: EdgeInsets.symmetric(horizontal: 16.w),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Quick Actions',
-            style: GoogleFonts.poppins(
-              fontSize: 18.sp,
-              fontWeight: FontWeight.w600,
-              color: Colors.black,
-            ),
+          _buildSectionHeader(
+            icon: Icons.flash_on_rounded,
+            title: 'Quick Actions',
           ),
-          SizedBox(height: 16.h),
+          SizedBox(height: 18.h),
           Row(
             children: [
               Expanded(
                 child: _QuickActionCard(
-                  icon: Icons.directions_bus,
+                  icon: Icons.directions_bus_rounded,
                   label: 'Track Bus',
                   onTap: () => context.go('/parent/tracking'),
                 ),
@@ -394,7 +494,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
               SizedBox(width: 12.w),
               Expanded(
                 child: _QuickActionCard(
-                  icon: Icons.schedule,
+                  icon: Icons.schedule_rounded,
                   label: 'Schedule',
                   onTap: () => context.go('/parent/schedule'),
                 ),
@@ -406,31 +506,19 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
             children: [
               Expanded(
                 child: _QuickActionCard(
-                  icon: Icons.chat,
+                  icon: Icons.chat_bubble_rounded,
                   label: 'Chats',
                   onTap: () => context.go('/chats'),
                 ),
               ),
-            ],
-          ),
-          SizedBox(height: 12.h),
-          Row(
-            children: [
+              SizedBox(width: 12.w),
               Expanded(
                 child: _QuickActionCard(
-                  icon: Icons.school,
+                  icon: Icons.school_rounded,
                   label: 'Students',
                   onTap: () => context.go('/parent/students'),
                 ),
               ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: _QuickActionCard(
-                  icon: Icons.qr_code_scanner,
-                  label: 'QR Scanner',
-                  onTap: () => context.go('/parent/qr-scanner'),
-                ),
-              ),
             ],
           ),
           SizedBox(height: 12.h),
@@ -438,20 +526,27 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
             children: [
               Expanded(
                 child: _QuickActionCard(
-                  icon: Icons.map,
-                  label: 'Map View',
-                  onTap: () => context.go('/parent/map'),
+                  icon: Icons.qr_code_scanner_rounded,
+                  label: 'QR Scanner',
+                  onTap: () => context.go('/parent/qr-scanner'),
                 ),
               ),
               SizedBox(width: 12.w),
               Expanded(
                 child: _QuickActionCard(
-                  icon: Icons.notifications,
-                  label: 'Notifications',
-                  onTap: () => context.go('/parent/notifications'),
+                  icon: Icons.map_rounded,
+                  label: 'Map View',
+                  onTap: () => context.go('/parent/map'),
                 ),
               ),
             ],
+          ),
+          SizedBox(height: 12.h),
+          _QuickActionCard(
+            icon: Icons.notifications_rounded,
+            label: 'Notifications',
+            onTap: () => context.go('/parent/notifications'),
+            fullWidth: true,
           ),
         ],
       ),
@@ -462,77 +557,109 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
     List<Map<String, dynamic>> notifications,
   ) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20.w),
+      margin: EdgeInsets.symmetric(horizontal: 16.w),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Recent Notifications',
-                style: GoogleFonts.poppins(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
+              Expanded(
+                child: _buildSectionHeader(
+                  icon: Icons.notifications_rounded,
+                  title: 'Recent Notifications',
                 ),
               ),
               TextButton(
                 onPressed: () => context.go('/parent/notifications'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppTheme.primaryColor,
+                  padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+                ),
                 child: Text(
                   'View All',
                   style: GoogleFonts.poppins(
                     fontSize: 14.sp,
-                    color: const Color(0xFF0052CC),
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryColor,
                   ),
                 ),
               ),
             ],
           ),
-          SizedBox(height: 12.h),
+          SizedBox(height: 14.h),
           if (notifications.isEmpty)
             Container(
-              padding: EdgeInsets.all(20.w),
+              padding: EdgeInsets.symmetric(vertical: 28.w, horizontal: 20.w),
               decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(12.r),
+                color: AppTheme.surfaceBlue.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(16.r),
+                border: Border.all(
+                  color: AppTheme.borderColor.withOpacity(0.5),
+                ),
               ),
               child: Center(
-                child: Text(
-                  'No recent notifications',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14.sp,
-                    color: Colors.grey[600],
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.notifications_none_rounded,
+                      size: 24.w,
+                      color: AppTheme.textSecondary.withOpacity(0.6),
+                    ),
+                    SizedBox(width: 12.w),
+                    Text(
+                      'No recent notifications',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14.sp,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             )
           else
-            ...notifications
-                .take(3)
-                .map(
+            ...notifications.take(3).map(
                   (notification) => Container(
-                    margin: EdgeInsets.only(bottom: 8.h),
-                    padding: EdgeInsets.all(12.w),
+                    margin: EdgeInsets.only(bottom: 10.h),
+                    padding: EdgeInsets.all(16.w),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(8.r),
-                      border: Border.all(color: Colors.grey[200]!),
+                      borderRadius: BorderRadius.circular(14.r),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 12,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                      border: Border.all(
+                        color: AppTheme.borderColor.withOpacity(0.6),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.notifications,
-                          color: const Color(0xFF0052CC),
-                          size: 20.w,
+                        Container(
+                          padding: EdgeInsets.all(10.w),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12.r),
+                          ),
+                          child: Icon(
+                            Icons.notifications_rounded,
+                            color: AppTheme.primaryColor,
+                            size: 20.w,
+                          ),
                         ),
-                        SizedBox(width: 12.w),
+                        SizedBox(width: 14.w),
                         Expanded(
                           child: Text(
                             notification['message'] ?? 'Notification',
                             style: GoogleFonts.poppins(
                               fontSize: 14.sp,
-                              color: Colors.black,
+                              color: AppTheme.textPrimary,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
@@ -747,47 +874,62 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
 
   Widget _buildNotAuthenticatedState(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppTheme.backgroundColor,
       body: Center(
         child: Padding(
           padding: EdgeInsets.all(40.w),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.lock_outline, size: 80.w, color: Colors.grey[400]),
-              SizedBox(height: 24.h),
+              Container(
+                padding: EdgeInsets.all(24.w),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.lock_outline_rounded,
+                  size: 64.w,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+              SizedBox(height: 28.h),
               Text(
                 'Authentication Required',
                 style: GoogleFonts.poppins(
-                  fontSize: 24.sp,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[600],
+                  fontSize: 22.sp,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
                 ),
+                textAlign: TextAlign.center,
               ),
               SizedBox(height: 12.h),
               Text(
                 'Please log in to access your dashboard.',
                 style: GoogleFonts.poppins(
-                  fontSize: 16.sp,
-                  color: Colors.grey[500],
+                  fontSize: 15.sp,
+                  color: AppTheme.textSecondary,
                 ),
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: 24.h),
-              ElevatedButton(
+              SizedBox(height: 28.h),
+              FilledButton(
                 onPressed: () => context.go('/login'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0052CC),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(
-                    horizontal: 32.w,
-                    vertical: 12.h,
+                    horizontal: 36.w,
+                    vertical: 16.h,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.r),
                   ),
                 ),
                 child: Text(
                   'Go to Login',
                   style: GoogleFonts.poppins(
                     fontSize: 16.sp,
-                    color: Colors.white,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -804,52 +946,118 @@ class _QuickActionCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final bool fullWidth;
 
   const _QuickActionCard({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.fullWidth = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.all(16.w),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16.r),
+        child: Container(
+        margin: fullWidth ? EdgeInsets.zero : null,
+        padding: EdgeInsets.symmetric(
+          vertical: 18.w,
+          horizontal: fullWidth ? 20.w : 16.w,
+        ),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12.r),
+          borderRadius: BorderRadius.circular(16.r),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
               offset: const Offset(0, 2),
             ),
+            BoxShadow(
+              color: AppTheme.primaryColor.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 1),
+            ),
           ],
+          border: Border.all(
+            color: AppTheme.borderColor.withOpacity(0.5),
+          ),
         ),
-        child: Column(
-          children: [
-            Container(
-              width: 40.w,
-              height: 40.w,
-              decoration: BoxDecoration(
-                color: const Color(0xFF0052CC).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8.r),
+        child: fullWidth
+            ? Row(
+                children: [
+                  Container(
+                    width: 44.w,
+                    height: 44.w,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          AppTheme.primaryColor.withOpacity(0.15),
+                          AppTheme.secondaryColor.withOpacity(0.1),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12.r),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: AppTheme.primaryColor,
+                      size: 22.w,
+                    ),
+                  ),
+                  SizedBox(width: 16.w),
+                  Text(
+                    label,
+                    style: GoogleFonts.poppins(
+                      fontSize: 15.sp,
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 14.w,
+                    color: AppTheme.textSecondary.withOpacity(0.6),
+                  ),
+                ],
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 48.w,
+                    height: 48.w,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          AppTheme.primaryColor.withOpacity(0.12),
+                          AppTheme.secondaryColor.withOpacity(0.08),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(14.r),
+                    ),
+                    child: Icon(icon, color: AppTheme.primaryColor, size: 24.w),
+                  ),
+                  SizedBox(height: 10.h),
+                  Text(
+                    label,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13.sp,
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-              child: Icon(icon, color: const Color(0xFF0052CC), size: 20.w),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 12.sp,
-                color: Colors.black,
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
         ),
       ),
     );
