@@ -752,7 +752,11 @@ class NotificationService {
           'device_type': Platform.isAndroid ? 'android' : 'ios',
         },
       );
-    } catch (_) {}
+      print('✅ FCM device token registered with backend');
+    } catch (e, stackTrace) {
+      print('❌ Failed to register FCM token with backend: $e');
+      print('❌ Stack trace: $stackTrace');
+    }
   }
 
   static void _onNotificationTapped(NotificationResponse response) {

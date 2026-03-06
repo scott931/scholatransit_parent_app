@@ -8,6 +8,7 @@ import '../models/email_completion_response.dart';
 import '../models/user_role.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../services/notification_service.dart';
 import '../config/app_config.dart';
 import '../config/api_endpoints.dart';
 
@@ -260,6 +261,7 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
             error: null,
           );
 
+          await _registerDeviceTokenForPush();
           print('🔐 DEBUG: Parent login completed successfully');
           return true;
         }
@@ -471,6 +473,7 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
                   registrationEmail: null,
                 );
 
+                await _registerDeviceTokenForPush();
                 print('🔐 DEBUG: Parent registration OTP verification completed successfully');
                 print('🔐 DEBUG: State updated - isAuthenticated: ${state.isAuthenticated}');
                 print('🔐 DEBUG: State updated - parent ID: ${state.parent?.id}');
@@ -594,6 +597,7 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
               isRegistrationFlow: false,
             );
 
+            await _registerDeviceTokenForPush();
             print('🔐 DEBUG: Parent OTP verification completed successfully');
             print('🔐 DEBUG: State updated - isAuthenticated: ${state.isAuthenticated}');
             print('🔐 DEBUG: State updated - parent ID: ${state.parent?.id}');
@@ -777,6 +781,19 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
     }
   }
 
+  /// Registers the FCM device token with the backend for push notifications.
+  /// Call this whenever the user becomes authenticated (login, OTP verify, profile load).
+  Future<void> _registerDeviceTokenForPush() async {
+    try {
+      final token = await NotificationService.getFCMToken();
+      if (token != null && token.isNotEmpty) {
+        await NotificationService.registerDeviceToken(token);
+      }
+    } catch (e) {
+      print('⚠️ Failed to register push token: $e');
+    }
+  }
+
   Future<void> _loadParentProfile() async {
     try {
       final response = await ApiService.get<Map<String, dynamic>>(
@@ -843,6 +860,7 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
           parent: parent,
           error: null,
         );
+        await _registerDeviceTokenForPush();
         print('🔐 DEBUG: Parent profile loaded successfully');
       } else {
         print('🔐 DEBUG: Failed to load parent profile: ${response.error}');
