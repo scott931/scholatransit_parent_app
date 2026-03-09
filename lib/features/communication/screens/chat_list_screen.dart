@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -12,6 +13,7 @@ import '../../../core/services/communication_service.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/config/api_endpoints.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/providers/trip_provider.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -75,6 +77,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
     });
   }
 
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -86,6 +94,36 @@ class _ChatListScreenState extends State<ChatListScreen> {
             _buildHeader(),
             // Search Bar
             _buildSearchBar(),
+            // No active trip message (driver chat)
+            Consumer(
+              builder: (context, ref, _) {
+                final hasActiveTrip = ref.watch(tripProvider).currentTrip != null;
+                if (hasActiveTrip) return const SizedBox.shrink();
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.orange.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.chat_bubble_outline, size: 20, color: Colors.orange[800]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'No active trip. Wait for an active trip to communicate with driver.',
+                          style: TextStyle(fontSize: 13, color: Colors.orange[800]),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
             // Chat List
             Expanded(
               child: FutureBuilder<ApiResponse<dynamic>>(
@@ -124,12 +162,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.wifi_off,
-                            size: 48,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(height: 8),
                           Text(resp.error ?? 'Failed to load'),
                           const SizedBox(height: 12),
                           ElevatedButton(
@@ -190,7 +222,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
           IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black),
             onPressed: () {
-              context.go('/parent/dashboard');
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/parent/dashboard');
+              }
             },
           ),
           const SizedBox(width: 8),

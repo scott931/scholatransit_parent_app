@@ -11,10 +11,13 @@ import 'package:geocoding/geocoding.dart' as geocoding;
 import '../../../core/config/app_config.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/trip_provider.dart';
+import '../../../core/providers/parent_provider.dart';
 import '../../../core/models/trip_model.dart';
 import '../../../core/services/routing_service.dart';
 import '../../../core/services/realtime_distance_tracker.dart';
 import '../../../core/services/location_service_resolver.dart';
+import '../../../core/services/communication_service.dart';
+import '../../communication/screens/chat_list_screen.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
@@ -53,6 +56,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   // Location guidance
   String? _locationGuidance;
   bool _showLocationGuidance = false;
+
+  // Message driver chat
+  bool _isCreatingDriverChat = false;
 
   @override
   void initState() {
@@ -257,6 +263,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 remainingTime: _remainingTime,
                 currentStreetName: _currentStreetName,
                 destinationStreetName: _destinationStreetName,
+                onMessageDriver: _messageDriver,
+                isCreatingDriverChat: _isCreatingDriverChat,
               ),
             ),
 
@@ -1552,6 +1560,75 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
+  /// Message driver - creates parent-driver chat from tracking screen.
+  /// Uses createDriverParentChat(studentId) per web/desktop guide.
+  Future<void> _messageDriver() async {
+    if (_isCreatingDriverChat) return;
+    final tripState = ref.read(tripProvider);
+    final currentTrip = tripState.currentTrip;
+    if (currentTrip == null) return;
+
+    final parentState = ref.read(parentProvider);
+    final students = parentState.students;
+    if (students.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No students linked. Add a student to message the driver.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _isCreatingDriverChat = true);
+    try {
+      // Student-based: backend resolves parent and driver from student
+      final studentId = students.first.id;
+      var resp = await CommunicationService.createDriverParentChat(
+        studentId: studentId,
+      );
+
+      // Fallback: driver-based if student endpoint fails
+      if (!resp.success && currentTrip.driverId > 0) {
+        resp = await CommunicationService.createChat(
+          chatType: 'driver_parent',
+          otherUserId: currentTrip.driverId,
+          studentId: studentId,
+        );
+      }
+
+      if (!mounted) return;
+      if (resp.success && resp.data != null) {
+        final data = resp.data as Map<String, dynamic>;
+        final rawId = data['id'] ?? data['chat_id'] ?? (data['chat'] as Map?)?['id'];
+        final chatId = rawId is int ? rawId : null;
+        if (chatId != null) {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ChatDetailScreen(chatId: chatId),
+            ),
+          );
+        } else {
+          _showChatErrorSnackBar(resp.error ?? 'Chat created but could not open');
+        }
+      } else {
+        _showChatErrorSnackBar(resp.error ?? 'Could not start chat with driver');
+      }
+    } catch (e) {
+      if (mounted) _showChatErrorSnackBar('Error: $e');
+    } finally {
+      if (mounted) setState(() => _isCreatingDriverChat = false);
+    }
+  }
+
+  void _showChatErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
   void _toggleRouteVisibility() async {
     if (_routePolyline == null) {
       // Route is not visible, show it from current location
@@ -1710,6 +1787,30 @@ class _NoActiveTripCard extends StatelessWidget {
             style: TextStyle(fontSize: 14.sp, color: Colors.grey[600]),
             textAlign: TextAlign.center,
           ),
+          SizedBox(height: 12.h),
+          Container(
+            padding: EdgeInsets.all(12.w),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8.r),
+              border: Border.all(
+                color: Colors.orange.withOpacity(0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.chat_bubble_outline, size: 20.w, color: Colors.orange[800]),
+                SizedBox(width: 8.w),
+                Expanded(
+                  child: Text(
+                    'No active trip. Wait for an active trip to communicate with driver.',
+                    style: TextStyle(fontSize: 13.sp, color: Colors.orange[800]),
+                    textAlign: TextAlign.left,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1728,6 +1829,8 @@ class _TripDetailsCard extends StatefulWidget {
   final Duration? remainingTime;
   final String? currentStreetName;
   final String? destinationStreetName;
+  final VoidCallback? onMessageDriver;
+  final bool isCreatingDriverChat;
 
   const _TripDetailsCard({
     required this.tripState,
@@ -1739,6 +1842,8 @@ class _TripDetailsCard extends StatefulWidget {
     this.remainingTime,
     this.currentStreetName,
     this.destinationStreetName,
+    this.onMessageDriver,
+    this.isCreatingDriverChat = false,
   });
 
   @override
@@ -1915,6 +2020,64 @@ class _TripDetailsCardState extends State<_TripDetailsCard> {
                     label: 'Driver',
                     value: currentTrip.driverName ?? 'Unknown',
                   ),
+                  if (widget.onMessageDriver != null) ...[
+                    SizedBox(height: 12.h),
+                    SizedBox(
+                      width: double.infinity,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: widget.isCreatingDriverChat
+                              ? null
+                              : widget.onMessageDriver,
+                          borderRadius: BorderRadius.circular(12.r),
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16.w,
+                              vertical: 12.h,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0052CC).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12.r),
+                              border: Border.all(
+                                color: const Color(0xFF0052CC).withOpacity(0.3),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (widget.isCreatingDriverChat)
+                                  SizedBox(
+                                    width: 20.w,
+                                    height: 20.w,
+                                    child: const CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                else
+                                  Icon(
+                                    Icons.chat_bubble_outline,
+                                    size: 20.w,
+                                    color: const Color(0xFF0052CC),
+                                  ),
+                                SizedBox(width: 8.w),
+                                Text(
+                                  widget.isCreatingDriverChat
+                                      ? 'Starting chat...'
+                                      : 'Message driver',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF0052CC),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
 
                   // Distance Information
                   // Debug: Check what distance values we have

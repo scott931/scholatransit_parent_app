@@ -233,11 +233,11 @@ class StudentDetailsScreen extends ConsumerWidget {
                           label: 'Student ID',
                           value: student.studentId,
                         ),
-                      if (student.school != null)
+                      if (student.schoolName.isNotEmpty)
                         _InfoTile(
                           icon: Icons.school_outlined,
                           label: 'School',
-                          value: student.school!,
+                          value: student.schoolName,
                         ),
                       _InfoTile(
                         icon: Icons.location_on_outlined,

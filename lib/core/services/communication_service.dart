@@ -42,6 +42,12 @@ class CommunicationService {
     );
   }
 
+  /// Create a Parent-Admin chat (parent-initiated, anytime).
+  /// Parents can start a chat with school admin at any time.
+  static Future<ApiResponse<Map<String, dynamic>>> createParentAdminChatFromParent() async {
+    return ConsolidatedCommunicationService.createParentAdminChatFromParent();
+  }
+
   /// Create a general chat (any authenticated user)
   static Future<ApiResponse<Map<String, dynamic>>> createGeneralChat({
     required String title,

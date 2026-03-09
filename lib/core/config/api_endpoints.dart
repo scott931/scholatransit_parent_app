@@ -402,6 +402,10 @@ class ApiEndpoints {
   /// Create chat
   static const String createChat = '/api/v1/communication/chats/';
 
+  /// POST /api/v1/communication/parent-admin/
+  /// Create parent-admin chat (parent-initiated, anytime)
+  static const String createParentAdminChat = '/api/v1/communication/parent-admin/';
+
   /// GET /api/v1/communication/chats/{id}/messages/
   /// Get chat messages
   static String chatMessages(int chatId) =>

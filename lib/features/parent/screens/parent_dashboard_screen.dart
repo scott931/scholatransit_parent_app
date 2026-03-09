@@ -248,7 +248,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
               // SizedBox(height: 20.h),
 
               // Quick Actions
-              _buildQuickActionsSection(),
+              _buildQuickActionsSection(parentState),
               SizedBox(height: 20.h),
 
               // Recent Notifications
@@ -471,7 +471,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
     );
   }
 
-  Widget _buildQuickActionsSection() {
+  Widget _buildQuickActionsSection(ParentState parentState) {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 16.w),
       child: Column(
@@ -488,7 +488,20 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
                 child: _QuickActionCard(
                   icon: Icons.directions_bus_rounded,
                   label: 'Track Bus',
-                  onTap: () => context.go('/parent/tracking'),
+                  onTap: () {
+                    if (parentState.activeTrips.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'There is no active tracking of bus currently',
+                          ),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    } else {
+                      context.go('/parent/tracking');
+                    }
+                  },
                 ),
               ),
               SizedBox(width: 12.w),
@@ -515,31 +528,18 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
               Expanded(
                 child: _QuickActionCard(
                   icon: Icons.school_rounded,
-                  label: 'Students',
+                  label: 'My Students',
                   onTap: () => context.go('/parent/students'),
                 ),
               ),
             ],
           ),
           SizedBox(height: 12.h),
-          Row(
-            children: [
-              Expanded(
-                child: _QuickActionCard(
-                  icon: Icons.qr_code_scanner_rounded,
-                  label: 'QR Scanner',
-                  onTap: () => context.go('/parent/qr-scanner'),
-                ),
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: _QuickActionCard(
-                  icon: Icons.map_rounded,
-                  label: 'Map View',
-                  onTap: () => context.go('/parent/map'),
-                ),
-              ),
-            ],
+          _QuickActionCard(
+            icon: Icons.qr_code_scanner_rounded,
+            label: 'QR Scanner',
+            onTap: () => context.go('/parent/qr-scanner'),
+            fullWidth: true,
           ),
           SizedBox(height: 12.h),
           _QuickActionCard(

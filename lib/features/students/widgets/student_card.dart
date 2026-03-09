@@ -69,10 +69,10 @@ class StudentCard extends StatelessWidget {
                         color: AppTheme.textSecondary,
                       ),
                     ),
-                    if (student.school != null) ...[
+                    if (student.schoolName.isNotEmpty) ...[
                       SizedBox(height: 2.h),
                       Text(
-                        student.school!,
+                        student.schoolName,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppTheme.textSecondary,
                         ),

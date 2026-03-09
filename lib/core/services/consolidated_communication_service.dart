@@ -288,6 +288,22 @@ class ConsolidatedCommunicationService {
     return ApiService.post<Map<String, dynamic>>(path);
   }
 
+  /// Create a Parent-Admin chat (parent-initiated, anytime).
+  /// Uses dedicated endpoint; backend resolves admin from parent's school.
+  static Future<ApiResponse<Map<String, dynamic>>> createParentAdminChatFromParent() async {
+    // Try dedicated parent-initiated endpoint first
+    try {
+      const path = '/api/v1/communication/parent-admin/';
+      final response = await ApiService.post<Map<String, dynamic>>(path);
+      if (response.success) return response;
+    } catch (_) {}
+    // Fallback: generic chats endpoint with chat_type
+    return ApiService.post<Map<String, dynamic>>(
+      '/api/v1/communication/chats/',
+      data: {'chat_type': 'parent_admin'},
+    );
+  }
+
   /// Create a general chat (any authenticated user) - legacy support
   static Future<ApiResponse<Map<String, dynamic>>> createGeneralChat({
     required String title,

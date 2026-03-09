@@ -309,11 +309,15 @@ class ParentMainShell extends ConsumerWidget {
     final pageTitle = _getPageTitle(currentPath);
 
     return PopScope(
-      canPop: false, // Always prevent default pop behavior
+      canPop: false, // Prevent default pop so we can handle it
       onPopInvoked: (didPop) {
         if (!didPop) {
-          // Navigate back to dashboard from any page
-          context.go('/parent/dashboard');
+          // Go to previous page if possible, otherwise dashboard
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/parent/dashboard');
+          }
         }
       },
       child: Scaffold(
@@ -354,7 +358,13 @@ class ParentMainShell extends ConsumerWidget {
                         : IconButton(
                             icon: const Icon(Icons.arrow_back),
                             color: AppTheme.primaryColor,
-                            onPressed: () => context.go('/parent/dashboard'),
+                            onPressed: () {
+                              if (context.canPop()) {
+                                context.pop();
+                              } else {
+                                context.go('/parent/dashboard');
+                              }
+                            },
                             tooltip: 'Back',
                           ),
                     const SizedBox(width: 8),
@@ -577,15 +587,16 @@ class _ParentSideDrawerState extends ConsumerState<_ParentSideDrawer> {
                       ),
                       to: '/parent/dashboard',
                     ),
-                    _modernTile(
-                      context,
-                      title: 'Live Tracking',
-                      icon: Icons.track_changes_rounded,
-                      selected: widget.currentPath.startsWith(
-                        '/parent/tracking',
+                    if (parentState.activeTrips.isNotEmpty)
+                      _modernTile(
+                        context,
+                        title: 'Live Tracking',
+                        icon: Icons.track_changes_rounded,
+                        selected: widget.currentPath.startsWith(
+                          '/parent/tracking',
+                        ),
+                        to: '/parent/tracking',
                       ),
-                      to: '/parent/tracking',
-                    ),
                     _modernTile(
                       context,
                       title: 'Schedule',
