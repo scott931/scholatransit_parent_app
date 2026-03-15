@@ -1,5 +1,5 @@
 /// API Endpoints Reference
-/// Base URL: https://schooltransit-backend-staging-jgnc.onrender.com
+/// Base URL: https://schooltransit-backend-1008598403919.us-central1.run.app (Google Cloud Run)
 ///
 /// This file contains all API endpoints used in the SchoolTransit app.
 /// All endpoints are relative to the base URL to prevent URL confusion.
@@ -8,7 +8,7 @@ library;
 class ApiEndpoints {
   // Base Configuration
   static const String baseUrl =
-      'https://schooltransit-backend-staging-jgnc.onrender.com';
+      'https://schooltransit-backend-1008598403919.us-central1.run.app';
 
   // ============================================================================
   // AUTHENTICATION ENDPOINTS
