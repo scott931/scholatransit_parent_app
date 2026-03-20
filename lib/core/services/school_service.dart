@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../config/api_endpoints.dart';
 import 'api_service.dart';
 
@@ -75,6 +77,9 @@ class SchoolService {
       final response = await ApiService.get<dynamic>(
         ApiEndpoints.schools,
         queryParameters: queryParams,
+        options: Options(
+          extra: {ApiService.extraSkipAuth: true},
+        ),
       );
 
       if (response.success && response.data != null) {

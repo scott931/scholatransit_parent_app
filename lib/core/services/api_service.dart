@@ -10,6 +10,11 @@ class ApiService {
   static late Dio _dio;
   static final Connectivity _connectivity = Connectivity();
 
+  /// When `true` in [Options.extra], the auth interceptor will not attach JWT.
+  /// Use for public reads (e.g. school list during parent self-registration) so
+  /// a stale driver/school-admin token does not scope results to one school.
+  static const String extraSkipAuth = 'skip_auth';
+
   static Future<void> init() async {
     _dio = Dio(
       BaseOptions(
@@ -35,12 +40,19 @@ class ApiService {
       onRequest: (options, handler) async {
         // Only add auth token for non-auth endpoints
         final path = options.path;
+        final skipAuth = options.extra[extraSkipAuth] == true;
         final isAuthEndpoint =
             path.contains('/login/') ||
             path.contains('/register/') ||
             path.contains('/password/reset/') ||
             path.contains('/otp/') ||
             path.contains('/refresh-token/');
+
+        if (skipAuth) {
+          options.headers.remove('Authorization');
+          handler.next(options);
+          return;
+        }
 
         if (!isAuthEndpoint) {
           final token = StorageService.getAuthToken();
