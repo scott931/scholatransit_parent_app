@@ -25,13 +25,15 @@ class QrCodeInfo {
     return QrCodeInfo(
       id: json['id'] ?? 0,
       student: json['student'] as Map<String, dynamic>? ?? const {},
-      qrCodeData: json['qr_code_data'] ?? '',
-      qrCodeImage: json['qr_code_image'] ?? json['qr_code_url'] ?? '',
-      qrCodeUrl: json['qr_code_url'] ?? json['qr_code_image'] ?? '',
+      qrCodeData: json['qr_code_data']?.toString() ?? '',
+      qrCodeImage: json['qr_code_image']?.toString() ?? '',
+      qrCodeUrl: json['qr_code_url']?.toString() ?? '',
       isActive: json['is_active'] ?? false,
-      expiresAt: DateTime.parse(json['expires_at']),
-      createdAt: DateTime.parse(json['created_at']),
-      updatedAt: DateTime.parse(json['updated_at']),
+      expiresAt: json['expires_at'] != null
+          ? DateTime.parse(json['expires_at'].toString())
+          : DateTime.now(),
+      createdAt: DateTime.parse(json['created_at'].toString()),
+      updatedAt: DateTime.parse(json['updated_at'].toString()),
     );
   }
 }

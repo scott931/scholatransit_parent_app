@@ -6,6 +6,7 @@ import '../../../core/models/student_model.dart';
 import '../../../core/providers/trip_provider.dart';
 import '../../../core/providers/parent_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../widgets/bus_checkin_credentials_section.dart';
 
 class StudentDetailsScreen extends ConsumerWidget {
   final int studentId;
@@ -220,6 +221,9 @@ class StudentDetailsScreen extends ConsumerWidget {
                 children: [
                   // Quick Actions
                   _QuickActionsSection(student: student),
+                  SizedBox(height: 24.h),
+
+                  BusCheckinCredentialsSection(studentId: student.id),
                   SizedBox(height: 24.h),
 
                   // Personal Information

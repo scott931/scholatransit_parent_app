@@ -44,76 +44,10 @@ class StudentState {
   }
 }
 
+/// Loads check-in credentials for display. **Creating** QR/PIN is done by school
+/// admin (or global admin) in the back office — the parent app only **lists** what exists.
 class StudentNotifier extends StateNotifier<StudentState> {
   StudentNotifier() : super(const StudentState());
-
-  Future<bool> generateStudentQrCode({
-    required int studentId,
-    required String qrType,
-    required String expiresAtIso,
-    required bool isActive,
-  }) async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      final response = await ApiService.post<Map<String, dynamic>>(
-        AppConfig.checkinQrCodesEndpoint,
-        data: {
-          'student_id': studentId,
-          'qr_type': qrType,
-          'expires_at': expiresAtIso,
-          'is_active': isActive,
-        },
-      );
-
-      if (response.success && response.data != null) {
-        final qr = QrCodeInfo.fromJson(response.data!);
-        state = state.copyWith(isLoading: false, latestQr: qr);
-        return true;
-      }
-      state = state.copyWith(
-        isLoading: false,
-        error: response.error ?? 'Failed to generate QR code',
-      );
-      return false;
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: 'Failed to generate QR code: $e');
-      return false;
-    }
-  }
-
-  Future<bool> generateStudentPin({
-    required int studentId,
-    required String pinCode,
-    required bool isActive,
-    required String expiresAtIso,
-  }) async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      final response = await ApiService.post<Map<String, dynamic>>(
-        AppConfig.checkinPinsEndpoint,
-        data: {
-          'student_id': studentId,
-          'pin_code': pinCode,
-          'is_active': isActive,
-          'expires_at': expiresAtIso,
-        },
-      );
-      if (response.success && response.data != null) {
-        // Optionally return or store PinInfo; here we just confirm success.
-        final _ = PinInfo.fromJson(response.data!);
-        state = state.copyWith(isLoading: false);
-        return true;
-      }
-      state = state.copyWith(
-        isLoading: false,
-        error: response.error ?? 'Failed to generate PIN',
-      );
-      return false;
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: 'Failed to generate PIN: $e');
-      return false;
-    }
-  }
 
   Future<bool> listStudentPins({
     int? studentId,
