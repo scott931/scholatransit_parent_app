@@ -79,15 +79,19 @@ Future<void> _initializeServices() async {
 Future<void> _initializeMapbox() async {
   try {
     print('🗺️ Initializing Mapbox SDK...');
-    print('🗺️ Mapbox Token: ${AppConfig.mapboxToken.substring(0, 20)}...');
+    final token = AppConfig.mapboxToken;
+    if (token.length >= 8) {
+      print('🗺️ Mapbox Token: ${token.substring(0, token.length.clamp(0, 20))}...');
+    } else {
+      print('🗺️ Mapbox Token: (not set — use --dart-define=MAPBOX_ACCESS_TOKEN=pk.xxx)');
+    }
 
     // Validate token format
-    if (AppConfig.mapboxToken.isEmpty ||
-        !AppConfig.mapboxToken.startsWith('pk.')) {
+    if (token.isEmpty || !token.startsWith('pk.')) {
       throw Exception('Invalid Mapbox token format');
     }
 
-    MapboxOptions.setAccessToken(AppConfig.mapboxToken);
+    MapboxOptions.setAccessToken(token);
     print('✅ Mapbox SDK initialized successfully');
   } catch (e) {
     print('❌ Failed to initialize Mapbox SDK: $e');

@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import '../models/parent_trip_model.dart';
 import '../models/parent_model.dart';
 import '../config/api_endpoints.dart';
+import '../config/app_config.dart';
 import 'api_service.dart';
 
 class ParentTrackingService {
@@ -91,16 +92,19 @@ class ParentTrackingService {
 
   /// Start periodic trip updates
   static void _startTripUpdates(int tripId) {
-    Timer.periodic(const Duration(seconds: 30), (timer) async {
-      try {
-        final response = await getTripDetails(tripId);
-        if (response.success && response.data != null) {
-          _tripController.add(response.data!);
+    Timer.periodic(
+      Duration(seconds: AppConfig.parentLiveTrackingPollSeconds),
+      (timer) async {
+        try {
+          final response = await getTripDetails(tripId);
+          if (response.success && response.data != null) {
+            _tripController.add(response.data!);
+          }
+        } catch (e) {
+          print('❌ Failed to update trip: $e');
         }
-      } catch (e) {
-        print('❌ Failed to update trip: $e');
-      }
-    });
+      },
+    );
   }
 
   /// Calculate ETA to next stop

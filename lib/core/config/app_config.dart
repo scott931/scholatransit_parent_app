@@ -112,9 +112,11 @@ class AppConfig {
   static const String locationHistoryKey = 'location_history';
   static const String notificationSettingsKey = 'notification_settings';
 
-  // Map Configuration
-  static const String mapboxToken =
-      'pk.eyJ1Ijoid2F5bmU5MzEiLCJhIjoiY21maW5qaWpjMGRpazJsc2VnNmRoOW0xaSJ9.S4led3XBi7bpACc4D2KyBQ';
+  // Map Configuration — pass at build/run: --dart-define=MAPBOX_ACCESS_TOKEN=pk.xxx
+  static const String mapboxToken = String.fromEnvironment(
+    'MAPBOX_ACCESS_TOKEN',
+    defaultValue: '',
+  );
   static const String googleMapsApiKey = 'YOUR_GOOGLE_MAPS_API_KEY';
 
   // QR Code Configuration
@@ -130,6 +132,9 @@ class AppConfig {
   // Retry Configuration
   static const int maxRetryAttempts = 3;
   static const Duration retryDelay = Duration(seconds: 2);
+
+  /// Interval for refetching active trip data on the parent live map (seconds).
+  static const int parentLiveTrackingPollSeconds = 5;
 
   // Debug Configuration
   static const bool enableLogging = true;

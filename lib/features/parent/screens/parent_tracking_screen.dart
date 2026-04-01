@@ -76,6 +76,6 @@ class ParentTrackingScreen extends ConsumerWidget {
       );
     }
 
-    return const MapScreen();
+    return const MapScreen(pollActiveTrips: true);
   }
 }

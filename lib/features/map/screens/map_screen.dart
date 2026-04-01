@@ -20,7 +20,10 @@ import '../../../core/services/communication_service.dart';
 import '../../communication/screens/chat_list_screen.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
-  const MapScreen({super.key});
+  const MapScreen({super.key, this.pollActiveTrips = false});
+
+  /// When true (e.g. parent live tracking), periodically refetch active trips so the bus position updates.
+  final bool pollActiveTrips;
 
   @override
   ConsumerState<MapScreen> createState() => _MapScreenState();
@@ -60,18 +63,36 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   // Message driver chat
   bool _isCreatingDriverChat = false;
 
+  Timer? _activeTripPollTimer;
+
   @override
   void initState() {
     super.initState();
+    if (widget.pollActiveTrips) {
+      _activeTripPollTimer = Timer.periodic(
+        Duration(seconds: AppConfig.parentLiveTrackingPollSeconds),
+        (_) {
+          if (!mounted) return;
+          ref.read(parentProvider.notifier).loadActiveTrips();
+        },
+      );
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeMap();
     });
   }
 
+  @override
+  void dispose() {
+    _activeTripPollTimer?.cancel();
+    super.dispose();
+  }
+
   void _initializeMap() async {
     print('🗺️ DEBUG: Starting map initialization...');
+    final t = AppConfig.mapboxToken;
     print(
-      '🗺️ DEBUG: Mapbox token: ${AppConfig.mapboxToken.substring(0, 20)}...',
+      '🗺️ DEBUG: Mapbox token: ${t.length >= 8 ? '${t.substring(0, t.length.clamp(0, 20))}...' : '(not set)'}',
     );
 
     // Always set a default location first
