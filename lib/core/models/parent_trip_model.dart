@@ -166,6 +166,8 @@ class TripStop {
 
 class ParentTrip {
   final int id;
+  /// Backend `trip_id` string (used in `/tracking/trips/{trip_id}/`), not always numeric `id`.
+  final String backendTripId;
   final String tripName;
   final String routeName;
   final String driverName;
@@ -190,6 +192,7 @@ class ParentTrip {
 
   const ParentTrip({
     required this.id,
+    this.backendTripId = '',
     required this.tripName,
     required this.routeName,
     required this.driverName,
@@ -218,15 +221,18 @@ class ParentTrip {
   bool get isScheduled => status == TripStatus.scheduled;
 
   factory ParentTrip.fromJson(Map<String, dynamic> json) {
+    final startRaw = json['scheduled_start_time'] ?? json['scheduled_start'];
+    final endRaw = json['scheduled_end_time'] ?? json['scheduled_end'];
     return ParentTrip(
-      id: json['id'] ?? 0,
-      tripName: json['trip_name'] ?? '',
-      routeName: json['route_name'] ?? '',
-      driverName: json['driver_name'] ?? '',
-      driverPhone: json['driver_phone'] ?? '',
-      driverPhoto: json['driver_photo'],
-      scheduledStartTime: DateTime.parse(json['scheduled_start_time']),
-      scheduledEndTime: DateTime.parse(json['scheduled_end_time']),
+      id: (json['id'] is int) ? json['id'] as int : int.tryParse('${json['id']}') ?? 0,
+      backendTripId: json['trip_id']?.toString() ?? '',
+      tripName: (json['trip_name'] ?? json['trip_id'] ?? '').toString(),
+      routeName: json['route_name']?.toString() ?? '',
+      driverName: json['driver_name']?.toString() ?? '',
+      driverPhone: json['driver_phone']?.toString() ?? '',
+      driverPhoto: json['driver_photo']?.toString(),
+      scheduledStartTime: _parseTripDateTime(startRaw),
+      scheduledEndTime: _parseTripDateTime(endRaw),
       actualStartTime: json['actual_start_time'] != null
           ? DateTime.parse(json['actual_start_time'])
           : null,
@@ -241,8 +247,10 @@ class ParentTrip {
           [],
       busNumber: json['bus_number'],
       busColor: json['bus_color'],
-      currentLatitude: json['current_latitude']?.toDouble(),
-      currentLongitude: json['current_longitude']?.toDouble(),
+      currentLatitude: _parseLat(json['current_latitude']) ??
+          _parseLatFromGeoJson(json['current_location']),
+      currentLongitude: _parseLng(json['current_longitude']) ??
+          _parseLngFromGeoJson(json['current_location']),
       currentAddress: json['current_address'],
       lastLocationUpdate: json['last_location_update'] != null
           ? DateTime.parse(json['last_location_update'])
@@ -253,14 +261,43 @@ class ParentTrip {
               ?.map((stop) => TripStop.fromJson(stop as Map<String, dynamic>))
               .toList() ??
           [],
-      createdAt: DateTime.parse(json['created_at']),
-      updatedAt: DateTime.parse(json['updated_at']),
+      createdAt: _parseTripDateTime(json['created_at']),
+      updatedAt: _parseTripDateTime(json['updated_at']),
     );
+  }
+
+  static DateTime _parseTripDateTime(dynamic v) {
+    if (v == null) return DateTime.fromMillisecondsSinceEpoch(0);
+    if (v is DateTime) return v;
+    return DateTime.tryParse(v.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  static double? _parseLat(dynamic v) =>
+      v == null ? null : (v as num).toDouble();
+
+  static double? _parseLng(dynamic v) =>
+      v == null ? null : (v as num).toDouble();
+
+  static double? _parseLatFromGeoJson(dynamic v) {
+    if (v is Map && v['coordinates'] is List) {
+      final c = v['coordinates'] as List;
+      if (c.length >= 2) return (c[1] as num).toDouble();
+    }
+    return null;
+  }
+
+  static double? _parseLngFromGeoJson(dynamic v) {
+    if (v is Map && v['coordinates'] is List) {
+      final c = v['coordinates'] as List;
+      if (c.length >= 2) return (c[0] as num).toDouble();
+    }
+    return null;
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'trip_id': backendTripId,
       'trip_name': tripName,
       'route_name': routeName,
       'driver_name': driverName,
@@ -288,7 +325,8 @@ class ParentTrip {
   static TripStatus _parseTripStatus(dynamic status) {
     if (status == null) return TripStatus.scheduled;
 
-    switch (status.toString().toLowerCase()) {
+    final s = status.toString().toLowerCase().replaceAll(' ', '_');
+    switch (s) {
       case 'scheduled':
         return TripStatus.scheduled;
       case 'in_progress':
@@ -301,6 +339,12 @@ class ParentTrip {
       case 'delayed':
         return TripStatus.delayed;
       default:
+        // Human-readable labels from older serializers
+        if (s.contains('progress')) return TripStatus.inProgress;
+        if (s.contains('schedul')) return TripStatus.scheduled;
+        if (s.contains('complet')) return TripStatus.completed;
+        if (s.contains('cancel')) return TripStatus.cancelled;
+        if (s.contains('delay')) return TripStatus.delayed;
         return TripStatus.scheduled;
     }
   }

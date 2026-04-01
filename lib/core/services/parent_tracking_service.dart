@@ -21,13 +21,15 @@ class ParentTrackingService {
     return ApiService.get<List<ParentTrip>>(ApiEndpoints.parentActiveTrips);
   }
 
-  /// Get trip details with real-time location
-  static Future<ApiResponse<ParentTrip>> getTripDetails(int tripId) async {
-    return ApiService.get<ParentTrip>(ApiEndpoints.tripDetails(tripId));
+  /// Get trip details with real-time location (`backendTripId` = API `trip_id` string).
+  static Future<ApiResponse<ParentTrip>> getTripDetails(String backendTripId) async {
+    return ApiService.get<ParentTrip>(
+      ApiEndpoints.tripDetailsByBackendId(backendTripId),
+    );
   }
 
   /// Start real-time tracking for a trip
-  static Future<bool> startTripTracking(int tripId) async {
+  static Future<bool> startTripTracking(String backendTripId) async {
     try {
       // Start location stream
       _locationSubscription =
@@ -37,11 +39,11 @@ class ParentTrackingService {
               distanceFilter: 50,
             ),
           ).listen((position) {
-            _updateTripLocation(tripId, position);
+            _updateTripLocation(backendTripId, position);
           });
 
       // Start trip updates
-      _startTripUpdates(tripId);
+      _startTripUpdates(backendTripId);
       return true;
     } catch (e) {
       print('❌ Failed to start trip tracking: $e');
@@ -56,10 +58,10 @@ class ParentTrackingService {
   }
 
   /// Update trip location and calculate ETA
-  static Future<void> _updateTripLocation(int tripId, Position position) async {
+  static Future<void> _updateTripLocation(String backendTripId, Position position) async {
     try {
       // Get current trip data
-      final response = await getTripDetails(tripId);
+      final response = await getTripDetails(backendTripId);
       if (response.success && response.data != null) {
         final trip = response.data!;
 
@@ -76,7 +78,7 @@ class ParentTrackingService {
 
         _tripController.add(updatedTrip);
         _etaController.add({
-          'trip_id': tripId,
+          'trip_id': backendTripId,
           'eta_minutes': eta,
           'current_location': {
             'latitude': position.latitude,
@@ -91,12 +93,12 @@ class ParentTrackingService {
   }
 
   /// Start periodic trip updates
-  static void _startTripUpdates(int tripId) {
+  static void _startTripUpdates(String backendTripId) {
     Timer.periodic(
       Duration(seconds: AppConfig.parentLiveTrackingPollSeconds),
       (timer) async {
         try {
-          final response = await getTripDetails(tripId);
+          final response = await getTripDetails(backendTripId);
           if (response.success && response.data != null) {
             _tripController.add(response.data!);
           }
@@ -195,6 +197,7 @@ class ParentTrackingService {
 extension ParentTripCopyWith on ParentTrip {
   ParentTrip copyWith({
     int? id,
+    String? backendTripId,
     String? tripName,
     String? routeName,
     String? driverName,
@@ -219,6 +222,7 @@ extension ParentTripCopyWith on ParentTrip {
   }) {
     return ParentTrip(
       id: id ?? this.id,
+      backendTripId: backendTripId ?? this.backendTripId,
       tripName: tripName ?? this.tripName,
       routeName: routeName ?? this.routeName,
       driverName: driverName ?? this.driverName,

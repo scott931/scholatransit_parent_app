@@ -894,11 +894,11 @@ class ParentNotifier extends StateNotifier<ParentState> {
     }
   }
 
-  Future<void> startTripTracking(int tripId) async {
+  Future<void> startTripTracking(String backendTripId) async {
     try {
-      final success = await ParentTrackingService.startTripTracking(tripId);
+      final success = await ParentTrackingService.startTripTracking(backendTripId);
       if (success) {
-        print('✅ Started tracking trip $tripId');
+        print('✅ Started tracking trip $backendTripId');
       }
     } catch (e) {
       print('❌ Failed to start trip tracking: $e');

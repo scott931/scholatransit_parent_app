@@ -509,7 +509,7 @@ class TripNotifier extends StateNotifier<TripState> {
         try {
           print('🚀 DEBUG: Trying trip passengers endpoint...');
           final tripResponse = await ApiService.get<Map<String, dynamic>>(
-            '${ApiEndpoints.tripDetails(trip.id)}/passengers',
+            '${ApiEndpoints.tripDetailsByBackendId(trip.tripId)}/passengers',
           );
 
           if (tripResponse.success && tripResponse.data != null) {
@@ -768,7 +768,7 @@ class TripNotifier extends StateNotifier<TripState> {
         try {
           print('🚀 DEBUG: Trying trip passengers endpoint for count...');
           final tripResponse = await ApiService.get<Map<String, dynamic>>(
-            '${ApiEndpoints.tripDetails(trip.id)}/passengers',
+            '${ApiEndpoints.tripDetailsByBackendId(trip.tripId)}/passengers',
           );
 
           if (tripResponse.success && tripResponse.data != null) {
@@ -1236,7 +1236,7 @@ class TripNotifier extends StateNotifier<TripState> {
     try {
       // Find the trip to get its string tripId
       final trip = state.trips.firstWhere((t) => t.id == tripId);
-      final endpoint = '${ApiEndpoints.tripDetails(trip.id)}/';
+      final endpoint = '${ApiEndpoints.tripDetailsByBackendId(trip.tripId)}/';
       print(
         '🔍 DEBUG: Loading trip details for ${trip.tripId} from endpoint: $endpoint',
       );

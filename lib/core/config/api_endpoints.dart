@@ -67,9 +67,8 @@ class ApiEndpoints {
   // TRIP MANAGEMENT ENDPOINTS
   // ============================================================================
 
-  /// GET /api/v1/trips/
-  /// Get all trips
-  static const String trips = '/api/v1/trips/';
+  /// GET /api/v1/tracking/trips/
+  static const String trips = '/api/v1/tracking/trips/';
 
   /// GET /api/v1/tracking/trips/active/
   /// Get active trips
@@ -83,9 +82,9 @@ class ApiEndpoints {
   /// Get trip logs (same endpoint as allTrips but with different filtering)
   static const String tripLogs = '/api/v1/tracking/trips/';
 
-  /// GET /api/v1/tracking/trips/{id}/
-  /// Get trip details
-  static String tripDetails(int tripId) => '/api/v1/tracking/trips/$tripId/';
+  /// GET /api/v1/tracking/trips/{trip_id}/ — `trip_id` is the string slug, not numeric PK
+  static String tripDetailsByBackendId(String tripId) =>
+      '/api/v1/tracking/trips/${Uri.encodeComponent(tripId)}/';
 
   /// GET /api/v1/tracking/trips/driver/
   /// Get driver trips
@@ -127,13 +126,11 @@ class ApiEndpoints {
   /// Get current parent's link requests (pending, approved, rejected)
   static const String myLinkRequests = '/api/v1/students/my-link-requests/';
 
-  /// GET /api/v1/trips/
-  /// Get parent's active trips (using general trips endpoint)
-  static const String parentActiveTrips = '/api/v1/trips/';
+  /// GET /api/v1/tracking/trips/ — filtered server-side for parent (linked children + school)
+  static const String parentActiveTrips = '/api/v1/tracking/trips/';
 
-  /// GET /api/v1/trips/
-  /// Get parent's trip history (using general trips endpoint)
-  static const String parentTripHistory = '/api/v1/trips/';
+  /// GET /api/v1/tracking/trips/ — same list; use query params for date/history if backend supports
+  static const String parentTripHistory = '/api/v1/tracking/trips/';
 
   // ============================================================================
   // NOTIFICATION ENDPOINTS
