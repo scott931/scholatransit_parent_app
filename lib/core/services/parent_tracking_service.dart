@@ -17,15 +17,30 @@ class ParentTrackingService {
   static Stream<Map<String, dynamic>> get etaStream => _etaController.stream;
 
   /// Get active trips for parent's children
-  static Future<ApiResponse<List<ParentTrip>>> getActiveTrips() async {
-    return ApiService.get<List<ParentTrip>>(ApiEndpoints.parentActiveTrips);
+  static Future<ApiResponse<dynamic>> getActiveTrips() async {
+    return ApiService.get<dynamic>(ApiEndpoints.parentActiveTrips);
   }
 
   /// Get trip details with real-time location (`backendTripId` = API `trip_id` string).
   static Future<ApiResponse<ParentTrip>> getTripDetails(String backendTripId) async {
-    return ApiService.get<ParentTrip>(
+    final response = await ApiService.get<dynamic>(
       ApiEndpoints.tripDetailsByBackendId(backendTripId),
     );
+    if (!response.success || response.data == null) {
+      return ApiResponse<ParentTrip>.error(response.error ?? 'Failed to load trip details');
+    }
+
+    final raw = response.data;
+    if (raw is Map) {
+      try {
+        final trip = ParentTrip.fromJson(Map<String, dynamic>.from(raw));
+        return ApiResponse<ParentTrip>.success(trip, response.statusCode);
+      } catch (e) {
+        return ApiResponse<ParentTrip>.error('Invalid trip details format: $e');
+      }
+    }
+
+    return ApiResponse<ParentTrip>.error('Unexpected trip details payload');
   }
 
   /// Start real-time tracking for a trip
@@ -142,7 +157,7 @@ class ParentTrackingService {
   }
 
   /// Get trip history for parent's children
-  static Future<ApiResponse<List<ParentTrip>>> getTripHistory({
+  static Future<ApiResponse<dynamic>> getTripHistory({
     DateTime? startDate,
     DateTime? endDate,
     int? limit,
@@ -154,7 +169,7 @@ class ParentTrackingService {
     if (endDate != null) queryParams['end_date'] = endDate.toIso8601String();
     if (limit != null) queryParams['limit'] = limit;
 
-    return ApiService.get<List<ParentTrip>>(
+    return ApiService.get<dynamic>(
       ApiEndpoints.parentTripHistory,
       queryParameters: queryParams,
     );

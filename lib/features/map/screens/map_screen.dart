@@ -34,10 +34,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Point? _currentLocation;
   PointAnnotationManager? _pointAnnotationManager;
   PointAnnotation? _currentLocationAnnotation;
+  PointAnnotation? _vehicleLocationAnnotation;
   PointAnnotation? _startLocationAnnotation;
   PointAnnotation? _endLocationAnnotation;
   PolylineAnnotationManager? _polylineAnnotationManager;
   PolylineAnnotation? _routePolyline;
+  ProviderSubscription<TripState>? _tripStateSubscription;
+  StreamSubscription<Map<String, dynamic>>? _vehicleCoordinateSubscription;
+  Timer? _vehicleAnimationTimer;
+  Point? _lastVehiclePoint;
+  bool _followVehicle = true;
+  bool _isVehicleMarkerReady = false;
 
   // Map style
   final String _currentMapStyle = MapboxStyles.MAPBOX_STREETS;
@@ -68,12 +75,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void initState() {
     super.initState();
+    _tripStateSubscription = ref.listenManual<TripState>(
+      tripProvider,
+      _onTripStateChanged,
+    );
     if (widget.pollActiveTrips) {
       _activeTripPollTimer = Timer.periodic(
         Duration(seconds: AppConfig.parentLiveTrackingPollSeconds),
         (_) {
           if (!mounted) return;
-          ref.read(parentProvider.notifier).loadActiveTrips();
+          // Keep polling the provider consumed by this map.
+          ref.read(tripProvider.notifier).loadActiveTrips();
         },
       );
     }
@@ -85,6 +97,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void dispose() {
     _activeTripPollTimer?.cancel();
+    _vehicleAnimationTimer?.cancel();
+    _vehicleCoordinateSubscription?.cancel();
+    _tripStateSubscription?.close();
     super.dispose();
   }
 
@@ -146,31 +161,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       '🗺️ DEBUG: Building MapScreen - _currentLocation: $_currentLocation',
     );
     print('🗺️ DEBUG: MapboxMap: $_mapboxMap');
-
-    // Watch for changes in trip state and update map accordingly
-    ref.listen(tripProvider, (previous, next) {
-      if (!mounted) return;
-
-      print('🔄 DEBUG: Trip provider state changed');
-      print('🔄 DEBUG: Previous currentTrip: ${previous?.currentTrip?.tripId}');
-      print('🔄 DEBUG: Next currentTrip: ${next.currentTrip?.tripId}');
-      print('🔄 DEBUG: Map ready: ${_mapboxMap != null}');
-
-      if (_mapboxMap != null && next.currentTrip != null) {
-        print('🔄 DEBUG: Triggering marker updates...');
-        _loadTripRoute();
-        _addTripMarkers();
-        _startDistanceTracking(next.currentTrip!);
-      } else if (_mapboxMap != null && next.currentTrip == null) {
-        print('🔄 DEBUG: No active trip - clearing route polyline...');
-        _clearRoutePolyline();
-        _stopDistanceTracking();
-      } else {
-        print(
-          '🔄 DEBUG: Skipping marker updates - map: ${_mapboxMap != null}, trip: ${next.currentTrip != null}',
-        );
-      }
-    });
 
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
@@ -306,6 +296,24 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               message: 'Center map on your current location',
               child: _CurrentLocationButton(
                 onPressed: _centerMapOnCurrentLocation,
+              ),
+            ),
+          ),
+
+          Positioned(
+            bottom: 30.h,
+            left: 16.w,
+            child: Tooltip(
+              message: _followVehicle
+                  ? 'Disable auto-follow vehicle'
+                  : 'Enable auto-follow vehicle',
+              child: _FollowVehicleButton(
+                isEnabled: _followVehicle,
+                onPressed: () {
+                  setState(() {
+                    _followVehicle = !_followVehicle;
+                  });
+                },
               ),
             ),
           ),
@@ -625,25 +633,33 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
 
     try {
-      // Get current location
-      final currentLocation =
-          await LocationServiceResolver.getCurrentPosition();
-      if (currentLocation == null) {
-        print('❌ Cannot draw route - no current location available');
-        // Fall back to full route if no current location
+      // Parent live-tracking should use bus location first.
+      double? startLat = trip.currentLatitude;
+      double? startLng = trip.currentLongitude;
+
+      // Fallback to device GPS when bus coordinates are unavailable.
+      if (startLat == null || startLng == null) {
+        final currentLocation = await LocationServiceResolver.getCurrentPosition();
+        if (currentLocation != null) {
+          startLat = currentLocation.latitude;
+          startLng = currentLocation.longitude;
+        }
+      }
+
+      if (startLat == null || startLng == null) {
+        print('❌ Cannot draw route - no valid origin location available');
+        // Fall back to full route if no valid origin location
         await _drawRoutePolyline(trip);
         return;
       }
 
       print('🗺️ Getting route from current location to destination...');
-      print(
-        '📍 Current location: ${currentLocation.latitude}, ${currentLocation.longitude}',
-      );
+      print('📍 Route origin: $startLat, $startLng');
       print('🏁 Destination: ${trip.endLatitude}, ${trip.endLongitude}');
 
       // Reverse geocode street names (non-blocking UI updates)
       // Current street
-      _reverseGeocode(currentLocation.latitude, currentLocation.longitude).then(
+      _reverseGeocode(startLat, startLng).then(
         (name) {
           if (!mounted) return;
           if (name != null && name != _currentStreetName) {
@@ -669,8 +685,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
       // Get route coordinates from current location to destination
       final routeInfo = await RoutingService.getRouteInfo(
-        startLat: currentLocation.latitude,
-        startLng: currentLocation.longitude,
+        startLat: startLat,
+        startLng: startLng,
         endLat: trip.endLatitude!,
         endLng: trip.endLongitude!,
       );
@@ -706,10 +722,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         // Fallback to straight line if routing fails
         print('⚠️ Routing service failed, using straight line as fallback');
         routeCoordinates = [
-          Position(
-            currentLocation.longitude,
-            currentLocation.latitude,
-          ), // Current location
+          Position(startLng, startLat), // Current origin (bus/device)
           Position(trip.endLongitude!, trip.endLatitude!), // Destination
         ];
       }
@@ -894,10 +907,174 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           print('  ❌ Trip ${trip.tripId} has no valid coordinates');
         }
       }
+      _handleTripVehicleUpdate(activeTrips.first);
       print('✅ All trip markers added to map');
     } catch (e) {
       print('❌ Error adding trip markers: $e');
     }
+  }
+
+  void _onTripStateChanged(TripState? previous, TripState next) {
+    if (!mounted) return;
+
+    print('🔄 DEBUG: Trip provider state changed');
+    print('🔄 DEBUG: Previous currentTrip: ${previous?.currentTrip?.tripId}');
+    print('🔄 DEBUG: Next currentTrip: ${next.currentTrip?.tripId}');
+    print('🔄 DEBUG: Map ready: ${_mapboxMap != null}');
+
+    if (_mapboxMap != null && next.currentTrip != null) {
+      print('🔄 DEBUG: Triggering marker updates...');
+      _loadTripRoute();
+      _addTripMarkers();
+      if (!widget.pollActiveTrips) {
+        _startDistanceTracking(next.currentTrip!);
+      }
+      _handleTripVehicleUpdate(next.currentTrip!);
+    } else if (_mapboxMap != null && next.currentTrip == null) {
+      print('🔄 DEBUG: No active trip - clearing route polyline...');
+      _clearRoutePolyline();
+      if (!widget.pollActiveTrips) {
+        _stopDistanceTracking();
+      }
+      _clearVehicleMarker();
+    } else {
+      print(
+        '🔄 DEBUG: Skipping marker updates - map: ${_mapboxMap != null}, trip: ${next.currentTrip != null}',
+      );
+    }
+  }
+
+  Future<void> _clearVehicleMarker() async {
+    _vehicleAnimationTimer?.cancel();
+    _vehicleAnimationTimer = null;
+    _lastVehiclePoint = null;
+    _isVehicleMarkerReady = false;
+    if (_pointAnnotationManager != null && _vehicleLocationAnnotation != null) {
+      await _pointAnnotationManager!.delete(_vehicleLocationAnnotation!);
+      _vehicleLocationAnnotation = null;
+    }
+  }
+
+  void _handleTripVehicleUpdate(Trip trip) {
+    if (_pointAnnotationManager == null) return;
+    if (trip.currentLatitude == null || trip.currentLongitude == null) return;
+    final targetPoint = Point(
+      coordinates: Position(trip.currentLongitude!, trip.currentLatitude!),
+    );
+    _animateVehicleMarkerTo(targetPoint);
+  }
+
+  /// Optional integration point for Firebase/WebSocket coordinate streams.
+  /// Each event should contain `latitude` and `longitude` as num.
+  void bindVehicleCoordinateStream(Stream<Map<String, dynamic>> stream) {
+    _vehicleCoordinateSubscription?.cancel();
+    _vehicleCoordinateSubscription = stream.listen((event) {
+      final lat = (event['latitude'] as num?)?.toDouble();
+      final lng = (event['longitude'] as num?)?.toDouble();
+      if (lat == null || lng == null) return;
+      final point = Point(coordinates: Position(lng, lat));
+      _animateVehicleMarkerTo(point);
+    });
+  }
+
+  Future<void> _animateVehicleMarkerTo(Point targetPoint) async {
+    if (_pointAnnotationManager == null || !mounted) return;
+
+    final startPoint = _lastVehiclePoint ?? targetPoint;
+    final double bearing = _calculateBearing(
+      startPoint.coordinates.lat.toDouble(),
+      startPoint.coordinates.lng.toDouble(),
+      targetPoint.coordinates.lat.toDouble(),
+      targetPoint.coordinates.lng.toDouble(),
+    );
+
+    if (!_isVehicleMarkerReady || _vehicleLocationAnnotation == null) {
+      final vehicleMarker = PointAnnotationOptions(
+        geometry: targetPoint,
+        image: await _createMarkerImage(Colors.blue, '🚌'),
+        iconRotate: bearing,
+      );
+      _vehicleLocationAnnotation = await _pointAnnotationManager!.create(
+        vehicleMarker,
+      );
+      _lastVehiclePoint = targetPoint;
+      _isVehicleMarkerReady = true;
+      if (_followVehicle) {
+        _animateCameraToVehicle(targetPoint, bearing);
+      }
+      return;
+    }
+
+    _vehicleAnimationTimer?.cancel();
+    const totalFrames = 60;
+    const totalDurationMs = 2000;
+    const frameDurationMs = totalDurationMs ~/ totalFrames;
+    int frame = 0;
+
+    _vehicleAnimationTimer = Timer.periodic(
+      const Duration(milliseconds: frameDurationMs),
+      (timer) async {
+        if (!mounted || _vehicleLocationAnnotation == null) {
+          timer.cancel();
+          return;
+        }
+        frame++;
+        final t = frame / totalFrames;
+        final easedT = Curves.easeInOut.transform(t.clamp(0.0, 1.0));
+        final interpolatedLat =
+            startPoint.coordinates.lat.toDouble() +
+            (targetPoint.coordinates.lat.toDouble() -
+                    startPoint.coordinates.lat.toDouble()) *
+                easedT;
+        final interpolatedLng =
+            startPoint.coordinates.lng.toDouble() +
+            (targetPoint.coordinates.lng.toDouble() -
+                    startPoint.coordinates.lng.toDouble()) *
+                easedT;
+        final interpolatedPoint = Point(
+          coordinates: Position(interpolatedLng, interpolatedLat),
+        );
+
+        _vehicleLocationAnnotation!
+          ..geometry = interpolatedPoint
+          ..iconRotate = bearing;
+        await _pointAnnotationManager!.update(_vehicleLocationAnnotation!);
+
+        if (_followVehicle && frame % 3 == 0) {
+          _animateCameraToVehicle(interpolatedPoint, bearing);
+        }
+
+        if (frame >= totalFrames) {
+          timer.cancel();
+          _lastVehiclePoint = targetPoint;
+        }
+      },
+    );
+  }
+
+  Future<void> _animateCameraToVehicle(Point point, double bearing) async {
+    if (_mapboxMap == null) return;
+    _mapboxMap!.easeTo(
+      CameraOptions(center: point, zoom: 16.0, bearing: bearing),
+      MapAnimationOptions(duration: 600),
+    );
+  }
+
+  double _calculateBearing(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    final phi1 = _degreesToRadians(lat1);
+    final phi2 = _degreesToRadians(lat2);
+    final deltaLambda = _degreesToRadians(lon2 - lon1);
+    final y = math.sin(deltaLambda) * math.cos(phi2);
+    final x =
+        math.cos(phi1) * math.sin(phi2) -
+        math.sin(phi1) * math.cos(phi2) * math.cos(deltaLambda);
+    final theta = math.atan2(y, x);
+    return (theta * 180.0 / math.pi + 360.0) % 360.0;
   }
 
   /// Start real-time distance tracking for a trip
@@ -2526,6 +2703,43 @@ class _CurrentLocationButton extends StatelessWidget {
       child: IconButton(
         onPressed: onPressed,
         icon: Icon(Icons.my_location, color: Colors.grey[700], size: 24.w),
+      ),
+    );
+  }
+}
+
+class _FollowVehicleButton extends StatelessWidget {
+  final bool isEnabled;
+  final VoidCallback onPressed;
+
+  const _FollowVehicleButton({
+    required this.isEnabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 50.w,
+      height: 50.w,
+      decoration: BoxDecoration(
+        color: isEnabled ? Colors.green : Colors.white,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: IconButton(
+        onPressed: onPressed,
+        icon: Icon(
+          Icons.gps_fixed,
+          color: isEnabled ? Colors.white : Colors.grey[700],
+          size: 24.w,
+        ),
       ),
     );
   }

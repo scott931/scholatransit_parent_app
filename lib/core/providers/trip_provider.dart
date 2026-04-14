@@ -1309,23 +1309,21 @@ class TripNotifier extends StateNotifier<TripState> {
   void _startPeriodicRefresh() {
     // Refresh trips every 30 seconds to get real-time updates
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      if (state.trips.isNotEmpty) {
-        _refreshTripsSilently();
-      }
+      _refreshTripsSilently();
     });
   }
 
   Future<void> _refreshTripsSilently() async {
     try {
       final response = await ApiService.get<Map<String, dynamic>>(
-        ApiEndpoints.driverTrips,
+        ApiEndpoints.activeTrips,
       );
 
       if (response.success && response.data != null) {
         final data = response.data!;
         final tripsList =
             (data['trips'] as List?)
-                ?.map((trip) => Trip.fromJson(trip))
+                ?.map((trip) => Trip.fromBackend(trip))
                 .toList() ??
             [];
 

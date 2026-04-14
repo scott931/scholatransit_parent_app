@@ -20,6 +20,8 @@ class Trip {
   final String? startLocation;
   final String? endLocation;
   final String? currentLocation;
+  final double? currentLatitude;
+  final double? currentLongitude;
   final double? startLatitude;
   final double? startLongitude;
   final double? endLatitude;
@@ -60,6 +62,8 @@ class Trip {
     this.startLocation,
     this.endLocation,
     this.currentLocation,
+    this.currentLatitude,
+    this.currentLongitude,
     this.startLatitude,
     this.startLongitude,
     this.endLatitude,
@@ -164,6 +168,22 @@ class Trip {
   }
 
   factory Trip.fromJson(Map<String, dynamic> json) {
+    final startCoords = _resolveCoordinatePair(
+      latitudeValue: json['start_latitude'],
+      longitudeValue: json['start_longitude'],
+      locationValue: json['start_location'],
+    );
+    final endCoords = _resolveCoordinatePair(
+      latitudeValue: json['end_latitude'],
+      longitudeValue: json['end_longitude'],
+      locationValue: json['end_location'],
+    );
+    final currentCoords = _resolveCoordinatePair(
+      latitudeValue: json['current_latitude'],
+      longitudeValue: json['current_longitude'],
+      locationValue: json['current_location'],
+    );
+
     return Trip(
       id: json['id'] ?? 0,
       tripId: json['trip_id'] ?? '',
@@ -185,11 +205,13 @@ class Trip {
           : null,
       startLocation: json['start_location'],
       endLocation: json['end_location'],
-      currentLocation: json['current_location'],
-      startLatitude: json['start_latitude']?.toDouble(),
-      startLongitude: json['start_longitude']?.toDouble(),
-      endLatitude: json['end_latitude']?.toDouble(),
-      endLongitude: json['end_longitude']?.toDouble(),
+      currentLocation: json['current_location']?.toString(),
+      currentLatitude: currentCoords?['latitude'],
+      currentLongitude: currentCoords?['longitude'],
+      startLatitude: startCoords?['latitude'],
+      startLongitude: startCoords?['longitude'],
+      endLatitude: endCoords?['latitude'],
+      endLongitude: endCoords?['longitude'],
       notes: json['notes'],
       delayReason: json['delay_reason'],
       odometerReading: json['odometer_reading'],
@@ -215,11 +237,21 @@ class Trip {
 
   // Backend variant mapper to handle response keys from tracking endpoint
   factory Trip.fromBackend(Map<String, dynamic> json) {
-    // Parse WKT coordinates from start_location, end_location, and current_location
-    final startCoords = _parseWktCoordinates(json['start_location']);
-    final endCoords = _parseWktCoordinates(json['end_location']);
-    // Note: currentCoords is parsed but not used in this model
-    _parseWktCoordinates(json['current_location']);
+    final startCoords = _resolveCoordinatePair(
+      latitudeValue: json['start_latitude'],
+      longitudeValue: json['start_longitude'],
+      locationValue: json['start_location'],
+    );
+    final endCoords = _resolveCoordinatePair(
+      latitudeValue: json['end_latitude'],
+      longitudeValue: json['end_longitude'],
+      locationValue: json['end_location'],
+    );
+    final currentCoords = _resolveCoordinatePair(
+      latitudeValue: json['current_latitude'],
+      longitudeValue: json['current_longitude'],
+      locationValue: json['current_location'],
+    );
 
     return Trip(
       id: json['id'] ?? 0,
@@ -242,7 +274,9 @@ class Trip {
           : null,
       startLocation: json['start_location'],
       endLocation: json['end_location'],
-      currentLocation: json['current_location'],
+      currentLocation: json['current_location']?.toString(),
+      currentLatitude: currentCoords?['latitude'],
+      currentLongitude: currentCoords?['longitude'],
       startLatitude: startCoords?['latitude'],
       startLongitude: startCoords?['longitude'],
       endLatitude: endCoords?['latitude'],
@@ -289,6 +323,8 @@ class Trip {
       'start_location': startLocation,
       'end_location': endLocation,
       'current_location': currentLocation,
+      'current_latitude': currentLatitude,
+      'current_longitude': currentLongitude,
       'start_latitude': startLatitude,
       'start_longitude': startLongitude,
       'end_latitude': endLatitude,
@@ -376,6 +412,48 @@ class Trip {
     }
   }
 
+  static Map<String, double>? _parseGeoJsonCoordinates(dynamic value) {
+    if (value is Map && value['coordinates'] is List) {
+      final coords = value['coordinates'] as List;
+      if (coords.length >= 2) {
+        final longitude = _toDouble(coords[0]);
+        final latitude = _toDouble(coords[1]);
+        if (longitude != null && latitude != null) {
+          return {'latitude': latitude, 'longitude': longitude};
+        }
+      }
+    }
+    return null;
+  }
+
+  static double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
+  static Map<String, double>? _resolveCoordinatePair({
+    dynamic latitudeValue,
+    dynamic longitudeValue,
+    dynamic locationValue,
+  }) {
+    final latitude = _toDouble(latitudeValue);
+    final longitude = _toDouble(longitudeValue);
+    if (latitude != null && longitude != null) {
+      return {'latitude': latitude, 'longitude': longitude};
+    }
+
+    final geoJson = _parseGeoJsonCoordinates(locationValue);
+    if (geoJson != null) return geoJson;
+
+    if (locationValue is String) {
+      final wkt = _parseWktCoordinates(locationValue);
+      if (wkt != null) return wkt;
+    }
+
+    return null;
+  }
+
   Trip copyWith({
     int? id,
     String? tripId,
@@ -394,6 +472,8 @@ class Trip {
     String? startLocation,
     String? endLocation,
     String? currentLocation,
+    double? currentLatitude,
+    double? currentLongitude,
     double? startLatitude,
     double? startLongitude,
     double? endLatitude,
@@ -432,6 +512,8 @@ class Trip {
       startLocation: startLocation ?? this.startLocation,
       endLocation: endLocation ?? this.endLocation,
       currentLocation: currentLocation ?? this.currentLocation,
+      currentLatitude: currentLatitude ?? this.currentLatitude,
+      currentLongitude: currentLongitude ?? this.currentLongitude,
       startLatitude: startLatitude ?? this.startLatitude,
       startLongitude: startLongitude ?? this.startLongitude,
       endLatitude: endLatitude ?? this.endLatitude,

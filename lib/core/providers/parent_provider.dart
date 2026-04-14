@@ -557,13 +557,20 @@ class ParentNotifier extends StateNotifier<ParentState> {
   ) {
     final parentChildIds = _getParentChildIds();
     
-    // If no child IDs found, return empty list (parent has no children)
+    // If parent-child linkage data is unavailable on app side, trust server filtering.
     if (parentChildIds.isEmpty) {
-      print('⚠️ No children found for parent, filtering out all trips');
-      return [];
+      print('⚠️ No child linkage found locally; using server-filtered trips as-is');
+      return trips;
     }
 
     final filteredTrips = trips.where((trip) {
+      // Backend may omit nested `children` in list payloads.
+      if (trip.children.isEmpty) {
+        print(
+          'ℹ️ Trip ${trip.id} has no embedded children; keeping due to server-side parent filtering',
+        );
+        return true;
+      }
       // Check if any child in the trip belongs to this parent
       final hasRelatedChild = trip.children.any(
         (child) => parentChildIds.contains(child.id),
@@ -927,6 +934,19 @@ class ParentNotifier extends StateNotifier<ParentState> {
   void _updateActiveTrip(ParentTrip trip) {
     // Filter trip to ensure parent has relationship with at least one child
     final parentChildIds = _getParentChildIds();
+
+    // If local linkage or embedded children are unavailable, trust server scoping.
+    if (parentChildIds.isEmpty || trip.children.isEmpty) {
+      final updatedTrips = List<ParentTrip>.from(state.activeTrips);
+      final index = updatedTrips.indexWhere((t) => t.id == trip.id);
+      if (index >= 0) {
+        updatedTrips[index] = trip;
+      } else {
+        updatedTrips.add(trip);
+      }
+      state = state.copyWith(activeTrips: updatedTrips);
+      return;
+    }
     
     // Check if parent has relationship with any child in this trip
     final hasRelatedChild = parentChildIds.isNotEmpty && trip.children.any(
