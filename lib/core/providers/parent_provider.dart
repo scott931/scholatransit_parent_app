@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import '../models/parent_model.dart';
 import '../models/parent_trip_model.dart';
 import '../models/student_model.dart';
+import '../models/trip_log_model.dart';
 import '../services/parent_tracking_service.dart';
 import '../services/parent_notification_service.dart';
 import '../services/parent_student_service.dart';
@@ -339,6 +340,13 @@ class ParentNotifier extends StateNotifier<ParentState> {
     List<Map<String, dynamic>> extractedData = [];
 
     try {
+      // ApiService wraps paginated GET /tracking/trips/ as [TripLogsResponse]
+      if (responseData is TripLogsResponse) {
+        for (final log in responseData.results) {
+          extractedData.add(log.toJson());
+        }
+        return extractedData;
+      }
       // Check if data is a list directly
       if (responseData is List) {
         for (final item in responseData) {
@@ -346,15 +354,16 @@ class ParentNotifier extends StateNotifier<ParentState> {
             extractedData.add(Map<String, dynamic>.from(item));
           }
         }
+        return extractedData;
       }
-      // Check if data is a map with results array
-      else if (responseData is Map) {
-        final dynamic dataMap = responseData;
-        final dynamic results = dataMap['results'];
+      // Map: DRF pagination uses `results`; driver-style payloads use `trips`
+      if (responseData is Map) {
+        final dataMap = Map<String, dynamic>.from(responseData);
+        final results = dataMap['results'] ?? dataMap['trips'];
         if (results is List) {
-          for (final dynamic item in results) {
+          for (final item in results) {
             if (item is Map) {
-              extractedData.add(Map<String, dynamic>.from(item));
+              extractedData.add(Map<String, dynamic>.from(item as Map));
             }
           }
         }

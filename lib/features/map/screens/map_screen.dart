@@ -80,6 +80,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _onTripStateChanged,
     );
     if (widget.pollActiveTrips) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        // First paint: load immediately so the bus marker appears before the poll interval.
+        ref.read(tripProvider.notifier).loadActiveTrips();
+      });
       _activeTripPollTimer = Timer.periodic(
         Duration(seconds: AppConfig.parentLiveTrackingPollSeconds),
         (_) {

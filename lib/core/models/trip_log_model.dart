@@ -42,10 +42,13 @@ enum TripLogStatus {
   }
 
   static TripLogStatus fromString(String status) {
-    switch (status.toLowerCase()) {
+    final s = status.toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+    switch (s) {
       case 'scheduled':
+      case 'pending':
         return TripLogStatus.scheduled;
-      case 'in progress':
+      case 'in_progress':
+      case 'inprogress':
         return TripLogStatus.inProgress;
       case 'completed':
         return TripLogStatus.completed;
@@ -54,6 +57,11 @@ enum TripLogStatus {
       case 'delayed':
         return TripLogStatus.delayed;
       default:
+        // Human-readable labels from serializers / toJson()
+        if (s.contains('progress')) return TripLogStatus.inProgress;
+        if (s.contains('complet')) return TripLogStatus.completed;
+        if (s.contains('cancel')) return TripLogStatus.cancelled;
+        if (s.contains('delay')) return TripLogStatus.delayed;
         return TripLogStatus.scheduled;
     }
   }
@@ -92,17 +100,26 @@ enum TripLogType {
   }
 
   static TripLogType fromString(String type) {
-    switch (type.toLowerCase()) {
-      case 'student pickup':
+    final t = type.toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+    switch (t) {
+      case 'student_pickup':
+      case 'studentpickup':
+      case 'pickup':
         return TripLogType.studentPickup;
-      case 'student dropoff':
+      case 'student_dropoff':
+      case 'studentdropoff':
+      case 'dropoff':
         return TripLogType.studentDropoff;
       case 'scheduled':
         return TripLogType.scheduled;
       case 'emergency':
         return TripLogType.emergency;
       default:
-        return TripLogType.studentPickup;
+        if (t.contains('drop')) return TripLogType.studentDropoff;
+        if (t.contains('pickup') || t.contains('pick')) {
+          return TripLogType.studentPickup;
+        }
+        return TripLogType.scheduled;
     }
   }
 }
@@ -304,6 +321,7 @@ class TripLog {
 
   /// Convert TripLog to JSON
   Map<String, dynamic> toJson() {
+    final wktCurrent = parseWktCoordinates(currentLocation);
     return {
       'id': id,
       'trip_id': tripId,
@@ -318,6 +336,8 @@ class TripLog {
       'start_location': startLocation,
       'end_location': endLocation,
       'current_location': currentLocation,
+      if (wktCurrent != null) 'current_latitude': wktCurrent['latitude'],
+      if (wktCurrent != null) 'current_longitude': wktCurrent['longitude'],
       'scheduled_start': scheduledStart.toIso8601String(),
       'scheduled_end': scheduledEnd.toIso8601String(),
       'actual_start': actualStart?.toIso8601String(),

@@ -233,12 +233,12 @@ class ParentTrip {
       driverPhoto: json['driver_photo']?.toString(),
       scheduledStartTime: _parseTripDateTime(startRaw),
       scheduledEndTime: _parseTripDateTime(endRaw),
-      actualStartTime: json['actual_start_time'] != null
-          ? DateTime.parse(json['actual_start_time'])
-          : null,
-      actualEndTime: json['actual_end_time'] != null
-          ? DateTime.parse(json['actual_end_time'])
-          : null,
+      actualStartTime: _parseOptionalDate(
+        json['actual_start_time'] ?? json['actual_start'],
+      ),
+      actualEndTime: _parseOptionalDate(
+        json['actual_end_time'] ?? json['actual_end'],
+      ),
       status: _parseTripStatus(json['status']),
       children:
           (json['children'] as List<dynamic>?)
@@ -248,9 +248,11 @@ class ParentTrip {
       busNumber: json['bus_number'],
       busColor: json['bus_color'],
       currentLatitude: _parseLat(json['current_latitude']) ??
-          _parseLatFromGeoJson(json['current_location']),
+          _parseLatFromGeoJson(json['current_location']) ??
+          _parseLatFromWkt(json['current_location']),
       currentLongitude: _parseLng(json['current_longitude']) ??
-          _parseLngFromGeoJson(json['current_location']),
+          _parseLngFromGeoJson(json['current_location']) ??
+          _parseLngFromWkt(json['current_location']),
       currentAddress: json['current_address'],
       lastLocationUpdate: json['last_location_update'] != null
           ? DateTime.parse(json['last_location_update'])
@@ -270,6 +272,12 @@ class ParentTrip {
     if (v == null) return DateTime.fromMillisecondsSinceEpoch(0);
     if (v is DateTime) return v;
     return DateTime.tryParse(v.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  static DateTime? _parseOptionalDate(dynamic v) {
+    if (v == null) return null;
+    if (v is DateTime) return v;
+    return DateTime.tryParse(v.toString());
   }
 
   static double? _parseLat(dynamic v) =>
@@ -292,6 +300,25 @@ class ParentTrip {
       if (c.length >= 2) return (c[0] as num).toDouble();
     }
     return null;
+  }
+
+  /// WKT POINT (lng lat) from tracking serializers (same as driver app).
+  static double? _parseLatFromWkt(dynamic v) {
+    if (v is! String) return null;
+    final m = RegExp(r'POINT\s*\(([^)]+)\)', caseSensitive: false).firstMatch(v);
+    if (m == null) return null;
+    final parts = m.group(1)?.trim().split(RegExp(r'\s+')) ?? [];
+    if (parts.length < 2) return null;
+    return double.tryParse(parts[1]);
+  }
+
+  static double? _parseLngFromWkt(dynamic v) {
+    if (v is! String) return null;
+    final m = RegExp(r'POINT\s*\(([^)]+)\)', caseSensitive: false).firstMatch(v);
+    if (m == null) return null;
+    final parts = m.group(1)?.trim().split(RegExp(r'\s+')) ?? [];
+    if (parts.length < 2) return null;
+    return double.tryParse(parts[0]);
   }
 
   Map<String, dynamic> toJson() {
@@ -328,6 +355,7 @@ class ParentTrip {
     final s = status.toString().toLowerCase().replaceAll(' ', '_');
     switch (s) {
       case 'scheduled':
+      case 'pending':
         return TripStatus.scheduled;
       case 'in_progress':
       case 'inprogress':

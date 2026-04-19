@@ -19,6 +19,14 @@ class _ParentScheduleScreenState extends ConsumerState<ParentScheduleScreen> {
   DateTime _selectedDate = DateTime.now();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(parentProvider.notifier).loadActiveTrips();
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();

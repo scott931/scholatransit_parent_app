@@ -351,6 +351,7 @@ class Trip {
     print('🔍 DEBUG: Parsing trip status: "$status"');
     final parsedStatus = switch (status?.toLowerCase()) {
       'pending' => TripStatus.pending,
+      'scheduled' => TripStatus.pending,
       'in_progress' || 'in-progress' || 'in progress' => TripStatus.inProgress,
       'completed' => TripStatus.completed,
       'cancelled' => TripStatus.cancelled,
