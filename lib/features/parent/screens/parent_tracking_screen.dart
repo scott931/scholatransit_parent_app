@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/models/parent_trip_model.dart';
 import '../../../core/providers/parent_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../map/screens/map_screen.dart';
@@ -42,8 +43,10 @@ class _ParentTrackingScreenState extends ConsumerState<ParentTrackingScreen> {
       );
     }
 
-    // Same gate as dashboard Quick Actions — any trip the parent API returned.
-    if (parentState.activeTrips.isEmpty) {
+    final liveTrips = parentState.activeTrips.liveTrips;
+
+    // Live tracking only when a bus trip is in progress on the road.
+    if (liveTrips.isEmpty) {
       return Scaffold(
         backgroundColor: AppTheme.backgroundColor,
         body: RefreshIndicator(
@@ -80,7 +83,7 @@ class _ParentTrackingScreenState extends ConsumerState<ParentTrackingScreen> {
                     ),
                     SizedBox(height: 12.h),
                     Text(
-                      'Live tracking will appear here when your child has an active or scheduled bus trip. Pull down to refresh.',
+                      'Live tracking will appear here when your child\'s bus trip is in progress. Pull down to refresh.',
                       style: GoogleFonts.poppins(
                         fontSize: 14.sp,
                         color: AppTheme.textSecondary,

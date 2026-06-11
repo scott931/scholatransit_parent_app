@@ -231,9 +231,9 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
               // Welcome Section - Modern gradient header
               _buildWelcomeSection(authState.parent),
 
-              // Active Trips Section
-              if (parentState.activeTrips.isNotEmpty) ...[
-                _buildActiveTripsSection(parentState.activeTrips),
+              // Live / in-progress trips only — scheduled trips live on Schedule tab.
+              if (parentState.activeTrips.liveTrips.isNotEmpty) ...[
+                _buildActiveTripsSection(parentState.activeTrips.liveTrips),
                 SizedBox(height: 20.h),
               ],
 
@@ -356,7 +356,12 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
             title: 'Active Trips',
           ),
           SizedBox(height: 14.h),
-          ...activeTrips.map((trip) => BusTrackingCard(trip: trip)),
+          ...activeTrips.map(
+            (trip) => BusTrackingCard(
+              trip: trip,
+              onTap: () => context.go('/parent/tracking'),
+            ),
+          ),
         ],
       ),
     );
@@ -489,7 +494,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
                   icon: Icons.directions_bus_rounded,
                   label: 'Track Bus',
                   onTap: () {
-                    if (parentState.activeTrips.isEmpty) {
+                    if (parentState.activeTrips.liveTrips.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(

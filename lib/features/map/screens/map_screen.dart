@@ -54,6 +54,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
   // Trip id whose planned (stop-based) route line is currently drawn, so the
   // static route is fetched/rendered once per trip instead of on every poll.
   String? _plannedRouteTripId;
+  /// Cached route stop coordinates for the active trip (pickup polyline + dashed line).
+  List<Map<String, double>>? _cachedRouteStops;
   ProviderSubscription<TripState>? _tripStateSubscription;
   ProviderSubscription<ParentState>? _parentStateSubscription;
   StreamSubscription<Map<String, dynamic>>? _vehicleCoordinateSubscription;
@@ -461,6 +463,14 @@ class _MapScreenState extends ConsumerState<MapScreen>
               child: Center(child: _buildVehicleFreshnessChip()),
             ),
 
+          // Map key for parent live tracking
+          if (widget.pollActiveTrips && tripState.currentTrip != null)
+            Positioned(
+              top: 200.h,
+              left: 16.w,
+              child: _buildParentMapLegend(),
+            ),
+
           // Trip Details Card - Show only when there's an active trip
           if (tripState.currentTrip != null)
             Positioned(
@@ -729,7 +739,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (_plannedRouteTripId == currentTrip.tripId && _routePolyline != null) {
       if (widget.pollActiveTrips) {
         await _refreshStudentPickupMarkers(currentTrip);
-        await _drawParentToTripStartLine(currentTrip);
+        await _drawParentToTripStartLine(
+          currentTrip,
+          routeStops: _cachedRouteStops,
+        );
       }
       return;
     }
@@ -818,6 +831,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         hintRouteId: widget.pollActiveTrips ? _hintRouteIdFromStudents() : null,
       );
       print('🗺️ Resolved ${resolvedStops.length} route stop(s) for polyline');
+      _cachedRouteStops = resolvedStops.isNotEmpty ? resolvedStops : null;
       final drewPlanned = await _drawPlannedRoute(
         currentTrip,
         embeddedStops:
@@ -943,6 +957,19 @@ class _MapScreenState extends ConsumerState<MapScreen>
       return;
     }
 
+    var stops = routeStops ?? _cachedRouteStops;
+    if (stops == null || stops.isEmpty) {
+      stops = await ParentTrackingService.resolveRouteStopCoordinates(
+        parentTrip: _getParentTrackingTrip(),
+        mapTrip: trip,
+        hintRouteId: _hintRouteIdFromStudents(),
+      );
+      if (!mounted) return;
+      if (stops.isNotEmpty) {
+        _cachedRouteStops = stops;
+      }
+    }
+
     double? parentLat = _currentLocation?.coordinates.lat.toDouble();
     double? parentLng = _currentLocation?.coordinates.lng.toDouble();
     if (parentLat == null || parentLng == null) {
@@ -957,11 +984,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
     double? startLat = trip.startLatitude;
     double? startLng = trip.startLongitude;
-    if ((startLat == null || startLng == null) &&
-        routeStops != null &&
-        routeStops.isNotEmpty) {
-      startLat = routeStops.first['latitude'];
-      startLng = routeStops.first['longitude'];
+    if ((startLat == null || startLng == null) && stops.isNotEmpty) {
+      startLat = stops.first['latitude'];
+      startLng = stops.first['longitude'];
     }
     if (startLat == null || startLng == null) {
       print('ℹ️ No trip start coordinates — skipping parent-to-start line');
@@ -1490,12 +1515,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
   }
 
   String? _parentTripKey(ParentState state) {
-    final trips = state.activeTrips;
-    final inProgress = trips.where((t) => t.isActive).toList();
-    final trip = inProgress.isNotEmpty
-        ? inProgress.first
-        : (trips.isNotEmpty ? trips.first : null);
-    if (trip == null) return null;
+    final live = state.activeTrips.where((t) => t.isActive).toList();
+    if (live.isEmpty) return null;
+    final trip = live.first;
     return trip.backendTripId.isNotEmpty
         ? trip.backendTripId
         : trip.id.toString();
@@ -1511,6 +1533,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (_mapboxMap != null && nextTripKey != null) {
       if (prevTripKey != nextTripKey) {
         _plannedRouteTripId = null;
+        _cachedRouteStops = null;
       }
       _loadTripRoute();
       _addTripMarkers();
@@ -1762,6 +1785,129 @@ class _MapScreenState extends ConsumerState<MapScreen>
             math.sin(dLon / 2);
     final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
     return earthRadius * c;
+  }
+
+  Widget _buildParentMapLegend() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+      constraints: BoxConstraints(maxWidth: 210.w),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(12.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Map key',
+            style: GoogleFonts.poppins(
+              fontSize: 11.sp,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          SizedBox(height: 8.h),
+          _parentMapLegendRow(
+            color: AppTheme.routeGreen,
+            label: 'Bus route',
+            isDashed: false,
+          ),
+          SizedBox(height: 6.h),
+          _parentMapLegendRow(
+            color: AppTheme.secondaryColor,
+            label: 'Your route to pickup',
+            isDashed: true,
+          ),
+          SizedBox(height: 6.h),
+          _parentMapLegendRow(
+            color: AppTheme.primaryColor,
+            label: 'Child pickup stop',
+            isDashed: false,
+            isDot: true,
+          ),
+          SizedBox(height: 6.h),
+          _parentMapLegendRow(
+            color: const Color(0xFF4285F4),
+            label: 'Live bus',
+            isDashed: false,
+            isBus: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _parentMapLegendRow({
+    required Color color,
+    required String label,
+    required bool isDashed,
+    bool isDot = false,
+    bool isBus = false,
+  }) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 28.w,
+          child: isBus
+              ? Icon(Icons.directions_bus_filled_rounded, size: 16.w, color: color)
+              : isDot
+                  ? Container(
+                      width: 10.w,
+                      height: 10.w,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                      ),
+                    )
+                  : _parentMapLegendLine(color: color, isDashed: isDashed),
+        ),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 11.sp,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _parentMapLegendLine({
+    required Color color,
+    required bool isDashed,
+  }) {
+    if (!isDashed) {
+      return Container(
+        height: 3.h,
+        width: 24.w,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(2),
+        ),
+      );
+    }
+    return Row(
+      children: List.generate(
+        4,
+        (index) => Container(
+          width: 4.w,
+          height: 3.h,
+          margin: EdgeInsets.only(right: index < 3 ? 2.w : 0),
+          color: color,
+        ),
+      ),
+    );
   }
 
   Widget _buildVehicleFreshnessChip() {
@@ -2800,6 +2946,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   Future<void> _clearRoutePolyline() async {
     _plannedRouteTripId = null;
+    _cachedRouteStops = null;
     if (_polylineAnnotationManager != null && _routePolyline != null) {
       try {
         await _polylineAnnotationManager!.delete(_routePolyline!);

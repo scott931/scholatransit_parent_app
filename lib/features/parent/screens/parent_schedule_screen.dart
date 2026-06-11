@@ -32,9 +32,8 @@ class _ParentScheduleScreenState extends ConsumerState<ParentScheduleScreen> {
     super.dispose();
   }
 
-  // Get only scheduled trips from activeTrips
   List<ParentTrip> _getScheduledTrips(List<ParentTrip> activeTrips) {
-    return activeTrips.where((trip) => trip.isScheduled).toList();
+    return activeTrips.scheduledTrips;
   }
 
   // Get today's scheduled trips

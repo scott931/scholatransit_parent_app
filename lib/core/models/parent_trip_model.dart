@@ -624,3 +624,13 @@ class ParentTrip {
     return 'ParentTrip(id: $id, name: $tripName, status: $status)';
   }
 }
+
+/// UI filters for parent trip lists (dashboard vs schedule vs live map).
+extension ParentTripListFilters on List<ParentTrip> {
+  /// Trips currently in progress on the road (Live Tracking tab / drawer).
+  List<ParentTrip> get liveTrips => where((t) => t.isActive).toList();
+
+  /// Scheduled-only trips for the Schedule tab.
+  List<ParentTrip> get scheduledTrips =>
+      where((t) => t.isScheduled).toList();
+}

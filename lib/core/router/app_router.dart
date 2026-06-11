@@ -34,6 +34,7 @@ import '../../features/trips/screens/trip_details_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/map/screens/map_screen.dart';
 import '../../features/trip_logs/screens/trip_logs_screen.dart';
+import '../../core/models/parent_trip_model.dart';
 import '../../core/providers/parent_provider.dart';
 import '../../core/services/communication_service.dart';
 
@@ -587,7 +588,7 @@ class _ParentSideDrawerState extends ConsumerState<_ParentSideDrawer> {
                       ),
                       to: '/parent/dashboard',
                     ),
-                    if (parentState.activeTrips.isNotEmpty)
+                    if (parentState.activeTrips.liveTrips.isNotEmpty)
                       _modernTile(
                         context,
                         title: 'Live Tracking',
