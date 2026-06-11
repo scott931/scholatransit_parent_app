@@ -13,10 +13,17 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/trip_provider.dart';
 import '../../../core/providers/parent_provider.dart';
 import '../../../core/models/trip_model.dart';
+import '../../../core/models/parent_trip_model.dart' show ParentTrip;
+import '../../../core/models/parent_trip_map_adapter.dart';
+import '../../../core/models/student_model.dart';
+import '../../../core/services/route_stop_resolver.dart';
 import '../../../core/services/routing_service.dart';
+import '../../../core/utils/coordinate_utils.dart';
+import '../../../core/utils/name_abbreviation.dart';
 import '../../../core/services/realtime_distance_tracker.dart';
 import '../../../core/services/location_service_resolver.dart';
 import '../../../core/services/communication_service.dart';
+import '../../../core/services/parent_tracking_service.dart';
 import '../../communication/screens/chat_list_screen.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
@@ -29,7 +36,8 @@ class MapScreen extends ConsumerStatefulWidget {
   ConsumerState<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends ConsumerState<MapScreen> {
+class _MapScreenState extends ConsumerState<MapScreen>
+    with WidgetsBindingObserver {
   MapboxMap? _mapboxMap;
   Point? _currentLocation;
   PointAnnotationManager? _pointAnnotationManager;
@@ -37,14 +45,46 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   PointAnnotation? _vehicleLocationAnnotation;
   PointAnnotation? _startLocationAnnotation;
   PointAnnotation? _endLocationAnnotation;
+  final List<PointAnnotation> _studentPickupAnnotations = [];
   PolylineAnnotationManager? _polylineAnnotationManager;
+  /// Separate manager so [setLineDasharray] does not affect the solid route line.
+  PolylineAnnotationManager? _parentToStartPolylineManager;
   PolylineAnnotation? _routePolyline;
+  PolylineAnnotation? _parentToStartPolyline;
+  // Trip id whose planned (stop-based) route line is currently drawn, so the
+  // static route is fetched/rendered once per trip instead of on every poll.
+  String? _plannedRouteTripId;
   ProviderSubscription<TripState>? _tripStateSubscription;
+  ProviderSubscription<ParentState>? _parentStateSubscription;
   StreamSubscription<Map<String, dynamic>>? _vehicleCoordinateSubscription;
   Timer? _vehicleAnimationTimer;
   Point? _lastVehiclePoint;
+  double? _lastAcceptedVehicleLat;
+  double? _lastAcceptedVehicleLng;
+  double? _lastRenderedVehicleLat;
+  double? _lastRenderedVehicleLng;
   bool _followVehicle = true;
   bool _isVehicleMarkerReady = false;
+  bool _isCreatingVehicleMarker = false;
+  bool _vehicleAnimationInProgress = false;
+  static const double _vehicleCoordinateEpsilon = 1e-6;
+
+  // ── Real-time vehicle feed (parent live tracking) ─────────────────────────
+  Timer? _vehicleStatusPollTimer;
+  Timer? _staleTicker;
+  bool _isFetchingVehicleStatus = false;
+  DateTime? _lastVehicleUpdateAt; // backend-reported last_update
+  double? _lastVehicleHeading; // backend-reported heading (degrees)
+  double? _lastVehicleSpeed; // backend-reported speed
+  bool _isVehiclePositionStale = false;
+  // Raw accepted GPS points used for map-matching / breadcrumb trail.
+  final List<Map<String, double>> _rawVehicleTrack = [];
+  final List<Point> _vehicleTrailPoints = [];
+  PolylineAnnotation? _vehicleTrailPolyline;
+  // Ignore GPS noise below this distance between consecutive fixes (meters).
+  static const double _minVehicleMoveMeters = 5.0;
+  // Position is considered stale if no fresh fix within this window.
+  static const Duration _vehicleStaleThreshold = Duration(seconds: 20);
 
   // Map style
   final String _currentMapStyle = MapboxStyles.MAPBOX_STREETS;
@@ -72,39 +112,182 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Timer? _activeTripPollTimer;
 
+  /// Parent live map: prefer live/active trips; fall back to first listed trip.
+  ParentTrip? _getParentTrackingTrip() {
+    final trips = ref.read(parentProvider).activeTrips;
+    if (trips.isEmpty) return null;
+
+    final live = trips.where((t) => t.isActive).toList();
+    if (live.isNotEmpty) return live.first;
+
+    final trackable = trips.where((t) => t.isTrackable).toList();
+    if (trackable.isNotEmpty) return trackable.first;
+
+    return trips.first;
+  }
+
+  Trip? _getCurrentMapTrip() {
+    if (widget.pollActiveTrips) {
+      final parentTrip = _getParentTrackingTrip();
+      final fallbackTrip = ref.read(tripProvider).currentTrip;
+      if (parentTrip != null) {
+        final mapped = parentTrip.toMapTrip();
+        if (fallbackTrip == null) return mapped;
+        // Merge sparse parent payloads with the active-trips endpoint fields.
+        return mapped.copyWith(
+          routeId: mapped.routeId ?? fallbackTrip.routeId,
+          routeName: mapped.routeName ?? fallbackTrip.routeName,
+          startLatitude: mapped.startLatitude ?? fallbackTrip.startLatitude,
+          startLongitude: mapped.startLongitude ?? fallbackTrip.startLongitude,
+          endLatitude: mapped.endLatitude ?? fallbackTrip.endLatitude,
+          endLongitude: mapped.endLongitude ?? fallbackTrip.endLongitude,
+          currentLatitude:
+              mapped.currentLatitude ?? fallbackTrip.currentLatitude,
+          currentLongitude:
+              mapped.currentLongitude ?? fallbackTrip.currentLongitude,
+        );
+      }
+      return fallbackTrip;
+    }
+    return ref.read(tripProvider).currentTrip;
+  }
+
+  TripState _getDisplayTripState() {
+    if (!widget.pollActiveTrips) {
+      return ref.watch(tripProvider);
+    }
+    ref.watch(parentProvider);
+    ref.watch(tripProvider);
+    final trip = _getCurrentMapTrip();
+    if (trip == null) return const TripState();
+    return TripState(currentTrip: trip, trips: [trip]);
+  }
+
+  Future<void> _loadTrackingTrips({bool force = false}) async {
+    if (widget.pollActiveTrips) {
+      // Students must load before trips so bootstrap from current/upcoming works.
+      if (ref.read(parentProvider).students.isEmpty) {
+        await ref.read(parentProvider.notifier).loadStudents();
+      }
+      await ref.read(parentProvider.notifier).loadActiveTrips(force: force);
+      if (mounted && _routePolyline == null) {
+        _loadTripRoute();
+      }
+    } else {
+      await ref.read(tripProvider.notifier).loadActiveTrips();
+    }
+  }
+
+  int? _hintRouteIdFromStudents() {
+    for (final student in ref.read(parentProvider).students) {
+      final routeId = student.assignedRoute;
+      if (routeId != null && routeId > 0) return routeId;
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tripStateSubscription = ref.listenManual<TripState>(
       tripProvider,
       _onTripStateChanged,
     );
     if (widget.pollActiveTrips) {
+      _parentStateSubscription = ref.listenManual<ParentState>(
+        parentProvider,
+        _onParentStateChanged,
+      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         // First paint: load immediately so the bus marker appears before the poll interval.
-        ref.read(tripProvider.notifier).loadActiveTrips();
+        _loadTrackingTrips(force: true);
       });
-      _activeTripPollTimer = Timer.periodic(
-        Duration(seconds: AppConfig.parentLiveTrackingPollSeconds),
-        (_) {
-          if (!mounted) return;
-          // Keep polling the provider consumed by this map.
-          ref.read(tripProvider.notifier).loadActiveTrips();
-        },
-      );
+      _startParentTrackingTimers();
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeMap();
     });
   }
 
+  /// Starts (or restarts) the trip-metadata poll, the lightweight real-time
+  /// vehicle-status poll, and the staleness ticker for parent live tracking.
+  void _startParentTrackingTimers() {
+    if (!widget.pollActiveTrips) return;
+    _stopParentTrackingTimers();
+
+    final gpsPollInterval = Duration(
+      seconds: AppConfig.parentLiveTrackingPollSeconds,
+    );
+    final tripPollInterval = Duration(
+      seconds: AppConfig.parentTripMetadataPollSeconds,
+    );
+
+    // Trip metadata (route, status) — infrequent to avoid API throttling.
+    _activeTripPollTimer = Timer.periodic(tripPollInterval, (_) {
+      if (!mounted) return;
+      _loadTrackingTrips();
+    });
+
+    // Real-time vehicle position feed (drives the moving marker).
+    _vehicleStatusPollTimer = Timer.periodic(gpsPollInterval, (_) {
+      if (!mounted) return;
+      _pollVehicleRealtimeStatus();
+    });
+    // Kick off an immediate fetch so movement starts without waiting a cycle.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _pollVehicleRealtimeStatus();
+    });
+
+    // Re-evaluate "last updated" freshness once per second for the indicator.
+    _staleTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      _recomputeVehicleStaleness();
+    });
+  }
+
+  void _stopParentTrackingTimers() {
+    _activeTripPollTimer?.cancel();
+    _activeTripPollTimer = null;
+    _vehicleStatusPollTimer?.cancel();
+    _vehicleStatusPollTimer = null;
+    _staleTicker?.cancel();
+    _staleTicker = null;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (!widget.pollActiveTrips) return;
+
+    if (state == AppLifecycleState.resumed) {
+      // Resume polling and immediately refresh so the marker catches up.
+      _startParentTrackingTimers();
+      if (mounted) {
+        _loadTrackingTrips();
+        _pollVehicleRealtimeStatus();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      // Stop network + animation work while the map is not visible.
+      _stopParentTrackingTimers();
+      _vehicleAnimationTimer?.cancel();
+      _vehicleAnimationTimer = null;
+      _vehicleAnimationInProgress = false;
+    }
+  }
+
   @override
   void dispose() {
-    _activeTripPollTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _stopParentTrackingTimers();
     _vehicleAnimationTimer?.cancel();
     _vehicleCoordinateSubscription?.cancel();
     _tripStateSubscription?.close();
+    _parentStateSubscription?.close();
     super.dispose();
   }
 
@@ -160,7 +343,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tripState = ref.watch(tripProvider);
+    final tripState = _getDisplayTripState();
 
     print(
       '🗺️ DEBUG: Building MapScreen - _currentLocation: $_currentLocation',
@@ -225,16 +408,22 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           .createPointAnnotationManager();
                       _polylineAnnotationManager = await mapboxMap.annotations
                           .createPolylineAnnotationManager();
+                      _parentToStartPolylineManager = await mapboxMap
+                          .annotations
+                          .createPolylineAnnotationManager();
+                      // Dash pattern applies to the whole manager — keep it isolated.
+                      await _parentToStartPolylineManager!.setLineDasharray(
+                        const [2.0, 2.5],
+                      );
                       print('🗺️ DEBUG: Point annotation manager created');
                       print('🗺️ DEBUG: Polyline annotation manager created');
 
                       // Add markers
-                      _addTestMarker();
                       _addCurrentLocationMarker();
 
                       // Force load active trips and then add markers
                       print('🗺️ DEBUG: Loading active trips...');
-                      await ref.read(tripProvider.notifier).loadActiveTrips();
+                      await _loadTrackingTrips();
 
                       print('🗺️ DEBUG: Calling _loadTripRoute()...');
                       _loadTripRoute();
@@ -262,6 +451,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     }
                   },
                 ),
+
+          // Live position freshness indicator (parent live tracking only)
+          if (widget.pollActiveTrips && tripState.currentTrip != null)
+            Positioned(
+              bottom: 24.h,
+              left: 0,
+              right: 0,
+              child: Center(child: _buildVehicleFreshnessChip()),
+            ),
 
           // Trip Details Card - Show only when there's an active trip
           if (tripState.currentTrip != null)
@@ -445,27 +643,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
-  void _addTestMarker() async {
-    if (_mapboxMap == null || _pointAnnotationManager == null) return;
-
-    try {
-      // Add a test marker at a known location (Nairobi, Kenya)
-      final testPoint = Point(
-        coordinates: Position(36.817223, -1.286389), // Nairobi coordinates
-      );
-
-      final testMarker = PointAnnotationOptions(
-        geometry: testPoint,
-        image: await _createMarkerImage(Colors.purple, '🧪'),
-      );
-
-      await _pointAnnotationManager!.create(testMarker);
-      print('✅ Test marker added at Nairobi coordinates');
-    } catch (e) {
-      print('❌ Error adding test marker: $e');
-    }
-  }
-
   void _addCurrentLocationMarker() async {
     if (_mapboxMap == null ||
         _currentLocation == null ||
@@ -496,6 +673,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       print(
         '✅ Current location marker added to map at: ${_currentLocation!.coordinates.lat}, ${_currentLocation!.coordinates.lng}',
       );
+
+      if (widget.pollActiveTrips) {
+        final trip = _getCurrentMapTrip();
+        if (trip != null) {
+          await _drawParentToTripStartLine(trip);
+        }
+      }
     } catch (e) {
       print('❌ Error adding current location marker: $e');
     }
@@ -506,15 +690,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
     print('🚀 DEBUG: _loadTripRoute() called');
 
-    if (_mapboxMap == null || _pointAnnotationManager == null) {
-      print('❌ Map or annotation manager not ready for trip route');
+    if (_mapboxMap == null ||
+        _pointAnnotationManager == null ||
+        _polylineAnnotationManager == null) {
+      print('❌ Map or annotation managers not ready for trip route');
       print('❌ Map ready: ${_mapboxMap != null}');
-      print('❌ Annotation manager ready: ${_pointAnnotationManager != null}');
+      print('❌ Point manager ready: ${_pointAnnotationManager != null}');
+      print('❌ Polyline manager ready: ${_polylineAnnotationManager != null}');
       return;
     }
 
-    final tripState = ref.read(tripProvider);
-    final currentTrip = tripState.currentTrip;
+    final currentTrip = _getCurrentMapTrip();
+    final tripState = widget.pollActiveTrips
+        ? _getDisplayTripState()
+        : ref.read(tripProvider);
 
     print('🔍 DEBUG: Current trip: ${currentTrip?.tripId}');
     print('🔍 DEBUG: Current trip status: ${currentTrip?.status.name}');
@@ -532,6 +721,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
     if (currentTrip == null) {
       print('ℹ️ No active trip to display route for');
+      return;
+    }
+
+    // The planned route + endpoint markers are static for a trip; once drawn
+    // for the active trip, skip re-fetching/redrawing on every poll.
+    if (_plannedRouteTripId == currentTrip.tripId && _routePolyline != null) {
+      if (widget.pollActiveTrips) {
+        await _refreshStudentPickupMarkers(currentTrip);
+        await _drawParentToTripStartLine(currentTrip);
+      }
       return;
     }
 
@@ -612,16 +811,381 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         );
       }
 
-      // Draw route polyline from current location to destination
-      print('🗺️ DEBUG: Drawing route from current location to destination...');
-      await _drawRouteFromCurrentLocation(currentTrip);
-      print('🗺️ DEBUG: Route from current location drawing completed');
+      // Resolve route stops from embedded data, route API, or trip details.
+      final resolvedStops = await ParentTrackingService.resolveRouteStopCoordinates(
+        parentTrip: widget.pollActiveTrips ? _getParentTrackingTrip() : null,
+        mapTrip: currentTrip,
+        hintRouteId: widget.pollActiveTrips ? _hintRouteIdFromStudents() : null,
+      );
+      print('🗺️ Resolved ${resolvedStops.length} route stop(s) for polyline');
+      final drewPlanned = await _drawPlannedRoute(
+        currentTrip,
+        embeddedStops:
+            resolvedStops.length >= 2 ? resolvedStops : null,
+      );
+      if (drewPlanned) {
+        _plannedRouteTripId = currentTrip.tripId;
+        print('🗺️ DEBUG: Planned route drawn from route stops');
+      } else {
+        print('🗺️ DEBUG: No route stops — drawing route from current location');
+        await _drawRouteFromCurrentLocation(currentTrip);
+      }
+
+      if (widget.pollActiveTrips) {
+        await _refreshStudentPickupMarkers(currentTrip);
+        await _drawParentToTripStartLine(
+          currentTrip,
+          routeStops: resolvedStops.length >= 1 ? resolvedStops : null,
+        );
+      }
 
       print(
         '✅ Trip route markers added to map for trip: ${currentTrip.tripId}',
       );
     } catch (e) {
       print('❌ Error adding trip route markers: $e');
+    }
+  }
+
+  Future<void> _refreshStudentPickupMarkers(Trip trip) async {
+    if (!widget.pollActiveTrips ||
+        !mounted ||
+        _pointAnnotationManager == null) {
+      return;
+    }
+
+    await _clearStudentPickupMarkers();
+
+    final routeId = trip.routeId ?? _hintRouteIdFromStudents();
+    if (routeId == null || routeId <= 0) {
+      print('ℹ️ No route id — skipping student pickup markers');
+      return;
+    }
+
+    final students = ref.read(parentProvider).students;
+    if (students.isEmpty) {
+      print('ℹ️ No linked students — skipping pickup markers');
+      return;
+    }
+
+    final routeStops = await RouteStopResolver.fetchRouteStopDetails(routeId);
+    if (!mounted || routeStops.isEmpty) return;
+
+    final pickupStops = routeStops.where(_isPickupStop).toList();
+    if (pickupStops.isEmpty) return;
+
+    final markersByStopId = <int, List<Student>>{};
+    for (final student in students) {
+      final stopId = student.pickupStop;
+      if (stopId == null || stopId <= 0) continue;
+      markersByStopId.putIfAbsent(stopId, () => []).add(student);
+    }
+
+    if (markersByStopId.isEmpty) {
+      print('ℹ️ Linked students have no pickup_stop assigned');
+      return;
+    }
+
+    try {
+      for (final stop in pickupStops) {
+        final stopId = (stop['id'] as num?)?.toInt();
+        if (stopId == null) continue;
+
+        final studentsAtStop = markersByStopId[stopId];
+        if (studentsAtStop == null || studentsAtStop.isEmpty) continue;
+
+        final coords = CoordinateUtils.fromStopJson(stop);
+        if (coords == null) continue;
+
+        final label = combinedStudentAbbreviations(
+          studentsAtStop.map(studentAbbreviation),
+        );
+
+        final marker = PointAnnotationOptions(
+          geometry: Point(
+            coordinates: Position(
+              coords['longitude']!,
+              coords['latitude']!,
+            ),
+          ),
+          image: await _createAbbreviationMarkerImage(
+            AppTheme.primaryColor,
+            label,
+          ),
+        );
+
+        final annotation = await _pointAnnotationManager!.create(marker);
+        _studentPickupAnnotations.add(annotation);
+      }
+
+      print(
+        '✅ Added ${_studentPickupAnnotations.length} student pickup marker(s)',
+      );
+    } catch (e) {
+      print('❌ Error adding student pickup markers: $e');
+    }
+  }
+
+  bool _isPickupStop(Map<String, dynamic> stop) {
+    final type = (stop['stop_type'] ?? stop['type'] ?? '')
+        .toString()
+        .toLowerCase();
+    return type == 'pickup' || type == 'both';
+  }
+
+  /// Road-following line from the parent's device location to the trip start.
+  Future<void> _drawParentToTripStartLine(
+    Trip trip, {
+    List<Map<String, double>>? routeStops,
+  }) async {
+    if (!widget.pollActiveTrips ||
+        _parentToStartPolylineManager == null) {
+      return;
+    }
+
+    double? parentLat = _currentLocation?.coordinates.lat.toDouble();
+    double? parentLng = _currentLocation?.coordinates.lng.toDouble();
+    if (parentLat == null || parentLng == null) {
+      final position = await LocationServiceResolver.getCurrentPosition();
+      if (position == null) {
+        print('ℹ️ No parent location — skipping line to trip start');
+        return;
+      }
+      parentLat = position.latitude;
+      parentLng = position.longitude;
+    }
+
+    double? startLat = trip.startLatitude;
+    double? startLng = trip.startLongitude;
+    if ((startLat == null || startLng == null) &&
+        routeStops != null &&
+        routeStops.isNotEmpty) {
+      startLat = routeStops.first['latitude'];
+      startLng = routeStops.first['longitude'];
+    }
+    if (startLat == null || startLng == null) {
+      print('ℹ️ No trip start coordinates — skipping parent-to-start line');
+      return;
+    }
+
+    // Avoid drawing a zero-length segment when parent is already at the start.
+    final separation = _haversineMeters(
+      parentLat,
+      parentLng,
+      startLat,
+      startLng,
+    );
+    if (separation < 15) {
+      await _clearParentToStartPolyline();
+      return;
+    }
+
+    try {
+      await _clearParentToStartPolyline();
+
+      final routeInfo = await RoutingService.getRouteInfo(
+        startLat: parentLat,
+        startLng: parentLng,
+        endLat: startLat,
+        endLng: startLng,
+      );
+
+      final List<Position> positions;
+      if (routeInfo != null && routeInfo.coordinates.isNotEmpty) {
+        positions = routeInfo.coordinates
+            .map((c) => Position(c['longitude']!, c['latitude']!))
+            .toList();
+      } else {
+        positions = [
+          Position(parentLng, parentLat),
+          Position(startLng, startLat),
+        ];
+      }
+
+      _parentToStartPolyline = await _parentToStartPolylineManager!.create(
+        PolylineAnnotationOptions(
+          geometry: LineString(coordinates: positions),
+          lineColor: AppTheme.secondaryColor.value,
+          lineWidth: 4.0,
+          lineOpacity: 0.9,
+        ),
+      );
+      print(
+        '✅ Dashed parent-to-trip-start line drawn '
+        '(${positions.length} points, ${separation.round()}m apart)',
+      );
+    } catch (e) {
+      print('❌ Error drawing parent-to-trip-start line: $e');
+    }
+  }
+
+  Future<void> _clearParentToStartPolyline() async {
+    if (_parentToStartPolylineManager == null ||
+        _parentToStartPolyline == null) {
+      return;
+    }
+    try {
+      await _parentToStartPolylineManager!.delete(_parentToStartPolyline!);
+      _parentToStartPolyline = null;
+    } catch (_) {
+      _parentToStartPolyline = null;
+    }
+  }
+
+  Future<void> _clearStudentPickupMarkers() async {
+    if (_pointAnnotationManager == null || _studentPickupAnnotations.isEmpty) {
+      return;
+    }
+
+    for (final annotation in _studentPickupAnnotations) {
+      try {
+        await _pointAnnotationManager!.delete(annotation);
+      } catch (_) {
+        // Marker may already be gone after map style reloads.
+      }
+    }
+    _studentPickupAnnotations.clear();
+  }
+
+  /// Draws the trip's planned route as a road-following line through its route
+  /// stops. Returns true when a route line was drawn.
+  Future<bool> _drawPlannedRoute(
+    Trip trip, {
+    List<Map<String, double>>? embeddedStops,
+  }) async {
+    if (_polylineAnnotationManager == null) return false;
+
+    List<Map<String, double>> stops;
+    if (embeddedStops != null && embeddedStops.length >= 2) {
+      stops = embeddedStops;
+    } else {
+      final routeId = trip.routeId;
+      if (routeId == null) return false;
+      stops = await ParentTrackingService.getRouteStopCoordinates(routeId);
+    }
+    if (!mounted) return false;
+    if (stops.length < 2) return false;
+
+    List<Position> positions = stops
+        .map((s) => Position(s['longitude']!, s['latitude']!))
+        .toList();
+
+    // Snap the stop path to roads so the line follows streets (both parent and
+    // driver maps). The straight stop-to-stop path above remains the fallback
+    // when Mapbox Directions is unavailable.
+    final routeInfo = await RoutingService.getRouteThroughWaypoints(stops);
+    if (!mounted) return false;
+    if (routeInfo != null && routeInfo.coordinates.isNotEmpty) {
+      positions = routeInfo.coordinates
+          .map((c) => Position(c['longitude']!, c['latitude']!))
+          .toList();
+      setState(() {
+        _totalTripDistance = routeInfo.distance;
+        _remainingDistance = routeInfo.distance;
+        _remainingTime = Duration(seconds: routeInfo.duration.round());
+      });
+    }
+
+    try {
+      if (_routePolyline != null) {
+        await _polylineAnnotationManager!.delete(_routePolyline!);
+        _routePolyline = null;
+      }
+      _routePolyline = await _polylineAnnotationManager!.create(
+        PolylineAnnotationOptions(
+          geometry: LineString(coordinates: positions),
+          lineColor: AppTheme.routeGreen.value,
+          lineWidth: 6.0,
+          lineOpacity: 1.0,
+        ),
+      );
+      print(
+        '✅ Planned route polyline drawn with ${positions.length} points',
+      );
+    } catch (e) {
+      print('❌ Failed to draw planned route polyline: $e');
+      return false;
+    }
+
+    await _ensureRouteEndpointMarkers(stops);
+    await _fitCameraToRoutePositions(positions);
+    return true;
+  }
+
+  Future<void> _fitCameraToRoutePositions(List<Position> positions) async {
+    if (_mapboxMap == null || positions.isEmpty) return;
+
+    double minLat = positions.first.lat.toDouble();
+    double maxLat = minLat;
+    double minLng = positions.first.lng.toDouble();
+    double maxLng = minLng;
+
+    for (final point in positions) {
+      final lat = point.lat.toDouble();
+      final lng = point.lng.toDouble();
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+    }
+
+    final centerLat = (minLat + maxLat) / 2;
+    final centerLng = (minLng + maxLng) / 2;
+    final maxDiff = math.max(maxLat - minLat, maxLng - minLng);
+
+    double zoom;
+    if (maxDiff > 0.15) {
+      zoom = 10.0;
+    } else if (maxDiff > 0.08) {
+      zoom = 11.0;
+    } else if (maxDiff > 0.03) {
+      zoom = 12.5;
+    } else if (maxDiff > 0.01) {
+      zoom = 14.0;
+    } else {
+      zoom = 15.5;
+    }
+
+    await _mapboxMap!.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position(centerLng, centerLat)),
+        zoom: zoom,
+      ),
+      MapAnimationOptions(duration: 1000),
+    );
+  }
+
+  /// Ensures green (start) and red (end) markers exist using the first/last
+  /// route stop when the trip has no explicit start/end coordinates.
+  Future<void> _ensureRouteEndpointMarkers(
+    List<Map<String, double>> stops,
+  ) async {
+    if (_pointAnnotationManager == null || stops.length < 2) return;
+    try {
+      if (_startLocationAnnotation == null) {
+        final first = stops.first;
+        _startLocationAnnotation = await _pointAnnotationManager!.create(
+          PointAnnotationOptions(
+            geometry: Point(
+              coordinates: Position(first['longitude']!, first['latitude']!),
+            ),
+            image: await _createMarkerImage(Colors.green, '🚀'),
+          ),
+        );
+      }
+      if (_endLocationAnnotation == null) {
+        final last = stops.last;
+        _endLocationAnnotation = await _pointAnnotationManager!.create(
+          PointAnnotationOptions(
+            geometry: Point(
+              coordinates: Position(last['longitude']!, last['latitude']!),
+            ),
+            image: await _createMarkerImage(Colors.red, '🏁'),
+          ),
+        );
+      }
+    } catch (e) {
+      print('⚠️ Failed to add route endpoint markers: $e');
     }
   }
 
@@ -886,6 +1450,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     try {
       print('🚌 Adding markers for ${activeTrips.length} active trips:');
       for (final trip in activeTrips) {
+        // Parent live tracking renders a single animated vehicle marker instead.
+        if (widget.pollActiveTrips) continue;
+
         print(
           '🔍 DEBUG: Trip ${trip.tripId} - Start: ${_getLocationName(trip.startLatitude, trip.startLongitude, trip.startLocation)}',
         );
@@ -912,15 +1479,59 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           print('  ❌ Trip ${trip.tripId} has no valid coordinates');
         }
       }
-      _handleTripVehicleUpdate(activeTrips.first);
+      // In parent live tracking the marker is driven by the real-time feed.
+      if (!widget.pollActiveTrips) {
+        _handleTripVehicleUpdate(activeTrips.first);
+      }
       print('✅ All trip markers added to map');
     } catch (e) {
       print('❌ Error adding trip markers: $e');
     }
   }
 
+  String? _parentTripKey(ParentState state) {
+    final trips = state.activeTrips;
+    final inProgress = trips.where((t) => t.isActive).toList();
+    final trip = inProgress.isNotEmpty
+        ? inProgress.first
+        : (trips.isNotEmpty ? trips.first : null);
+    if (trip == null) return null;
+    return trip.backendTripId.isNotEmpty
+        ? trip.backendTripId
+        : trip.id.toString();
+  }
+
+  void _onParentStateChanged(ParentState? previous, ParentState next) {
+    if (!mounted || !widget.pollActiveTrips) return;
+
+    final prevTripKey =
+        previous != null ? _parentTripKey(previous) : null;
+    final nextTripKey = _parentTripKey(next);
+
+    if (_mapboxMap != null && nextTripKey != null) {
+      if (prevTripKey != nextTripKey) {
+        _plannedRouteTripId = null;
+      }
+      _loadTripRoute();
+      _addTripMarkers();
+    } else if (_mapboxMap != null && nextTripKey == null) {
+      _clearRoutePolyline();
+      _clearVehicleMarker();
+      _clearStudentPickupMarkers();
+      _clearParentToStartPolyline();
+    }
+  }
+
   void _onTripStateChanged(TripState? previous, TripState next) {
     if (!mounted) return;
+
+    // Parent mode: tripProvider is a fallback data source for route geometry.
+    if (widget.pollActiveTrips) {
+      if (_mapboxMap != null && next.currentTrip != null) {
+        _loadTripRoute();
+      }
+      return;
+    }
 
     print('🔄 DEBUG: Trip provider state changed');
     print('🔄 DEBUG: Previous currentTrip: ${previous?.currentTrip?.tripId}');
@@ -933,8 +1544,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _addTripMarkers();
       if (!widget.pollActiveTrips) {
         _startDistanceTracking(next.currentTrip!);
+        // In parent mode the marker is driven by the real-time status feed.
+        _handleTripVehicleUpdate(next.currentTrip!);
       }
-      _handleTripVehicleUpdate(next.currentTrip!);
     } else if (_mapboxMap != null && next.currentTrip == null) {
       print('🔄 DEBUG: No active trip - clearing route polyline...');
       _clearRoutePolyline();
@@ -953,20 +1565,298 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _vehicleAnimationTimer?.cancel();
     _vehicleAnimationTimer = null;
     _lastVehiclePoint = null;
+    _lastAcceptedVehicleLat = null;
+    _lastAcceptedVehicleLng = null;
+    _lastRenderedVehicleLat = null;
+    _lastRenderedVehicleLng = null;
+    _vehicleAnimationInProgress = false;
+    _isCreatingVehicleMarker = false;
     _isVehicleMarkerReady = false;
+    _lastVehicleHeading = null;
+    _lastVehicleSpeed = null;
+    _lastVehicleUpdateAt = null;
+    _isVehiclePositionStale = false;
+    _rawVehicleTrack.clear();
+    _vehicleTrailPoints.clear();
     if (_pointAnnotationManager != null && _vehicleLocationAnnotation != null) {
       await _pointAnnotationManager!.delete(_vehicleLocationAnnotation!);
       _vehicleLocationAnnotation = null;
     }
+    if (_polylineAnnotationManager != null && _vehicleTrailPolyline != null) {
+      await _polylineAnnotationManager!.delete(_vehicleTrailPolyline!);
+      _vehicleTrailPolyline = null;
+    }
+  }
+
+  // ── Real-time vehicle status feed ─────────────────────────────────────────
+
+  /// Polls the lightweight `/trips/{id}/status/` endpoint for the freshest GPS
+  /// fix (with device heading/speed), filters GPS noise, snaps the segment to
+  /// the road network, animates the marker, and extends the breadcrumb trail.
+  Future<void> _pollVehicleRealtimeStatus() async {
+    if (!widget.pollActiveTrips) return;
+    if (_isFetchingVehicleStatus) return;
+    if (_pointAnnotationManager == null) return;
+
+    final trip = _getCurrentMapTrip();
+    final tripId = trip?.tripId;
+    if (tripId == null || tripId.isEmpty) return;
+
+    _isFetchingVehicleStatus = true;
+    try {
+      final response = await ParentTrackingService.getTripRealtimeStatus(
+        tripId,
+      );
+      if (!mounted) return;
+      if (!response.success || response.data == null) {
+        _recomputeVehicleStaleness();
+        return;
+      }
+
+      final data = response.data!;
+      final lat = (data['latitude'] as num?)?.toDouble();
+      final lng = (data['longitude'] as num?)?.toDouble();
+      final heading = (data['heading'] as num?)?.toDouble();
+      final speed = (data['speed'] as num?)?.toDouble();
+      final lastUpdateRaw = data['last_update']?.toString();
+
+      if (lastUpdateRaw != null) {
+        _lastVehicleUpdateAt = DateTime.tryParse(lastUpdateRaw)?.toLocal();
+      }
+      _lastVehicleHeading = heading;
+      _lastVehicleSpeed = speed;
+      _recomputeVehicleStaleness();
+
+      if (lat == null || lng == null) return;
+
+      // Duplicate fix (same position re-served) → nothing to animate.
+      if (_isDuplicateVehicleCoordinate(lat, lng)) return;
+
+      // GPS noise filter: ignore tiny jitter so the marker doesn't shiver.
+      if (_lastAcceptedVehicleLat != null &&
+          _lastAcceptedVehicleLng != null) {
+        final moved = _haversineMeters(
+          _lastAcceptedVehicleLat!,
+          _lastAcceptedVehicleLng!,
+          lat,
+          lng,
+        );
+        if (moved < _minVehicleMoveMeters) return;
+      }
+
+      _rememberAcceptedVehicleCoordinate(lat, lng);
+      _rawVehicleTrack.add({'latitude': lat, 'longitude': lng});
+      if (_rawVehicleTrack.length > 100) {
+        _rawVehicleTrack.removeAt(0);
+      }
+
+      await _moveVehicleWithSnapping(lat, lng, heading);
+    } catch (e) {
+      print('⚠️ Vehicle status poll failed: $e');
+    } finally {
+      _isFetchingVehicleStatus = false;
+    }
+  }
+
+  /// Snaps the segment from the previous position to the new fix onto roads
+  /// (Uber-style) and animates the marker along it; falls back to a straight
+  /// interpolation when matching is unavailable.
+  Future<void> _moveVehicleWithSnapping(
+    double lat,
+    double lng,
+    double? heading,
+  ) async {
+    final target = Point(coordinates: Position(lng, lat));
+
+    // No prior position yet → just place the marker.
+    if (!_isVehicleMarkerReady || _vehicleLocationAnnotation == null) {
+      await _animateVehicleMarkerTo(target, headingOverride: heading);
+      _appendTrailPoint(lat, lng);
+      return;
+    }
+
+    final from = _lastVehiclePoint;
+    List<Point>? snapped;
+    if (from != null) {
+      final segment = await RoutingService.getSnappedPath([
+        {
+          'latitude': from.coordinates.lat.toDouble(),
+          'longitude': from.coordinates.lng.toDouble(),
+        },
+        {'latitude': lat, 'longitude': lng},
+      ]);
+      if (segment != null && segment.length >= 2) {
+        snapped = segment
+            .map((c) => Point(
+                  coordinates: Position(c['longitude']!, c['latitude']!),
+                ))
+            .toList();
+      }
+    }
+
+    if (!mounted) return;
+
+    if (snapped != null) {
+      await _animateVehicleAlongPath(snapped, headingOverride: heading);
+    } else {
+      await _animateVehicleMarkerTo(target, headingOverride: heading);
+      _appendTrailPoint(lat, lng);
+    }
+  }
+
+  void _recomputeVehicleStaleness() {
+    final last = _lastVehicleUpdateAt;
+    final stale =
+        last == null || DateTime.now().difference(last) > _vehicleStaleThreshold;
+    if (stale != _isVehiclePositionStale && mounted) {
+      setState(() => _isVehiclePositionStale = stale);
+    }
+  }
+
+  void _appendTrailPoint(double lat, double lng) {
+    _vehicleTrailPoints.add(Point(coordinates: Position(lng, lat)));
+    if (_vehicleTrailPoints.length > 300) {
+      _vehicleTrailPoints.removeAt(0);
+    }
+    _redrawVehicleTrail();
+  }
+
+  Future<void> _redrawVehicleTrail() async {
+    if (_polylineAnnotationManager == null) return;
+    if (_vehicleTrailPoints.length < 2) return;
+    try {
+      if (_vehicleTrailPolyline != null) {
+        await _polylineAnnotationManager!.delete(_vehicleTrailPolyline!);
+        _vehicleTrailPolyline = null;
+      }
+      _vehicleTrailPolyline = await _polylineAnnotationManager!.create(
+        PolylineAnnotationOptions(
+          geometry: LineString(
+            coordinates: _vehicleTrailPoints
+                .map((p) => p.coordinates)
+                .toList(),
+          ),
+          lineColor: Colors.teal.toARGB32(),
+          lineWidth: 4.0,
+          lineOpacity: 0.7,
+        ),
+      );
+    } catch (e) {
+      print('⚠️ Failed to draw vehicle trail: $e');
+    }
+  }
+
+  double _haversineMeters(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const earthRadius = 6371000.0; // meters
+    final dLat = _degreesToRadians(lat2 - lat1);
+    final dLon = _degreesToRadians(lon2 - lon1);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degreesToRadians(lat1)) *
+            math.cos(_degreesToRadians(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  Widget _buildVehicleFreshnessChip() {
+    final last = _lastVehicleUpdateAt;
+    final bool live = !_isVehiclePositionStale && last != null;
+
+    String label;
+    if (last == null) {
+      label = 'Waiting for GPS…';
+    } else {
+      final secs = DateTime.now().difference(last).inSeconds;
+      if (secs <= 2) {
+        label = 'Live';
+      } else if (secs < 60) {
+        label = 'Updated ${secs}s ago';
+      } else {
+        final mins = secs ~/ 60;
+        label = 'Updated ${mins}m ago';
+      }
+    }
+
+    // Append current speed (km/h) when live and moving.
+    if (live && _lastVehicleSpeed != null && _lastVehicleSpeed! > 0.5) {
+      label = '$label · ${_lastVehicleSpeed!.round()} km/h';
+    }
+
+    final Color color = live ? Colors.green : Colors.orange;
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8.w,
+            height: 8.w,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          SizedBox(width: 8.w),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w500,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _isDuplicateVehicleCoordinate(double lat, double lng) {
+    bool matches(double? storedLat, double? storedLng) {
+      if (storedLat == null || storedLng == null) return false;
+      return (storedLat - lat).abs() < _vehicleCoordinateEpsilon &&
+          (storedLng - lng).abs() < _vehicleCoordinateEpsilon;
+    }
+
+    return matches(_lastAcceptedVehicleLat, _lastAcceptedVehicleLng) ||
+        matches(_lastRenderedVehicleLat, _lastRenderedVehicleLng);
+  }
+
+  void _rememberAcceptedVehicleCoordinate(double lat, double lng) {
+    _lastAcceptedVehicleLat = lat;
+    _lastAcceptedVehicleLng = lng;
+  }
+
+  void _rememberRenderedVehicleCoordinate(double lat, double lng) {
+    _lastRenderedVehicleLat = lat;
+    _lastRenderedVehicleLng = lng;
+    _lastVehiclePoint = Point(coordinates: Position(lng, lat));
   }
 
   void _handleTripVehicleUpdate(Trip trip) {
     if (_pointAnnotationManager == null) return;
     if (trip.currentLatitude == null || trip.currentLongitude == null) return;
-    final targetPoint = Point(
-      coordinates: Position(trip.currentLongitude!, trip.currentLatitude!),
-    );
-    _animateVehicleMarkerTo(targetPoint);
+
+    final lat = trip.currentLatitude!;
+    final lng = trip.currentLongitude!;
+    if (_isDuplicateVehicleCoordinate(lat, lng)) return;
+
+    _rememberAcceptedVehicleCoordinate(lat, lng);
+    _animateVehicleMarkerTo(Point(coordinates: Position(lng, lat)));
   }
 
   /// Optional integration point for Firebase/WebSocket coordinate streams.
@@ -977,50 +1867,95 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       final lat = (event['latitude'] as num?)?.toDouble();
       final lng = (event['longitude'] as num?)?.toDouble();
       if (lat == null || lng == null) return;
-      final point = Point(coordinates: Position(lng, lat));
-      _animateVehicleMarkerTo(point);
+      if (_isDuplicateVehicleCoordinate(lat, lng)) return;
+
+      _rememberAcceptedVehicleCoordinate(lat, lng);
+      _animateVehicleMarkerTo(Point(coordinates: Position(lng, lat)));
     });
   }
 
-  Future<void> _animateVehicleMarkerTo(Point targetPoint) async {
+  Future<void> _animateVehicleMarkerTo(
+    Point targetPoint, {
+    double? headingOverride,
+  }) async {
     if (_pointAnnotationManager == null || !mounted) return;
 
-    final startPoint = _lastVehiclePoint ?? targetPoint;
-    final double bearing = _calculateBearing(
-      startPoint.coordinates.lat.toDouble(),
-      startPoint.coordinates.lng.toDouble(),
-      targetPoint.coordinates.lat.toDouble(),
-      targetPoint.coordinates.lng.toDouble(),
-    );
+    final targetLat = targetPoint.coordinates.lat.toDouble();
+    final targetLng = targetPoint.coordinates.lng.toDouble();
+
+    Point startPoint;
+    if (_vehicleAnimationInProgress &&
+        _vehicleLocationAnnotation?.geometry != null) {
+      startPoint = _vehicleLocationAnnotation!.geometry;
+    } else {
+      startPoint = _lastVehiclePoint ?? targetPoint;
+    }
+
+    // Prefer the device-reported heading; otherwise derive it from movement.
+    // Keep the previous heading when essentially stationary to avoid spinning.
+    final double bearing = headingOverride ??
+        (_haversineMeters(
+                  startPoint.coordinates.lat.toDouble(),
+                  startPoint.coordinates.lng.toDouble(),
+                  targetLat,
+                  targetLng,
+                ) <
+                1.0
+            ? (_lastVehicleHeading ?? 0.0)
+            : _calculateBearing(
+                startPoint.coordinates.lat.toDouble(),
+                startPoint.coordinates.lng.toDouble(),
+                targetLat,
+                targetLng,
+              ));
 
     if (!_isVehicleMarkerReady || _vehicleLocationAnnotation == null) {
-      final vehicleMarker = PointAnnotationOptions(
-        geometry: targetPoint,
-        image: await _createMarkerImage(Colors.blue, '🚌'),
-        iconRotate: bearing,
-      );
-      _vehicleLocationAnnotation = await _pointAnnotationManager!.create(
-        vehicleMarker,
-      );
-      _lastVehiclePoint = targetPoint;
-      _isVehicleMarkerReady = true;
-      if (_followVehicle) {
-        _animateCameraToVehicle(targetPoint, bearing);
+      if (_isCreatingVehicleMarker) return;
+      _isCreatingVehicleMarker = true;
+      try {
+        final vehicleMarker = PointAnnotationOptions(
+          geometry: targetPoint,
+          image: await _createMarkerImage(Colors.blue, '🚌'),
+          iconRotate: bearing,
+        );
+        _vehicleLocationAnnotation = await _pointAnnotationManager!.create(
+          vehicleMarker,
+        );
+        _rememberRenderedVehicleCoordinate(targetLat, targetLng);
+        _isVehicleMarkerReady = true;
+        if (_followVehicle) {
+          _animateCameraToVehicle(targetPoint, bearing);
+        }
+      } finally {
+        _isCreatingVehicleMarker = false;
       }
       return;
     }
 
+    if ((startPoint.coordinates.lat.toDouble() - targetLat).abs() <
+            _vehicleCoordinateEpsilon &&
+        (startPoint.coordinates.lng.toDouble() - targetLng).abs() <
+            _vehicleCoordinateEpsilon) {
+      _rememberRenderedVehicleCoordinate(targetLat, targetLng);
+      return;
+    }
+
     _vehicleAnimationTimer?.cancel();
+    _vehicleAnimationInProgress = true;
+
     const totalFrames = 60;
-    const totalDurationMs = 2000;
-    const frameDurationMs = totalDurationMs ~/ totalFrames;
+    final totalDurationMs = widget.pollActiveTrips
+        ? AppConfig.parentLiveTrackingPollSeconds * 1000
+        : 2000;
+    final frameDurationMs = totalDurationMs ~/ totalFrames;
     int frame = 0;
 
     _vehicleAnimationTimer = Timer.periodic(
-      const Duration(milliseconds: frameDurationMs),
+      Duration(milliseconds: frameDurationMs),
       (timer) async {
         if (!mounted || _vehicleLocationAnnotation == null) {
           timer.cancel();
+          _vehicleAnimationInProgress = false;
           return;
         }
         frame++;
@@ -1028,14 +1963,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         final easedT = Curves.easeInOut.transform(t.clamp(0.0, 1.0));
         final interpolatedLat =
             startPoint.coordinates.lat.toDouble() +
-            (targetPoint.coordinates.lat.toDouble() -
-                    startPoint.coordinates.lat.toDouble()) *
-                easedT;
+            (targetLat - startPoint.coordinates.lat.toDouble()) * easedT;
         final interpolatedLng =
             startPoint.coordinates.lng.toDouble() +
-            (targetPoint.coordinates.lng.toDouble() -
-                    startPoint.coordinates.lng.toDouble()) *
-                easedT;
+            (targetLng - startPoint.coordinates.lng.toDouble()) * easedT;
         final interpolatedPoint = Point(
           coordinates: Position(interpolatedLng, interpolatedLat),
         );
@@ -1051,7 +1982,139 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
         if (frame >= totalFrames) {
           timer.cancel();
-          _lastVehiclePoint = targetPoint;
+          _vehicleAnimationInProgress = false;
+          _rememberRenderedVehicleCoordinate(targetLat, targetLng);
+        }
+      },
+    );
+  }
+
+  /// Animates the vehicle marker through a multi-point (road-snapped) path over
+  /// the poll window, computing per-segment bearings so the icon turns with the
+  /// road. Each traversed vertex is appended to the breadcrumb trail.
+  Future<void> _animateVehicleAlongPath(
+    List<Point> path, {
+    double? headingOverride,
+  }) async {
+    if (_pointAnnotationManager == null || !mounted) return;
+    if (path.length < 2) {
+      if (path.isNotEmpty) {
+        await _animateVehicleMarkerTo(path.first,
+            headingOverride: headingOverride);
+      }
+      return;
+    }
+
+    // Ensure the marker exists before animating along the path.
+    if (!_isVehicleMarkerReady || _vehicleLocationAnnotation == null) {
+      await _animateVehicleMarkerTo(path.first,
+          headingOverride: headingOverride);
+    }
+
+    _vehicleAnimationTimer?.cancel();
+    _vehicleAnimationInProgress = true;
+
+    // Cumulative segment lengths to distribute motion at constant speed.
+    final segmentLengths = <double>[];
+    double totalLength = 0;
+    for (int i = 0; i < path.length - 1; i++) {
+      final d = _haversineMeters(
+        path[i].coordinates.lat.toDouble(),
+        path[i].coordinates.lng.toDouble(),
+        path[i + 1].coordinates.lat.toDouble(),
+        path[i + 1].coordinates.lng.toDouble(),
+      );
+      segmentLengths.add(d);
+      totalLength += d;
+    }
+    if (totalLength <= 0) {
+      _vehicleAnimationInProgress = false;
+      final last = path.last;
+      await _animateVehicleMarkerTo(last, headingOverride: headingOverride);
+      return;
+    }
+
+    const totalFrames = 60;
+    final totalDurationMs = widget.pollActiveTrips
+        ? AppConfig.parentLiveTrackingPollSeconds * 1000
+        : 2000;
+    final frameDurationMs = totalDurationMs ~/ totalFrames;
+    int frame = 0;
+
+    _vehicleAnimationTimer = Timer.periodic(
+      Duration(milliseconds: frameDurationMs),
+      (timer) async {
+        if (!mounted || _vehicleLocationAnnotation == null) {
+          timer.cancel();
+          _vehicleAnimationInProgress = false;
+          return;
+        }
+        frame++;
+        final t = (frame / totalFrames).clamp(0.0, 1.0);
+        final eased = Curves.easeInOut.transform(t);
+        final distanceAlong = eased * totalLength;
+
+        // Locate the active segment for this distance.
+        double acc = 0;
+        int seg = 0;
+        while (seg < segmentLengths.length &&
+            acc + segmentLengths[seg] < distanceAlong) {
+          acc += segmentLengths[seg];
+          seg++;
+        }
+        if (seg >= segmentLengths.length) seg = segmentLengths.length - 1;
+
+        final segStart = path[seg];
+        final segEnd = path[seg + 1];
+        final segLen = segmentLengths[seg];
+        final localT = segLen > 0 ? (distanceAlong - acc) / segLen : 0.0;
+
+        final lat = segStart.coordinates.lat.toDouble() +
+            (segEnd.coordinates.lat.toDouble() -
+                    segStart.coordinates.lat.toDouble()) *
+                localT;
+        final lng = segStart.coordinates.lng.toDouble() +
+            (segEnd.coordinates.lng.toDouble() -
+                    segStart.coordinates.lng.toDouble()) *
+                localT;
+        final point = Point(coordinates: Position(lng, lat));
+
+        final bearing = headingOverride ??
+            _calculateBearing(
+              segStart.coordinates.lat.toDouble(),
+              segStart.coordinates.lng.toDouble(),
+              segEnd.coordinates.lat.toDouble(),
+              segEnd.coordinates.lng.toDouble(),
+            );
+
+        _vehicleLocationAnnotation!
+          ..geometry = point
+          ..iconRotate = bearing;
+        await _pointAnnotationManager!.update(_vehicleLocationAnnotation!);
+
+        if (_followVehicle && frame % 3 == 0) {
+          _animateCameraToVehicle(point, bearing);
+        }
+
+        if (frame >= totalFrames) {
+          timer.cancel();
+          _vehicleAnimationInProgress = false;
+          final end = path.last;
+          _rememberRenderedVehicleCoordinate(
+            end.coordinates.lat.toDouble(),
+            end.coordinates.lng.toDouble(),
+          );
+          // Add the full snapped segment to the breadcrumb trail.
+          for (final p in path) {
+            _vehicleTrailPoints.add(p);
+          }
+          if (_vehicleTrailPoints.length > 300) {
+            _vehicleTrailPoints.removeRange(
+              0,
+              _vehicleTrailPoints.length - 300,
+            );
+          }
+          _redrawVehicleTrail();
         }
       },
     );
@@ -1736,6 +2799,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _clearRoutePolyline() async {
+    _plannedRouteTripId = null;
     if (_polylineAnnotationManager != null && _routePolyline != null) {
       try {
         await _polylineAnnotationManager!.delete(_routePolyline!);
@@ -1745,6 +2809,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         print('❌ Error clearing route polyline: $e');
       }
     }
+    await _clearParentToStartPolyline();
   }
 
   void _refreshMapData() async {
@@ -1753,7 +2818,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     print('🔄 Refreshing map data...');
 
     // Refresh active trip data
-    await ref.read(tripProvider.notifier).loadActiveTrips();
+    await _loadTrackingTrips();
 
     // Update map with new data
     if (_mapboxMap != null) {
@@ -1767,8 +2832,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   /// Uses createDriverParentChat(studentId) per web/desktop guide.
   Future<void> _messageDriver() async {
     if (_isCreatingDriverChat) return;
-    final tripState = ref.read(tripProvider);
-    final currentTrip = tripState.currentTrip;
+    final currentTrip = _getCurrentMapTrip();
     if (currentTrip == null) return;
 
     final parentState = ref.read(parentProvider);
@@ -1835,9 +2899,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   void _toggleRouteVisibility() async {
     if (_routePolyline == null) {
       // Route is not visible, show it from current location
-      final tripState = ref.read(tripProvider);
-      if (tripState.currentTrip != null) {
-        await _drawRouteFromCurrentLocation(tripState.currentTrip!);
+      final currentTrip = _getCurrentMapTrip();
+      if (currentTrip != null) {
+        await _drawRouteFromCurrentLocation(currentTrip);
         print('✅ Route polyline shown from current location');
       }
     } else {
@@ -1871,6 +2935,59 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     } catch (e) {
       print('❌ Error adding test green marker: $e');
     }
+  }
+
+  Future<Uint8List> _createAbbreviationMarkerImage(
+    Color color,
+    String label,
+  ) async {
+    final text = label.trim().isEmpty ? '?' : label.trim().toUpperCase();
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    const size = 56.0;
+    final fontSize = text.length <= 2
+        ? size * 0.38
+        : text.length <= 4
+            ? size * 0.28
+            : size * 0.22;
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final circleRadius = size * 0.38;
+    canvas.drawCircle(Offset(size / 2, size / 2), circleRadius, paint);
+
+    final borderPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5;
+    canvas.drawCircle(Offset(size / 2, size / 2), circleRadius, borderPaint);
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        (size - textPainter.width) / 2,
+        (size - textPainter.height) / 2,
+      ),
+    );
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(size.toInt(), size.toInt());
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
   }
 
   Future<Uint8List> _createMarkerImage(Color color, String emoji) async {

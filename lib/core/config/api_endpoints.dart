@@ -7,7 +7,7 @@ library;
 
 class ApiEndpoints {
   // Base Configuration
-  static const String baseUrl = 'http://148.230.122.207:3001/';
+  static const String baseUrl = 'http://148.230.122.207:8001/';
 
   // ============================================================================
   // AUTHENTICATION ENDPOINTS
@@ -84,6 +84,16 @@ class ApiEndpoints {
   /// GET /api/v1/tracking/trips/{trip_id}/ — `trip_id` is the string slug, not numeric PK
   static String tripDetailsByBackendId(String tripId) =>
       '/api/v1/tracking/trips/${Uri.encodeComponent(tripId)}/';
+
+  /// GET /api/v1/tracking/trips/{trip_id}/status/ — latest GPS for a trip
+  /// Returns latitude, longitude, speed, heading, accuracy, last_update, is_active.
+  static String tripRealtimeStatus(String tripId) =>
+      '/api/v1/tracking/trips/${Uri.encodeComponent(tripId)}/status/';
+
+  /// GET /api/v1/tracking/trips/{trip_id}/route/ — route + ordered stops
+  /// (parent-accessible). Used to draw the trip's route line on the map.
+  static String tripRouteDetail(String tripId) =>
+      '/api/v1/tracking/trips/${Uri.encodeComponent(tripId)}/route/';
 
   /// GET /api/v1/tracking/trips/driver/
   /// Get driver trips
@@ -293,8 +303,13 @@ class ApiEndpoints {
   static const String routes = '/api/v1/routes/routes/';
 
   /// GET /api/v1/routes/routes/{id}/
-  /// Get specific route details
+  /// Get specific route details (parents receive 404 — use [routeStops] instead)
   static String routeDetails(int routeId) => '/api/v1/routes/routes/$routeId/';
+
+  /// GET /api/v1/routes/routes/{id}/stops/
+  /// Ordered stops with latitude/longitude — parent-accessible for map polylines
+  static String routeStops(int routeId) =>
+      '/api/v1/routes/routes/$routeId/stops/';
 
   /// GET /api/v1/routes/routes/{id}/schedules/
   /// Get route schedules

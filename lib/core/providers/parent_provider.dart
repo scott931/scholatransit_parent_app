@@ -70,6 +70,9 @@ class ParentState {
 class ParentNotifier extends StateNotifier<ParentState> {
   StreamSubscription<Position>? _locationSubscription;
   bool _isLocationTracking = false;
+  bool _activeTripsLoadInFlight = false;
+  DateTime? _lastActiveTripsLoadAt;
+  static const Duration _minActiveTripsInterval = Duration(seconds: 12);
 
   ParentNotifier() : super(const ParentState()) {
     _initializeServices();
@@ -337,42 +340,12 @@ class ParentNotifier extends StateNotifier<ParentState> {
 
   /// Helper method to handle both direct list and paginated response formats
   List<Map<String, dynamic>> _extractDataFromResponse(dynamic responseData) {
-    List<Map<String, dynamic>> extractedData = [];
-
     try {
-      // ApiService wraps paginated GET /tracking/trips/ as [TripLogsResponse]
-      if (responseData is TripLogsResponse) {
-        for (final log in responseData.results) {
-          extractedData.add(log.toJson());
-        }
-        return extractedData;
-      }
-      // Check if data is a list directly
-      if (responseData is List) {
-        for (final item in responseData) {
-          if (item is Map) {
-            extractedData.add(Map<String, dynamic>.from(item));
-          }
-        }
-        return extractedData;
-      }
-      // Map: DRF pagination uses `results`; driver-style payloads use `trips`
-      if (responseData is Map) {
-        final dataMap = Map<String, dynamic>.from(responseData);
-        final results = dataMap['results'] ?? dataMap['trips'];
-        if (results is List) {
-          for (final item in results) {
-            if (item is Map) {
-              extractedData.add(Map<String, dynamic>.from(item as Map));
-            }
-          }
-        }
-      }
+      return ParentTrackingService.extractTripPayloads(responseData);
     } catch (e) {
       print('⚠️ Error extracting data from response: $e');
+      return [];
     }
-
-    return extractedData;
   }
 
   /// Validate authentication using centralized service
@@ -417,33 +390,30 @@ class ParentNotifier extends StateNotifier<ParentState> {
         return;
       }
 
-      // Load all data in parallel to reduce total loading time
-      // This prevents sequential timeouts from blocking the dashboard
-      final results = await Future.wait([
-        // Load students with timeout handling
-        loadStudents().timeout(
-          const Duration(seconds: 25),
-          onTimeout: () {
-            print('⏰ Students load timed out, continuing with other data');
-            return Future.value();
-          },
-        ).catchError((e) {
-          print('❌ Error loading students: $e');
+      // Students before trips — child linkage must exist before trip filtering.
+      await loadStudents().timeout(
+        const Duration(seconds: 25),
+        onTimeout: () {
+          print('⏰ Students load timed out, continuing with other data');
           return Future.value();
-        }),
-        
-        // Load active trips with timeout handling
-        loadActiveTrips().timeout(
-          const Duration(seconds: 25),
-          onTimeout: () {
-            print('⏰ Active trips load timed out, continuing with other data');
-            return Future.value();
-          },
-        ).catchError((e) {
-          print('❌ Error loading active trips: $e');
+        },
+      ).catchError((e) {
+        print('❌ Error loading students: $e');
+        return Future.value();
+      });
+
+      await loadActiveTrips(force: true).timeout(
+        const Duration(seconds: 25),
+        onTimeout: () {
+          print('⏰ Active trips load timed out, continuing with other data');
           return Future.value();
-        }),
-        
+        },
+      ).catchError((e) {
+        print('❌ Error loading active trips: $e');
+        return Future.value();
+      });
+
+      await Future.wait([
         // Load trip history with timeout handling
         loadTripHistory().timeout(
           const Duration(seconds: 25),
@@ -545,15 +515,9 @@ class ParentNotifier extends StateNotifier<ParentState> {
       }
     }
 
-    // Get child IDs from students where parent has a relationship
+    // `my-students` is already parent-scoped — every row is a linked child.
     for (final student in state.students) {
-      // Check if this student has a parent relationship with the authenticated parent
-      final hasParentRelationship = student.parents.any(
-        (parentInfo) => parentInfo.parent == parentId,
-      );
-      if (hasParentRelationship) {
-        childIds.add(student.id);
-      }
+      childIds.add(student.id);
     }
 
     print('🔒 SECURITY: Found ${childIds.length} child IDs for parent $parentId');
@@ -604,30 +568,150 @@ class ParentNotifier extends StateNotifier<ParentState> {
     return filteredTrips;
   }
 
-  Future<void> loadActiveTrips() async {
+  List<ParentTrip> _bootstrapTripsFromLinkedStudents() {
+    final bootstrapped = <ParentTrip>[];
+    final seen = <String>{};
+
+    void addTrip(ParentTrip trip) {
+      final key = trip.backendTripId.isNotEmpty
+          ? trip.backendTripId
+          : '${trip.id}_${trip.scheduledStartTime.millisecondsSinceEpoch}';
+      if (key.isEmpty || seen.contains(key)) return;
+      seen.add(key);
+      bootstrapped.add(trip);
+    }
+
+    for (final student in state.students) {
+      final current = student.currentTrip;
+      if (current != null && current.tripId.isNotEmpty) {
+        final status = current.status.toLowerCase();
+        if (status != 'completed' && status != 'cancelled') {
+          try {
+            addTrip(ParentTrip.fromStudentCurrentTrip(student));
+          } catch (e) {
+            print(
+              '⚠️ Skipping current_trip bootstrap for student ${student.id}: $e',
+            );
+          }
+        }
+      }
+
+      for (final raw in student.upcomingTrips) {
+        if (raw is! Map) continue;
+        try {
+          addTrip(
+            ParentTrip.fromStudentUpcomingTrip(
+              student,
+              Map<String, dynamic>.from(raw),
+            ),
+          );
+        } catch (e) {
+          print(
+            '⚠️ Skipping upcoming_trip bootstrap for student ${student.id}: $e',
+          );
+        }
+      }
+    }
+
+    if (bootstrapped.isNotEmpty) {
+      print(
+        'ℹ️ Bootstrapped ${bootstrapped.length} trip(s) from student payloads',
+      );
+    }
+    return bootstrapped;
+  }
+
+  List<ParentTrip> _mergeTripsById(
+    List<ParentTrip> primary,
+    List<ParentTrip> secondary,
+  ) {
+    final merged = <ParentTrip>[];
+    final seen = <String>{};
+
+    void add(ParentTrip trip) {
+      final key = trip.backendTripId.isNotEmpty
+          ? trip.backendTripId
+          : 'id_${trip.id}';
+      if (key.isEmpty || seen.contains(key)) return;
+      seen.add(key);
+      merged.add(trip);
+    }
+
+    for (final trip in primary) {
+      add(trip);
+    }
+    for (final trip in secondary) {
+      add(trip);
+    }
+    return merged;
+  }
+
+  Future<void> loadActiveTrips({bool force = false}) async {
+    final now = DateTime.now();
+    if (!force &&
+        _lastActiveTripsLoadAt != null &&
+        now.difference(_lastActiveTripsLoadAt!) < _minActiveTripsInterval) {
+      print('⏭️ Skipping trip reload — loaded recently');
+      return;
+    }
+    if (_activeTripsLoadInFlight) {
+      print('⏭️ Trip reload already in flight');
+      return;
+    }
+
+    _activeTripsLoadInFlight = true;
+    _lastActiveTripsLoadAt = now;
+
     try {
       final response = await ParentTrackingService.getActiveTrips();
-      if (response.success && response.data != null) {
-        final tripsData = _extractDataFromResponse(response.data!);
-        final allTrips = tripsData
-            .map((json) => ParentTrip.fromJson(json))
-            .toList();
-        
-        // Filter trips to only show those for parent's children
-        final filteredTrips = _filterTripsByParentChildRelationship(allTrips);
-        
-        print(
-          '✅ Loaded ${filteredTrips.length} active trips (filtered from ${allTrips.length} total)',
-        );
-        state = state.copyWith(activeTrips: filteredTrips);
-      } else {
-        print('⚠️ No active trips found or API unavailable, using empty list');
-        state = state.copyWith(activeTrips: []);
+      final tripsData = response.success && response.data != null
+          ? _extractDataFromResponse(response.data)
+          : <Map<String, dynamic>>[];
+
+      print(
+        '🚌 Trip payloads: ${tripsData.length} (api success=${response.success}, error=${response.error})',
+      );
+
+      if (!response.success) {
+        final bootstrapped = _bootstrapTripsFromLinkedStudents();
+        final cached = _mergeTripsById(state.activeTrips, bootstrapped);
+        if (cached.isNotEmpty) {
+          state = state.copyWith(activeTrips: cached);
+          print(
+            '⚠️ Trip API failed (${response.error}) — keeping ${cached.length} cached trip(s)',
+          );
+        } else {
+          print('⚠️ Trip API failed (${response.error}) — no cached trips');
+        }
+        return;
       }
+
+      final apiTrips = <ParentTrip>[];
+      for (final json in tripsData) {
+        try {
+          apiTrips.add(ParentTrip.fromJson(json));
+        } catch (e) {
+          print('⚠️ Skipping trip parse error: $e — keys: ${json.keys}');
+        }
+      }
+
+      // Backend already scopes parent trips — do not client-filter them away.
+      final bootstrapped = _bootstrapTripsFromLinkedStudents();
+      final mergedTrips = _mergeTripsById(apiTrips, bootstrapped);
+
+      print(
+        '✅ Parent trips: ${mergedTrips.length} total '
+        '(api=${apiTrips.length}, bootstrapped=${bootstrapped.length})',
+      );
+      state = state.copyWith(activeTrips: mergedTrips);
     } catch (e) {
+      final bootstrapped = _bootstrapTripsFromLinkedStudents();
+      state = state.copyWith(
+        activeTrips: bootstrapped.isNotEmpty ? bootstrapped : state.activeTrips,
+      );
       print('❌ Failed to load active trips: $e');
-      // Provide fallback empty list to prevent crashes
-      state = state.copyWith(activeTrips: []);
+    } finally {
+      _activeTripsLoadInFlight = false;
     }
   }
 

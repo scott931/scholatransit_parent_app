@@ -41,6 +41,22 @@ enum TripLogStatus {
     }
   }
 
+  /// Snake-case status codes from the tracking Trip API.
+  String get backendValue {
+    switch (this) {
+      case TripLogStatus.scheduled:
+        return 'scheduled';
+      case TripLogStatus.inProgress:
+        return 'in_progress';
+      case TripLogStatus.completed:
+        return 'completed';
+      case TripLogStatus.cancelled:
+        return 'cancelled';
+      case TripLogStatus.delayed:
+        return 'delayed';
+    }
+  }
+
   static TripLogStatus fromString(String status) {
     final s = status.toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
     switch (s) {
@@ -285,38 +301,89 @@ class TripLog {
     }
   }
 
+  static DateTime _parseRequiredDate(dynamic value) {
+    return DateTime.tryParse(value?.toString() ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  static DateTime? _parseOptionalDate(dynamic value) {
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString());
+  }
+
+  static int _parseInt(dynamic value, [int fallback = 0]) {
+    if (value == null) return fallback;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is Map) {
+      final nested = value['id'] ?? value['pk'];
+      return _parseInt(nested, fallback);
+    }
+    return int.tryParse(value.toString()) ?? fallback;
+  }
+
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
   /// Create TripLog from JSON response
   factory TripLog.fromJson(Map<String, dynamic> json) {
     return TripLog(
-      id: json['id'] ?? 0,
-      tripId: json['trip_id'] ?? '',
-      driver: json['driver'] ?? 0,
-      driverName: json['driver_name'] ?? '',
-      vehicle: json['vehicle'] ?? 0,
-      vehicleName: json['vehicle_name'] ?? '',
-      route: json['route'] ?? 0,
-      routeName: json['route_name'] ?? '',
-      tripType: TripLogType.fromString(json['trip_type'] ?? ''),
-      status: TripLogStatus.fromString(json['status'] ?? ''),
-      startLocation: json['start_location'],
-      endLocation: json['end_location'],
-      currentLocation: json['current_location'],
-      scheduledStart: DateTime.parse(json['scheduled_start']),
-      scheduledEnd: DateTime.parse(json['scheduled_end']),
-      actualStart: json['actual_start'] != null
-          ? DateTime.parse(json['actual_start'])
-          : null,
-      actualEnd: json['actual_end'] != null
-          ? DateTime.parse(json['actual_end'])
-          : null,
-      totalDistance: json['total_distance']?.toDouble(),
-      averageSpeed: json['average_speed']?.toDouble(),
-      maxSpeed: json['max_speed']?.toDouble(),
-      notes: json['notes'],
-      delayReason: json['delay_reason'],
-      createdAt: DateTime.parse(json['created_at']),
-      updatedAt: DateTime.parse(json['updated_at']),
+      id: _parseInt(json['id']),
+      tripId: json['trip_id']?.toString() ?? '',
+      driver: _parseInt(json['driver']),
+      driverName: json['driver_name']?.toString() ?? '',
+      vehicle: _parseInt(json['vehicle']),
+      vehicleName: json['vehicle_name']?.toString() ?? '',
+      route: _parseInt(json['route']),
+      routeName: json['route_name']?.toString() ?? '',
+      tripType: TripLogType.fromString(json['trip_type']?.toString() ?? ''),
+      status: TripLogStatus.fromString(json['status']?.toString() ?? ''),
+      startLocation: json['start_location']?.toString(),
+      endLocation: json['end_location']?.toString(),
+      currentLocation: json['current_location']?.toString(),
+      scheduledStart: _parseRequiredDate(json['scheduled_start']),
+      scheduledEnd: _parseRequiredDate(json['scheduled_end']),
+      actualStart: _parseOptionalDate(json['actual_start']),
+      actualEnd: _parseOptionalDate(json['actual_end']),
+      totalDistance: _parseDouble(json['total_distance']),
+      averageSpeed: _parseDouble(json['average_speed']),
+      maxSpeed: _parseDouble(json['max_speed']),
+      notes: json['notes']?.toString(),
+      delayReason: json['delay_reason']?.toString(),
+      createdAt: _parseRequiredDate(json['created_at']),
+      updatedAt: _parseRequiredDate(json['updated_at']),
     );
+  }
+
+  /// Map tracking API trip payloads into [ParentTrip.fromJson] field names.
+  Map<String, dynamic> toParentTripJson() {
+    final wktCurrent = parseWktCoordinates(currentLocation);
+    return {
+      'id': id,
+      'trip_id': tripId,
+      'driver': driver,
+      'driver_name': driverName,
+      'vehicle': vehicle,
+      'vehicle_name': vehicleName,
+      'route': route,
+      'route_name': routeName,
+      'trip_type': tripType.apiValue,
+      'status': status.backendValue,
+      'start_location': startLocation,
+      'end_location': endLocation,
+      'current_location': currentLocation,
+      if (wktCurrent != null) 'current_latitude': wktCurrent['latitude'],
+      if (wktCurrent != null) 'current_longitude': wktCurrent['longitude'],
+      'scheduled_start': scheduledStart.toIso8601String(),
+      'scheduled_end': scheduledEnd.toIso8601String(),
+      'actual_start': actualStart?.toIso8601String(),
+      'actual_end': actualEnd?.toIso8601String(),
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+    };
   }
 
   /// Convert TripLog to JSON
@@ -332,7 +399,7 @@ class TripLog {
       'route': route,
       'route_name': routeName,
       'trip_type': tripType.apiValue,
-      'status': status.apiValue,
+      'status': status.backendValue,
       'start_location': startLocation,
       'end_location': endLocation,
       'current_location': currentLocation,
@@ -383,17 +450,27 @@ class TripLogsResponse {
     required this.results,
   });
 
+  static List<TripLog> _parseResults(dynamic raw) {
+    if (raw is! List) return [];
+    final logs = <TripLog>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      try {
+        logs.add(TripLog.fromJson(Map<String, dynamic>.from(item)));
+      } catch (_) {
+        // Skip malformed trip rows — keep the rest of the page.
+      }
+    }
+    return logs;
+  }
+
   /// Create TripLogsResponse from JSON
   factory TripLogsResponse.fromJson(Map<String, dynamic> json) {
     return TripLogsResponse(
       count: json['count'] ?? 0,
       next: json['next'],
       previous: json['previous'],
-      results:
-          (json['results'] as List<dynamic>?)
-              ?.map((item) => TripLog.fromJson(item as Map<String, dynamic>))
-              .toList() ??
-          [],
+      results: _parseResults(json['results']),
     );
   }
 

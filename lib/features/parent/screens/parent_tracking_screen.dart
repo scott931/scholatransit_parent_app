@@ -6,11 +6,25 @@ import '../../../core/providers/parent_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../map/screens/map_screen.dart';
 
-class ParentTrackingScreen extends ConsumerWidget {
+class ParentTrackingScreen extends ConsumerStatefulWidget {
   const ParentTrackingScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ParentTrackingScreen> createState() =>
+      _ParentTrackingScreenState();
+}
+
+class _ParentTrackingScreenState extends ConsumerState<ParentTrackingScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(parentProvider.notifier).refreshData();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final parentState = ref.watch(parentProvider);
 
     if (parentState.isLoading) {
@@ -28,49 +42,55 @@ class ParentTrackingScreen extends ConsumerWidget {
       );
     }
 
-    // Only show map and bus tracking when there's an active trip
+    // Same gate as dashboard Quick Actions — any trip the parent API returned.
     if (parentState.activeTrips.isEmpty) {
       return Scaffold(
         backgroundColor: AppTheme.backgroundColor,
-        body: Center(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 32.w),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: EdgeInsets.all(24.w),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withOpacity(0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.directions_bus_rounded,
-                    size: 56.w,
-                    color: AppTheme.primaryColor.withOpacity(0.6),
-                  ),
+        body: RefreshIndicator(
+          onRefresh: () => ref.read(parentProvider.notifier).refreshData(),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              SizedBox(height: MediaQuery.sizeOf(context).height * 0.25),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 32.w),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(24.w),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withOpacity(0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.directions_bus_rounded,
+                        size: 56.w,
+                        color: AppTheme.primaryColor.withOpacity(0.6),
+                      ),
+                    ),
+                    SizedBox(height: 24.h),
+                    Text(
+                      'No Active Trips',
+                      style: GoogleFonts.poppins(
+                        fontSize: 20.sp,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 12.h),
+                    Text(
+                      'Live tracking will appear here when your child has an active or scheduled bus trip. Pull down to refresh.',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14.sp,
+                        color: AppTheme.textSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
-                SizedBox(height: 24.h),
-                Text(
-                  'No Active Trips',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 12.h),
-                Text(
-                  'Live tracking will appear here when your child has an active bus trip.',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14.sp,
-                    color: AppTheme.textSecondary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       );

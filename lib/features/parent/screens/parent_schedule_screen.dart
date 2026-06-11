@@ -22,7 +22,7 @@ class _ParentScheduleScreenState extends ConsumerState<ParentScheduleScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(parentProvider.notifier).loadActiveTrips();
+      ref.read(parentProvider.notifier).refreshData();
     });
   }
 

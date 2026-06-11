@@ -250,12 +250,15 @@ class ApiService {
         } else if (response.data is Map<String, dynamic>) {
           final responseData = response.data as Map<String, dynamic>;
 
-          // Only convert to TripLogsResponse for tracking/trips endpoints
-          // (schools and other APIs also return count+results paginated format)
-          final isTripsApi = reqPath.contains('/tracking/') || reqPath.contains('/trips/');
+          // Only convert to TripLogsResponse when the caller requests that type.
+          // Parent tracking uses get<dynamic> and parses raw maps via
+          // ParentTrackingService.extractTripPayloads → ParentTrip.fromJson.
+          final isTripsApi =
+              reqPath.contains('/tracking/') || reqPath.contains('/trips/');
           if (isTripsApi &&
               responseData.containsKey('count') &&
-              responseData.containsKey('results')) {
+              responseData.containsKey('results') &&
+              T == TripLogsResponse) {
             data = TripLogsResponse.fromJson(responseData) as T;
           }
           // Check if this looks like a ParentTrip by checking for required fields

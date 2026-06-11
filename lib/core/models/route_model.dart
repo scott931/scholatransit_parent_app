@@ -1,3 +1,5 @@
+import '../utils/coordinate_utils.dart';
+
 class RouteInfo {
   final int id;
   final String name;
@@ -107,12 +109,14 @@ class RouteStop {
       stopType: json['stop_type'] ?? '',
       stopTypeDisplay: json['stop_type_display'] ?? '',
       address: json['address'],
-      latitude: json['latitude'] != null
-          ? double.tryParse(json['latitude'].toString())
-          : null,
-      longitude: json['longitude'] != null
-          ? double.tryParse(json['longitude'].toString())
-          : null,
+      latitude: CoordinateUtils.fromStopJson(json)?['latitude'] ??
+          (json['latitude'] != null
+              ? double.tryParse(json['latitude'].toString())
+              : null),
+      longitude: CoordinateUtils.fromStopJson(json)?['longitude'] ??
+          (json['longitude'] != null
+              ? double.tryParse(json['longitude'].toString())
+              : null),
       estimatedArrivalTime: json['estimated_arrival_time'],
       estimatedDepartureTime: json['estimated_departure_time'],
       order: json['order'] ?? 0,

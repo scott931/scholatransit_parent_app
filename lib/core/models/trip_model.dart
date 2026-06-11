@@ -1,3 +1,5 @@
+import '../utils/coordinate_utils.dart';
+
 enum TripStatus { pending, inProgress, completed, cancelled, delayed }
 
 enum TripType { pickup, dropoff, scheduled, emergency }
@@ -191,7 +193,7 @@ class Trip {
       driverName: json['driver_name'],
       vehicleId: json['vehicle'] ?? json['vehicle_id'],
       vehicleName: json['vehicle_name'],
-      routeId: json['route'] ?? json['route_id'],
+      routeId: CoordinateUtils.parseRouteId(json['route'] ?? json['route_id']),
       routeName: json['route_name'],
       status: _parseTripStatus(json['status']),
       type: _parseTripType(json['trip_type']),
@@ -260,7 +262,7 @@ class Trip {
       driverName: json['driver_name'],
       vehicleId: json['vehicle'] ?? json['vehicle_id'],
       vehicleName: json['vehicle_name'],
-      routeId: json['route'] ?? json['route_id'],
+      routeId: CoordinateUtils.parseRouteId(json['route'] ?? json['route_id']),
       routeName: json['route_name'],
       status: _parseTripStatus(json['status']),
       type: _parseTripType(json['trip_type']),

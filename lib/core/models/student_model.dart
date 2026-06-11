@@ -150,6 +150,17 @@ class Student {
     return v.toString();
   }
 
+  static int? _parseOptionalRouteId(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    if (v is Map) {
+      final nested = v['id'] ?? v['pk'] ?? v['route_id'];
+      return _parseOptionalRouteId(nested);
+    }
+    return int.tryParse(_str(v));
+  }
+
   /// Safely parse DateTime from String (ISO8601) or int (Unix timestamp).
   static DateTime? _parseDateTime(dynamic v) {
     if (v == null) return null;
@@ -186,15 +197,9 @@ class Student {
       country: _str(json['country']),
       schoolName: _str(json['school_name']),
       schoolAddress: _str(json['school_address']),
-      assignedRoute: json['assigned_route'] is int
-          ? json['assigned_route'] as int?
-          : (json['assigned_route'] != null ? int.tryParse(_str(json['assigned_route'])) : null),
-      pickupStop: json['pickup_stop'] is int
-          ? json['pickup_stop'] as int?
-          : (json['pickup_stop'] != null ? int.tryParse(_str(json['pickup_stop'])) : null),
-      dropoffStop: json['dropoff_stop'] is int
-          ? json['dropoff_stop'] as int?
-          : (json['dropoff_stop'] != null ? int.tryParse(_str(json['dropoff_stop'])) : null),
+      assignedRoute: _parseOptionalRouteId(json['assigned_route']),
+      pickupStop: _parseOptionalRouteId(json['pickup_stop']),
+      dropoffStop: _parseOptionalRouteId(json['dropoff_stop']),
       hasRouteAssignment: json['has_route_assignment'] == true,
       routeName: _strOrNull(json['route_name']),
       routeDescription: _strOrNull(json['route_description']),

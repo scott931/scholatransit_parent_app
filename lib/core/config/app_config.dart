@@ -31,7 +31,7 @@ class AppConfig {
   static const String updateLocationEndpoint = ApiEndpoints.updateLocation;
 
   // Routes Endpoints
-  static const String routesListEndpoint = '/routes/routes/';
+  static const String routesListEndpoint = '/api/v1/routes/routes/';
   static const String routesAssignmentsEndpoint = '/routes/assignments/';
 
   // Driver Endpoints
@@ -67,7 +67,8 @@ class AppConfig {
 
   // Tracking Endpoints
   static const String trackingEndpoint = '/tracking/';
-  static const String liveTrackingEndpoint = '/tracking/live/';
+  /// Backend has no /tracking/live/ — poll `/api/v1/tracking/trips/{trip_id}/status/`
+  static const String liveTrackingEndpoint = '/api/v1/tracking/trips/';
   static const String locationUpdateEndpoint = '/tracking/location/';
   static const String trackingLocationsEndpoint = '/tracking/locations/';
   static const String trackingLocationsUpdateEndpoint =
@@ -133,8 +134,11 @@ class AppConfig {
   static const int maxRetryAttempts = 3;
   static const Duration retryDelay = Duration(seconds: 2);
 
-  /// Interval for refetching active trip data on the parent live map (seconds).
-  static const int parentLiveTrackingPollSeconds = 5;
+  /// Interval for polling live bus GPS on the parent map (seconds).
+  static const int parentLiveTrackingPollSeconds = 3;
+
+  /// Interval for refetching trip metadata (route/status) on the parent map.
+  static const int parentTripMetadataPollSeconds = 30;
 
   // Debug Configuration
   static const bool enableLogging = true;

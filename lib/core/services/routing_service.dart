@@ -60,6 +60,99 @@ class RoutingService {
     }
   }
 
+  /// Road-following route through an ordered list of waypoints (e.g. the stops
+  /// of a bus route). Returns the decoded polyline plus distance/duration, or
+  /// null when routing is unavailable.
+  static Future<RouteInfo?> getRouteThroughWaypoints(
+    List<Map<String, double>> waypoints,
+  ) async {
+    if (waypoints.length < 2) return null;
+    // Mapbox Directions allows up to 25 coordinates; keep first..last if more.
+    final pts = waypoints.length > 25
+        ? [...waypoints.sublist(0, 24), waypoints.last]
+        : waypoints;
+    try {
+      final coordinates =
+          pts.map((p) => '${p['longitude']},${p['latitude']}').join(';');
+      final url =
+          '$_baseUrl/mapbox/$_profile/$coordinates'
+          '?access_token=${AppConfig.mapboxToken}&geometries=polyline&overview=full';
+
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) {
+        print('⚠️ Waypoint routing failed: HTTP ${response.statusCode}');
+        return null;
+      }
+
+      final data = json.decode(response.body);
+      if (data['routes'] != null && data['routes'].isNotEmpty) {
+        final route = data['routes'][0];
+        final geometry = route['geometry'];
+        if (geometry is String && geometry.isNotEmpty) {
+          final coords = _decodePolyline(geometry);
+          if (coords.isNotEmpty) {
+            return RouteInfo(
+              coordinates: coords,
+              distance: route['distance']?.toDouble() ?? 0.0,
+              duration: route['duration']?.toDouble() ?? 0.0,
+            );
+          }
+        }
+      }
+      return null;
+    } catch (e) {
+      print('⚠️ Waypoint routing error: $e');
+      return null;
+    }
+  }
+
+  /// Snap a short sequence of raw GPS points to the road network using the
+  /// Mapbox Map Matching API. Returns the matched coordinate list (lat/lng) or
+  /// null when matching is unavailable. Used for Uber-style road-following of
+  /// the live vehicle marker between consecutive position updates.
+  static Future<List<Map<String, double>>?> getSnappedPath(
+    List<Map<String, double>> points,
+  ) async {
+    if (points.length < 2) return null;
+    // Map Matching accepts up to 100 coordinates; keep the most recent tail.
+    final trimmed = points.length > 25
+        ? points.sublist(points.length - 25)
+        : points;
+    try {
+      final coordinates = trimmed
+          .map((p) => '${p['longitude']},${p['latitude']}')
+          .join(';');
+      final url =
+          'https://api.mapbox.com/matching/v5/mapbox/driving/$coordinates'
+          '?access_token=${AppConfig.mapboxToken}&geometries=polyline&overview=full';
+
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) {
+        print('⚠️ Map Matching failed: HTTP ${response.statusCode}');
+        return null;
+      }
+
+      final data = json.decode(response.body);
+      final matchings = data['matchings'];
+      if (matchings is List && matchings.isNotEmpty) {
+        final geometry = matchings[0]['geometry'];
+        if (geometry is String && geometry.isNotEmpty) {
+          final decoded = _decodePolyline(geometry);
+          if (decoded.length >= 2) return decoded;
+        }
+      }
+      return null;
+    } catch (e) {
+      print('⚠️ Map Matching error: $e');
+      return null;
+    }
+  }
+
+  /// Decode Mapbox polyline geometry to coordinate list.
+  static List<Map<String, double>> decodePolyline(String encoded) {
+    return _decodePolyline(encoded);
+  }
+
   /// Decode Mapbox polyline geometry to coordinate list
   static List<Map<String, double>> _decodePolyline(String encoded) {
     final List<Map<String, double>> coordinates = [];
