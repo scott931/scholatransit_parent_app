@@ -6,6 +6,7 @@ import '../models/trip_log_model.dart';
 import '../config/api_endpoints.dart';
 import '../config/app_config.dart';
 import '../models/trip_model.dart' show Trip;
+import '../utils/coordinate_utils.dart';
 import 'api_service.dart';
 import 'route_stop_resolver.dart';
 
@@ -76,8 +77,9 @@ class ParentTrackingService {
 
     if (listResponse.success && listResponse.data != null) {
       final all = extractTripPayloads(listResponse.data);
-      final relevant =
-          all.where((t) => _isRelevantParentTripStatus(t['status'])).toList();
+      final relevant = all
+          .where((t) => _isRelevantParentTripStatus(t['status']))
+          .toList();
       final trips = relevant.isNotEmpty ? relevant : all;
 
       print(
@@ -85,15 +87,14 @@ class ParentTrackingService {
       );
 
       if (trips.isNotEmpty) {
-        return ApiResponse.success(
-          {'trips': trips},
-          listResponse.statusCode,
-        );
+        return ApiResponse.success({'trips': trips}, listResponse.statusCode);
       }
     }
 
     // Fallback when the list is empty or failed — one lightweight active call.
-    final activeResponse = await ApiService.get<dynamic>(ApiEndpoints.activeTrips);
+    final activeResponse = await ApiService.get<dynamic>(
+      ApiEndpoints.activeTrips,
+    );
     if (activeResponse.success) {
       final activeCount = extractTripPayloads(activeResponse.data).length;
       print('🚌 Active trips fallback: $activeCount');
@@ -150,12 +151,16 @@ class ParentTrackingService {
   }
 
   /// Get trip details with real-time location (`backendTripId` = API `trip_id` string).
-  static Future<ApiResponse<ParentTrip>> getTripDetails(String backendTripId) async {
+  static Future<ApiResponse<ParentTrip>> getTripDetails(
+    String backendTripId,
+  ) async {
     final response = await ApiService.get<dynamic>(
       ApiEndpoints.tripDetailsByBackendId(backendTripId),
     );
     if (!response.success || response.data == null) {
-      return ApiResponse<ParentTrip>.error(response.error ?? 'Failed to load trip details');
+      return ApiResponse<ParentTrip>.error(
+        response.error ?? 'Failed to load trip details',
+      );
     }
 
     final raw = response.data;
@@ -206,8 +211,14 @@ class ParentTrackingService {
       var trip = detailsResponse.data!;
       if (statusResponse.success && statusResponse.data != null) {
         final data = statusResponse.data!;
-        final lat = (data['latitude'] as num?)?.toDouble();
-        final lng = (data['longitude'] as num?)?.toDouble();
+        final coords =
+            CoordinateUtils.fromLatLngFields(
+              data['latitude'] ?? data['current_latitude'],
+              data['longitude'] ?? data['current_longitude'],
+            ) ??
+            CoordinateUtils.fromLocationValue(data['current_location']);
+        final lat = coords?['latitude'];
+        final lng = coords?['longitude'];
         final isActive = data['is_active'] is bool
             ? data['is_active'] as bool
             : data['is_active']?.toString().toLowerCase() == 'true';
@@ -217,9 +228,8 @@ class ParentTrackingService {
           trip = trip.copyWith(
             currentLatitude: lat,
             currentLongitude: lng,
-            lastLocationUpdate: DateTime.tryParse(
-                  data['last_update']?.toString() ?? '',
-                ) ??
+            lastLocationUpdate:
+                DateTime.tryParse(data['last_update']?.toString() ?? '') ??
                 DateTime.now(),
             estimatedArrivalMinutes: eta,
             isActiveFromApi: isActive,
@@ -297,7 +307,8 @@ class ParentTrackingService {
     // Client-side date filter — backend does not support start_date/end_date.
     final trips = extractTripPayloads(response.data);
     final filtered = trips.where((trip) {
-      final raw = trip['actual_end'] ??
+      final raw =
+          trip['actual_end'] ??
           trip['actual_end_time'] ??
           trip['scheduled_end'] ??
           trip['scheduled_end_time'];
@@ -308,10 +319,10 @@ class ParentTrackingService {
       return true;
     }).toList();
 
-    return ApiResponse.success(
-      {'results': filtered, 'count': filtered.length},
-      response.statusCode,
-    );
+    return ApiResponse.success({
+      'results': filtered,
+      'count': filtered.length,
+    }, response.statusCode);
   }
 
   /// Get child's profile (includes current_trip from backend).
@@ -335,10 +346,10 @@ class ParentTrackingService {
         response.error ?? 'Failed to load route stops',
       );
     }
-    return ApiResponse<Map<String, dynamic>>.success(
-      {'id': routeId, 'stops': response.data},
-      response.statusCode,
-    );
+    return ApiResponse<Map<String, dynamic>>.success({
+      'id': routeId,
+      'stops': response.data,
+    }, response.statusCode);
   }
 
   /// Get driver information

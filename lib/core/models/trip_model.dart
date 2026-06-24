@@ -87,7 +87,8 @@ class Trip {
     this.etaLastUpdated,
   });
 
-  bool get isActive => status == TripStatus.inProgress;
+  bool get isActive =>
+      status == TripStatus.inProgress || status == TripStatus.delayed;
   bool get isCompleted => status == TripStatus.completed;
   bool get isCancelled => status == TripStatus.cancelled;
   bool get isDelayed => status == TripStatus.delayed;

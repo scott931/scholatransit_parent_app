@@ -47,6 +47,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   PointAnnotation? _endLocationAnnotation;
   final List<PointAnnotation> _studentPickupAnnotations = [];
   PolylineAnnotationManager? _polylineAnnotationManager;
+
   /// Separate manager so [setLineDasharray] does not affect the solid route line.
   PolylineAnnotationManager? _parentToStartPolylineManager;
   PolylineAnnotation? _routePolyline;
@@ -54,6 +55,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   // Trip id whose planned (stop-based) route line is currently drawn, so the
   // static route is fetched/rendered once per trip instead of on every poll.
   String? _plannedRouteTripId;
+
   /// Cached route stop coordinates for the active trip (pickup polyline + dashed line).
   List<Map<String, double>>? _cachedRouteStops;
   ProviderSubscription<TripState>? _tripStateSubscription;
@@ -465,11 +467,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
           // Map key for parent live tracking
           if (widget.pollActiveTrips && tripState.currentTrip != null)
-            Positioned(
-              top: 200.h,
-              left: 16.w,
-              child: _buildParentMapLegend(),
-            ),
+            Positioned(top: 200.h, left: 16.w, child: _buildParentMapLegend()),
 
           // Trip Details Card - Show only when there's an active trip
           if (tripState.currentTrip != null)
@@ -825,23 +823,29 @@ class _MapScreenState extends ConsumerState<MapScreen>
       }
 
       // Resolve route stops from embedded data, route API, or trip details.
-      final resolvedStops = await ParentTrackingService.resolveRouteStopCoordinates(
-        parentTrip: widget.pollActiveTrips ? _getParentTrackingTrip() : null,
-        mapTrip: currentTrip,
-        hintRouteId: widget.pollActiveTrips ? _hintRouteIdFromStudents() : null,
-      );
+      final resolvedStops =
+          await ParentTrackingService.resolveRouteStopCoordinates(
+            parentTrip: widget.pollActiveTrips
+                ? _getParentTrackingTrip()
+                : null,
+            mapTrip: currentTrip,
+            hintRouteId: widget.pollActiveTrips
+                ? _hintRouteIdFromStudents()
+                : null,
+          );
       print('🗺️ Resolved ${resolvedStops.length} route stop(s) for polyline');
       _cachedRouteStops = resolvedStops.isNotEmpty ? resolvedStops : null;
       final drewPlanned = await _drawPlannedRoute(
         currentTrip,
-        embeddedStops:
-            resolvedStops.length >= 2 ? resolvedStops : null,
+        embeddedStops: resolvedStops.length >= 2 ? resolvedStops : null,
       );
       if (drewPlanned) {
         _plannedRouteTripId = currentTrip.tripId;
         print('🗺️ DEBUG: Planned route drawn from route stops');
       } else {
-        print('🗺️ DEBUG: No route stops — drawing route from current location');
+        print(
+          '🗺️ DEBUG: No route stops — drawing route from current location',
+        );
         await _drawRouteFromCurrentLocation(currentTrip);
       }
 
@@ -917,10 +921,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
         final marker = PointAnnotationOptions(
           geometry: Point(
-            coordinates: Position(
-              coords['longitude']!,
-              coords['latitude']!,
-            ),
+            coordinates: Position(coords['longitude']!, coords['latitude']!),
           ),
           image: await _createAbbreviationMarkerImage(
             AppTheme.primaryColor,
@@ -952,8 +953,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     Trip trip, {
     List<Map<String, double>>? routeStops,
   }) async {
-    if (!widget.pollActiveTrips ||
-        _parentToStartPolylineManager == null) {
+    if (!widget.pollActiveTrips || _parentToStartPolylineManager == null) {
       return;
     }
 
@@ -1124,9 +1124,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
           lineOpacity: 1.0,
         ),
       );
-      print(
-        '✅ Planned route polyline drawn with ${positions.length} points',
-      );
+      print('✅ Planned route polyline drawn with ${positions.length} points');
     } catch (e) {
       print('❌ Failed to draw planned route polyline: $e');
       return false;
@@ -1233,7 +1231,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
       // Fallback to device GPS when bus coordinates are unavailable.
       if (startLat == null || startLng == null) {
-        final currentLocation = await LocationServiceResolver.getCurrentPosition();
+        final currentLocation =
+            await LocationServiceResolver.getCurrentPosition();
         if (currentLocation != null) {
           startLat = currentLocation.latitude;
           startLng = currentLocation.longitude;
@@ -1253,14 +1252,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
       // Reverse geocode street names (non-blocking UI updates)
       // Current street
-      _reverseGeocode(startLat, startLng).then(
-        (name) {
-          if (!mounted) return;
-          if (name != null && name != _currentStreetName) {
-            setState(() => _currentStreetName = name);
-          }
-        },
-      );
+      _reverseGeocode(startLat, startLng).then((name) {
+        if (!mounted) return;
+        if (name != null && name != _currentStreetName) {
+          setState(() => _currentStreetName = name);
+        }
+      });
       // Destination street
       if (trip.endLatitude != null && trip.endLongitude != null) {
         _reverseGeocode(trip.endLatitude!, trip.endLongitude!).then((name) {
@@ -1458,7 +1455,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       return;
     }
 
-    final tripState = ref.read(tripProvider);
+    final tripState = _getDisplayTripState();
     print('🔍 DEBUG: Total trips loaded: ${tripState.trips.length}');
     print(
       '🔍 DEBUG: Trip states: ${tripState.trips.map((t) => '${t.tripId}: ${t.status.name}').join(', ')}',
@@ -1526,8 +1523,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   void _onParentStateChanged(ParentState? previous, ParentState next) {
     if (!mounted || !widget.pollActiveTrips) return;
 
-    final prevTripKey =
-        previous != null ? _parentTripKey(previous) : null;
+    final prevTripKey = previous != null ? _parentTripKey(previous) : null;
     final nextTripKey = _parentTripKey(next);
 
     if (_mapboxMap != null && nextTripKey != null) {
@@ -1637,10 +1633,16 @@ class _MapScreenState extends ConsumerState<MapScreen>
       }
 
       final data = response.data!;
-      final lat = (data['latitude'] as num?)?.toDouble();
-      final lng = (data['longitude'] as num?)?.toDouble();
-      final heading = (data['heading'] as num?)?.toDouble();
-      final speed = (data['speed'] as num?)?.toDouble();
+      final coords =
+          CoordinateUtils.fromLatLngFields(
+            data['latitude'] ?? data['current_latitude'],
+            data['longitude'] ?? data['current_longitude'],
+          ) ??
+          CoordinateUtils.fromLocationValue(data['current_location']);
+      final lat = coords?['latitude'];
+      final lng = coords?['longitude'];
+      final heading = _toNullableDouble(data['heading']);
+      final speed = _toNullableDouble(data['speed']);
       final lastUpdateRaw = data['last_update']?.toString();
 
       if (lastUpdateRaw != null) {
@@ -1656,8 +1658,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       if (_isDuplicateVehicleCoordinate(lat, lng)) return;
 
       // GPS noise filter: ignore tiny jitter so the marker doesn't shiver.
-      if (_lastAcceptedVehicleLat != null &&
-          _lastAcceptedVehicleLng != null) {
+      if (_lastAcceptedVehicleLat != null && _lastAcceptedVehicleLng != null) {
         final moved = _haversineMeters(
           _lastAcceptedVehicleLat!,
           _lastAcceptedVehicleLng!,
@@ -1679,6 +1680,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
     } finally {
       _isFetchingVehicleStatus = false;
     }
+  }
+
+  double? _toNullableDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
   }
 
   /// Snaps the segment from the previous position to the new fix onto roads
@@ -1710,9 +1717,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
       ]);
       if (segment != null && segment.length >= 2) {
         snapped = segment
-            .map((c) => Point(
-                  coordinates: Position(c['longitude']!, c['latitude']!),
-                ))
+            .map(
+              (c) =>
+                  Point(coordinates: Position(c['longitude']!, c['latitude']!)),
+            )
             .toList();
       }
     }
@@ -1730,7 +1738,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
   void _recomputeVehicleStaleness() {
     final last = _lastVehicleUpdateAt;
     final stale =
-        last == null || DateTime.now().difference(last) > _vehicleStaleThreshold;
+        last == null ||
+        DateTime.now().difference(last) > _vehicleStaleThreshold;
     if (stale != _isVehiclePositionStale && mounted) {
       setState(() => _isVehiclePositionStale = stale);
     }
@@ -1755,9 +1764,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       _vehicleTrailPolyline = await _polylineAnnotationManager!.create(
         PolylineAnnotationOptions(
           geometry: LineString(
-            coordinates: _vehicleTrailPoints
-                .map((p) => p.coordinates)
-                .toList(),
+            coordinates: _vehicleTrailPoints.map((p) => p.coordinates).toList(),
           ),
           lineColor: Colors.teal.toARGB32(),
           lineWidth: 4.0,
@@ -1769,16 +1776,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
     }
   }
 
-  double _haversineMeters(
-    double lat1,
-    double lon1,
-    double lat2,
-    double lon2,
-  ) {
+  double _haversineMeters(double lat1, double lon1, double lat2, double lon2) {
     const earthRadius = 6371000.0; // meters
     final dLat = _degreesToRadians(lat2 - lat1);
     final dLon = _degreesToRadians(lon2 - lon1);
-    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
         math.cos(_degreesToRadians(lat1)) *
             math.cos(_degreesToRadians(lat2)) *
             math.sin(dLon / 2) *
@@ -1857,17 +1860,21 @@ class _MapScreenState extends ConsumerState<MapScreen>
         SizedBox(
           width: 28.w,
           child: isBus
-              ? Icon(Icons.directions_bus_filled_rounded, size: 16.w, color: color)
+              ? Icon(
+                  Icons.directions_bus_filled_rounded,
+                  size: 16.w,
+                  color: color,
+                )
               : isDot
-                  ? Container(
-                      width: 10.w,
-                      height: 10.w,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                      ),
-                    )
-                  : _parentMapLegendLine(color: color, isDashed: isDashed),
+              ? Container(
+                  width: 10.w,
+                  height: 10.w,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                )
+              : _parentMapLegendLine(color: color, isDashed: isDashed),
         ),
         SizedBox(width: 8.w),
         Expanded(
@@ -1883,10 +1890,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     );
   }
 
-  Widget _parentMapLegendLine({
-    required Color color,
-    required bool isDashed,
-  }) {
+  Widget _parentMapLegendLine({required Color color, required bool isDashed}) {
     if (!isDashed) {
       return Container(
         height: 3.h,
@@ -2039,7 +2043,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
     // Prefer the device-reported heading; otherwise derive it from movement.
     // Keep the previous heading when essentially stationary to avoid spinning.
-    final double bearing = headingOverride ??
+    final double bearing =
+        headingOverride ??
         (_haversineMeters(
                   startPoint.coordinates.lat.toDouble(),
                   startPoint.coordinates.lng.toDouble(),
@@ -2145,16 +2150,20 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (_pointAnnotationManager == null || !mounted) return;
     if (path.length < 2) {
       if (path.isNotEmpty) {
-        await _animateVehicleMarkerTo(path.first,
-            headingOverride: headingOverride);
+        await _animateVehicleMarkerTo(
+          path.first,
+          headingOverride: headingOverride,
+        );
       }
       return;
     }
 
     // Ensure the marker exists before animating along the path.
     if (!_isVehicleMarkerReady || _vehicleLocationAnnotation == null) {
-      await _animateVehicleMarkerTo(path.first,
-          headingOverride: headingOverride);
+      await _animateVehicleMarkerTo(
+        path.first,
+        headingOverride: headingOverride,
+      );
     }
 
     _vehicleAnimationTimer?.cancel();
@@ -2215,17 +2224,20 @@ class _MapScreenState extends ConsumerState<MapScreen>
         final segLen = segmentLengths[seg];
         final localT = segLen > 0 ? (distanceAlong - acc) / segLen : 0.0;
 
-        final lat = segStart.coordinates.lat.toDouble() +
+        final lat =
+            segStart.coordinates.lat.toDouble() +
             (segEnd.coordinates.lat.toDouble() -
                     segStart.coordinates.lat.toDouble()) *
                 localT;
-        final lng = segStart.coordinates.lng.toDouble() +
+        final lng =
+            segStart.coordinates.lng.toDouble() +
             (segEnd.coordinates.lng.toDouble() -
                     segStart.coordinates.lng.toDouble()) *
                 localT;
         final point = Point(coordinates: Position(lng, lat));
 
-        final bearing = headingOverride ??
+        final bearing =
+            headingOverride ??
             _calculateBearing(
               segStart.coordinates.lat.toDouble(),
               segStart.coordinates.lng.toDouble(),
@@ -2274,12 +2286,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     );
   }
 
-  double _calculateBearing(
-    double lat1,
-    double lon1,
-    double lat2,
-    double lon2,
-  ) {
+  double _calculateBearing(double lat1, double lon1, double lat2, double lon2) {
     final phi1 = _degreesToRadians(lat1);
     final phi2 = _degreesToRadians(lat2);
     final deltaLambda = _degreesToRadians(lon2 - lon1);
@@ -2731,7 +2738,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final dLat = _degreesToRadians(lat2 - lat1);
     final dLon = _degreesToRadians(lon2 - lon1);
 
-    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
         math.cos(_degreesToRadians(lat1)) *
             math.cos(_degreesToRadians(lat2)) *
             math.sin(dLon / 2) *
@@ -2817,7 +2825,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
     // Collect all relevant points to show
     List<Position> pointsToShow = [];
-    const double maxReasonableDistanceKm = 50.0; // Maximum distance to include trip points
+    const double maxReasonableDistanceKm =
+        50.0; // Maximum distance to include trip points
 
     // Always prioritize current location if available
     if (_currentLocation != null) {
@@ -2838,9 +2847,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
         if (distance <= maxReasonableDistanceKm) {
           pointsToShow.add(Position(trip.startLongitude!, trip.startLatitude!));
           tripStartInRange = true;
-          print('🚀 Including trip start in bounds (${distance.toStringAsFixed(1)}km away)');
+          print(
+            '🚀 Including trip start in bounds (${distance.toStringAsFixed(1)}km away)',
+          );
         } else {
-          print('⚠️ Trip start too far (${distance.toStringAsFixed(1)}km) - not including in bounds');
+          print(
+            '⚠️ Trip start too far (${distance.toStringAsFixed(1)}km) - not including in bounds',
+          );
         }
       }
 
@@ -2854,9 +2867,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
         if (distance <= maxReasonableDistanceKm) {
           pointsToShow.add(Position(trip.endLongitude!, trip.endLatitude!));
           tripEndInRange = true;
-          print('🏁 Including trip end in bounds (${distance.toStringAsFixed(1)}km away)');
+          print(
+            '🏁 Including trip end in bounds (${distance.toStringAsFixed(1)}km away)',
+          );
         } else {
-          print('⚠️ Trip end too far (${distance.toStringAsFixed(1)}km) - not including in bounds');
+          print(
+            '⚠️ Trip end too far (${distance.toStringAsFixed(1)}km) - not including in bounds',
+          );
         }
       }
 
@@ -2931,9 +2948,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       zoom = 16.0;
     }
 
-    final centerPoint = Point(
-      coordinates: Position(centerLng, centerLat),
-    );
+    final centerPoint = Point(coordinates: Position(centerLng, centerLat));
 
     _mapboxMap!.flyTo(
       CameraOptions(center: centerPoint, zoom: zoom),
@@ -2988,7 +3003,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('No students linked. Add a student to message the driver.'),
+            content: Text(
+              'No students linked. Add a student to message the driver.',
+            ),
             backgroundColor: Colors.orange,
           ),
         );
@@ -3016,19 +3033,22 @@ class _MapScreenState extends ConsumerState<MapScreen>
       if (!mounted) return;
       if (resp.success && resp.data != null) {
         final data = resp.data as Map<String, dynamic>;
-        final rawId = data['id'] ?? data['chat_id'] ?? (data['chat'] as Map?)?['id'];
+        final rawId =
+            data['id'] ?? data['chat_id'] ?? (data['chat'] as Map?)?['id'];
         final chatId = rawId is int ? rawId : null;
         if (chatId != null) {
           await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => ChatDetailScreen(chatId: chatId),
-            ),
+            MaterialPageRoute(builder: (_) => ChatDetailScreen(chatId: chatId)),
           );
         } else {
-          _showChatErrorSnackBar(resp.error ?? 'Chat created but could not open');
+          _showChatErrorSnackBar(
+            resp.error ?? 'Chat created but could not open',
+          );
         }
       } else {
-        _showChatErrorSnackBar(resp.error ?? 'Could not start chat with driver');
+        _showChatErrorSnackBar(
+          resp.error ?? 'Could not start chat with driver',
+        );
       }
     } catch (e) {
       if (mounted) _showChatErrorSnackBar('Error: $e');
@@ -3095,8 +3115,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final fontSize = text.length <= 2
         ? size * 0.38
         : text.length <= 4
-            ? size * 0.28
-            : size * 0.22;
+        ? size * 0.28
+        : size * 0.22;
 
     final paint = Paint()
       ..color = color
@@ -3125,10 +3145,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     textPainter.layout();
     textPainter.paint(
       canvas,
-      Offset(
-        (size - textPainter.width) / 2,
-        (size - textPainter.height) / 2,
-      ),
+      Offset((size - textPainter.width) / 2, (size - textPainter.height) / 2),
     );
 
     final picture = recorder.endRecording();
@@ -3260,18 +3277,23 @@ class _NoActiveTripCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.orange.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8.r),
-              border: Border.all(
-                color: Colors.orange.withOpacity(0.3),
-              ),
+              border: Border.all(color: Colors.orange.withOpacity(0.3)),
             ),
             child: Row(
               children: [
-                Icon(Icons.chat_bubble_outline, size: 20.w, color: Colors.orange[800]),
+                Icon(
+                  Icons.chat_bubble_outline,
+                  size: 20.w,
+                  color: Colors.orange[800],
+                ),
                 SizedBox(width: 8.w),
                 Expanded(
                   child: Text(
                     'No active trip. Wait for an active trip to communicate with driver.',
-                    style: TextStyle(fontSize: 13.sp, color: Colors.orange[800]),
+                    style: TextStyle(
+                      fontSize: 13.sp,
+                      color: Colors.orange[800],
+                    ),
                     textAlign: TextAlign.left,
                   ),
                 ),
