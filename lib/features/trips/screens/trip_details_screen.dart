@@ -130,7 +130,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                   'Trip ID: ${trip.tripId}',
                   style: GoogleFonts.poppins(
                     fontSize: 14.sp,
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                   ),
                 ),
               ],
@@ -139,7 +139,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
           Container(
             padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(16.r),
             ),
             child: Text(
@@ -165,7 +165,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
         borderRadius: BorderRadius.circular(16.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -297,7 +297,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
         borderRadius: BorderRadius.circular(16.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -415,7 +415,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
         borderRadius: BorderRadius.circular(16.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -453,7 +453,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                     vertical: 6.h,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E3A8A).withOpacity(0.1),
+                    color: const Color(0xFF1E3A8A).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8.r),
                   ),
                   child: Text(
@@ -522,7 +522,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
         borderRadius: BorderRadius.circular(16.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -675,10 +675,10 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
             width: 40.w,
             height: 40.w,
             decoration: BoxDecoration(
-              color: _getStudentStatusColor(student.status).withOpacity(0.1),
+              color: _getStudentStatusColor(student.status).withValues(alpha: 0.1),
               shape: BoxShape.circle,
               border: Border.all(
-                color: _getStudentStatusColor(student.status).withOpacity(0.3),
+                color: _getStudentStatusColor(student.status).withValues(alpha: 0.3),
                 width: 2,
               ),
             ),
@@ -720,10 +720,10 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
           Container(
             padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
             decoration: BoxDecoration(
-              color: _getStudentStatusColor(student.status).withOpacity(0.1),
+              color: _getStudentStatusColor(student.status).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16.r),
               border: Border.all(
-                color: _getStudentStatusColor(student.status).withOpacity(0.3),
+                color: _getStudentStatusColor(student.status).withValues(alpha: 0.3),
               ),
             ),
             child: Text(
@@ -743,15 +743,15 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
   List<Color> _getStatusGradient(TripStatus status) {
     switch (status) {
       case TripStatus.pending:
-        return [AppTheme.warningColor, AppTheme.warningColor.withOpacity(0.8)];
+        return [AppTheme.warningColor, AppTheme.warningColor.withValues(alpha: 0.8)];
       case TripStatus.inProgress:
         return [AppTheme.primaryColor, AppTheme.primaryVariant];
       case TripStatus.completed:
-        return [AppTheme.successColor, AppTheme.successColor.withOpacity(0.8)];
+        return [AppTheme.successColor, AppTheme.successColor.withValues(alpha: 0.8)];
       case TripStatus.cancelled:
-        return [AppTheme.errorColor, AppTheme.errorColor.withOpacity(0.8)];
+        return [AppTheme.errorColor, AppTheme.errorColor.withValues(alpha: 0.8)];
       case TripStatus.delayed:
-        return [AppTheme.warningColor, AppTheme.warningColor.withOpacity(0.8)];
+        return [AppTheme.warningColor, AppTheme.warningColor.withValues(alpha: 0.8)];
     }
   }
 
@@ -954,9 +954,9 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
     return Container(
       padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1001,10 +1001,10 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
       child: Container(
         padding: EdgeInsets.all(16.w),
         decoration: BoxDecoration(
-          color: onTap != null ? color.withOpacity(0.1) : Colors.grey[100],
+          color: onTap != null ? color.withValues(alpha: 0.1) : Colors.grey[100],
           borderRadius: BorderRadius.circular(12.r),
           border: Border.all(
-            color: onTap != null ? color.withOpacity(0.3) : Colors.grey[300]!,
+            color: onTap != null ? color.withValues(alpha: 0.3) : Colors.grey[300]!,
           ),
         ),
         child: Row(

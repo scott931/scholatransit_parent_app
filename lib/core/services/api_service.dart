@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../config/app_config.dart';
 import '../config/api_endpoints.dart';
+import '../utils/jwt_utils.dart';
 import '../models/trip_log_model.dart';
 import '../models/parent_trip_model.dart';
 import 'storage_service.dart';
@@ -9,11 +10,72 @@ import 'storage_service.dart';
 class ApiService {
   static late Dio _dio;
   static final Connectivity _connectivity = Connectivity();
+  static Future<bool>? _refreshInProgress;
 
   /// When `true` in [Options.extra], the auth interceptor will not attach JWT.
   /// Use for public reads (e.g. school list during parent self-registration) so
   /// a stale driver/school-admin token does not scope results to one school.
   static const String extraSkipAuth = 'skip_auth';
+
+  /// Refresh the access token, collapsing concurrent callers onto one request.
+  /// Several requests failing with 401 at once must not each refresh separately.
+  static Future<bool> _attemptTokenRefresh() async {
+    if (_refreshInProgress != null) {
+      return _refreshInProgress!;
+    }
+    _refreshInProgress = _doTokenRefresh();
+    try {
+      return await _refreshInProgress!;
+    } finally {
+      _refreshInProgress = null;
+    }
+  }
+
+  /// Refresh now if the access token is gone or about to lapse.
+  ///
+  /// Call on startup and on resume: it turns the "returning after a long gap"
+  /// case into one quiet refresh before the first screen loads, instead of a
+  /// visible failed request that only then repairs itself.
+  static Future<void> ensureFreshSession() async {
+    if (StorageService.getRefreshToken()?.isEmpty ?? true) return;
+    if (!JwtUtils.isExpiringSoon(StorageService.getAuthToken())) return;
+    await _attemptTokenRefresh();
+  }
+
+  static Future<bool> _doTokenRefresh() async {
+    try {
+      final refreshToken = StorageService.getRefreshToken();
+      if (refreshToken == null || refreshToken.isEmpty) return false;
+
+      final response = await _dio.post<Map<String, dynamic>>(
+        ApiEndpoints.refreshToken,
+        data: {'refresh': refreshToken},
+      );
+      if (response.statusCode != 200 || response.data == null) return false;
+
+      final data = response.data!;
+      final access = data['access'] as String? ??
+          data['accessToken'] as String? ??
+          data['access_token'] as String? ??
+          '';
+      if (access.isEmpty) return false;
+
+      await StorageService.saveAuthToken(access);
+      // The server re-issues the refresh token on every refresh, and its new
+      // expiry is what keeps the session alive. Dropping it here would strand the
+      // session on the original token's expiry and force a re-login then.
+      final newRefresh = data['refresh'] as String? ??
+          data['refresh_token'] as String? ??
+          '';
+      if (newRefresh.isNotEmpty) {
+        await StorageService.saveRefreshToken(newRefresh);
+      }
+      return true;
+    } catch (e) {
+      print('🔄 API: Token refresh failed: $e');
+      return false;
+    }
+  }
 
   static Future<void> init() async {
     _dio = Dio(
@@ -88,63 +150,34 @@ class ApiService {
         handler.next(options);
       },
       onError: (error, handler) async {
-        // Handle 401 errors with automatic token refresh
-        if (error.response?.statusCode == 401) {
+        final path = error.requestOptions.path;
+        final isAuthEndpoint =
+            path.contains('/login/') ||
+            path.contains('/register/') ||
+            path.contains('/password/reset/') ||
+            path.contains('/otp/') ||
+            path.contains('/refresh-token/');
+
+        // Handle 401 errors with automatic token refresh. Auth endpoints are
+        // excluded so a failed refresh cannot recurse back into this handler.
+        if (error.response?.statusCode == 401 && !isAuthEndpoint) {
           print('🔄 API: 401 error detected, attempting token refresh...');
 
-          try {
-            // Try to refresh the token
-            final refreshToken = StorageService.getRefreshToken();
-            if (refreshToken != null && refreshToken.isNotEmpty) {
-              print('🔄 API: Attempting token refresh with refresh token...');
-              print('🔄 API: Refresh token length: ${refreshToken.length}');
-              final refreshResponse = await _dio.post(
-                ApiEndpoints.refreshToken,
-                data: {'refresh': refreshToken},
-              );
-
-              if (refreshResponse.statusCode == 200) {
-                final data = refreshResponse.data;
-                // Handle both possible response formats
-                final newAccessToken =
-                    data['access'] as String? ?? data['accessToken'] as String?;
-
-                if (newAccessToken != null && newAccessToken.isNotEmpty) {
-                  await StorageService.saveAuthToken(newAccessToken);
-                  print(
-                    '🔄 API: Token refreshed successfully, retrying original request...',
-                  );
-
-                  // Update the original request with new token
-                  error.requestOptions.headers['Authorization'] =
-                      'Bearer $newAccessToken';
-
-                  // Retry the original request
-                  try {
-                    final retryResponse = await _dio.fetch(
-                      error.requestOptions,
-                    );
-                    return handler.resolve(retryResponse);
-                  } catch (retryError) {
-                    print('🔄 API: Retry failed: $retryError');
-                  }
-                }
-              } else {
-                print(
-                  '🔄 API: Refresh token response not successful - status: ${refreshResponse.statusCode}',
-                );
-                print(
-                  '🔄 API: Refresh token response data: ${refreshResponse.data}',
-                );
-              }
-            } else {
-              print('🔄 API: No refresh token available for refresh');
+          if (await _attemptTokenRefresh()) {
+            print('🔄 API: Token refreshed, retrying original request...');
+            error.requestOptions.headers['Authorization'] =
+                'Bearer ${StorageService.getAuthToken()}';
+            try {
+              return handler.resolve(await _dio.fetch(error.requestOptions));
+            } catch (retryError) {
+              print('🔄 API: Retry failed: $retryError');
             }
-          } catch (refreshError) {
-            print('🔄 API: Token refresh failed: $refreshError');
-            // If refresh fails, clear tokens to force re-login
-            await StorageService.clearAuthTokens();
-            print('🔄 API: Cleared auth tokens due to refresh failure');
+          } else {
+            // Tokens are deliberately left in place. A refresh can fail because
+            // the network is down, and wiping the session for that would log out
+            // a user whose credentials are perfectly good. The auth provider
+            // decides when to actually end the session.
+            print('🔄 API: Token refresh failed; keeping session for retry');
           }
         }
 

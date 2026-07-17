@@ -62,13 +62,13 @@ class _ParentTrackingScreenState extends ConsumerState<ParentTrackingScreen> {
                     Container(
                       padding: EdgeInsets.all(24.w),
                       decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withOpacity(0.08),
+                        color: AppTheme.primaryColor.withValues(alpha: 0.08),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         Icons.directions_bus_rounded,
                         size: 56.w,
-                        color: AppTheme.primaryColor.withOpacity(0.6),
+                        color: AppTheme.primaryColor.withValues(alpha: 0.6),
                       ),
                     ),
                     SizedBox(height: 24.h),

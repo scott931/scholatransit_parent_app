@@ -118,7 +118,15 @@ class AppConfig {
     'MAPBOX_ACCESS_TOKEN',
     defaultValue: '',
   );
-  static const String googleMapsApiKey = 'YOUR_GOOGLE_MAPS_API_KEY';
+
+  /// Google Maps Platform key (Routes API). When set, road routing/ETA use
+  /// Google and Mapbox becomes the fallback. Requires "Routes API" enabled
+  /// (see GOOGLE_APIS_CHECKLIST.md at repo root).
+  /// Pass at build/run: --dart-define=GOOGLE_MAPS_API_KEY=your_key
+  static const String googleMapsApiKey = String.fromEnvironment(
+    'GOOGLE_MAPS_API_KEY',
+    defaultValue: '',
+  );
 
   // QR Code Configuration
   static const String qrCodePrefix = 'SCHOLATRANSIT_';

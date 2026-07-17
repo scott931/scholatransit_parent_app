@@ -18,7 +18,7 @@ class ChildStatusCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -31,7 +31,7 @@ class ChildStatusCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 20.r,
-                backgroundColor: _getStatusColor(child.status).withOpacity(0.1),
+                backgroundColor: _getStatusColor(child.status).withValues(alpha: 0.1),
                 child: Icon(
                   _getStatusIcon(child.status),
                   color: _getStatusColor(child.status),
@@ -67,7 +67,7 @@ class ChildStatusCard extends StatelessWidget {
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(child.status).withOpacity(0.1),
+                  color: _getStatusColor(child.status).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12.r),
                 ),
                 child: Text(
@@ -119,7 +119,7 @@ class ChildStatusCard extends StatelessWidget {
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
               decoration: BoxDecoration(
-                color: const Color(0xFF0052CC).withOpacity(0.1),
+                color: const Color(0xFF0052CC).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8.r),
               ),
               child: Row(

@@ -1,6 +1,3 @@
-import 'package:url_launcher/url_launcher.dart';
-import '../services/simple_communication_log_service.dart';
-import '../models/communication_log_model.dart';
 import 'consolidated_whatsapp_service.dart';
 
 /// Legacy WhatsAppService with logging - now uses ConsolidatedWhatsAppService internally

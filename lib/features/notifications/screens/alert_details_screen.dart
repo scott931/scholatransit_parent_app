@@ -122,15 +122,15 @@ class _AlertDetailsScreenState extends ConsumerState<AlertDetailsScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            _getSeverityColor(severity).withOpacity(0.1),
-            _getSeverityColor(severity).withOpacity(0.05),
+            _getSeverityColor(severity).withValues(alpha: 0.1),
+            _getSeverityColor(severity).withValues(alpha: 0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16.r),
         border: Border.all(
-          color: _getSeverityColor(severity).withOpacity(0.3),
+          color: _getSeverityColor(severity).withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -142,7 +142,7 @@ class _AlertDetailsScreenState extends ConsumerState<AlertDetailsScreen> {
               Container(
                 padding: EdgeInsets.all(12.w),
                 decoration: BoxDecoration(
-                  color: _getSeverityColor(severity).withOpacity(0.2),
+                  color: _getSeverityColor(severity).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12.r),
                 ),
                 child: Icon(
@@ -206,9 +206,9 @@ class _AlertDetailsScreenState extends ConsumerState<AlertDetailsScreen> {
     return Container(
       padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: color.withOpacity(0.3), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
       ),
       child: Column(
         children: [
@@ -285,7 +285,7 @@ class _AlertDetailsScreenState extends ConsumerState<AlertDetailsScreen> {
         border: Border.all(color: Colors.grey[200]!, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

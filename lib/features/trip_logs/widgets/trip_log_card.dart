@@ -108,9 +108,9 @@ class TripLogCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: _getStatusColor().withOpacity(0.1),
+        color: _getStatusColor().withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _getStatusColor().withOpacity(0.3), width: 1),
+        border: Border.all(color: _getStatusColor().withValues(alpha: 0.3), width: 1),
       ),
       child: Text(
         tripLog.status.displayName,
@@ -127,9 +127,9 @@ class TripLogCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: _getTypeColor().withOpacity(0.1),
+        color: _getTypeColor().withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _getTypeColor().withOpacity(0.3), width: 1),
+        border: Border.all(color: _getTypeColor().withValues(alpha: 0.3), width: 1),
       ),
       child: Text(
         tripLog.tripType.displayName,
@@ -171,7 +171,7 @@ class TripLogCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.1),
+        color: Colors.blue.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -216,7 +216,7 @@ class TripLogCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.green.withOpacity(0.1),
+        color: Colors.green.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(

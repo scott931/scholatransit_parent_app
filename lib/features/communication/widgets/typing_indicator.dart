@@ -83,7 +83,7 @@ class _TypingIndicatorState extends State<TypingIndicator>
                       width: 6.w,
                       height: 6.w,
                       decoration: BoxDecoration(
-                        color: Colors.grey[600]!.withOpacity(opacity),
+                        color: Colors.grey[600]!.withValues(alpha: opacity),
                         shape: BoxShape.circle,
                       ),
                     );

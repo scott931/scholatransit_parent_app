@@ -4,7 +4,6 @@ import 'package:geolocator/geolocator.dart';
 import '../models/parent_model.dart';
 import '../models/parent_trip_model.dart';
 import '../models/student_model.dart';
-import '../models/trip_log_model.dart';
 import '../services/parent_tracking_service.dart';
 import '../services/parent_notification_service.dart';
 import '../services/parent_student_service.dart';
@@ -142,7 +141,7 @@ class ParentNotifier extends StateNotifier<ParentState> {
               'latitude': position.latitude,
               'longitude': position.longitude,
               'accuracy': position.accuracy,
-              'timestamp': position.timestamp?.toIso8601String(),
+              'timestamp': position.timestamp.toIso8601String(),
             },
           );
         },
@@ -169,7 +168,7 @@ class ParentNotifier extends StateNotifier<ParentState> {
               'latitude': initialPosition.latitude,
               'longitude': initialPosition.longitude,
               'accuracy': initialPosition.accuracy,
-              'timestamp': initialPosition.timestamp?.toIso8601String(),
+              'timestamp': initialPosition.timestamp.toIso8601String(),
             },
           );
         }
@@ -958,7 +957,7 @@ class ParentNotifier extends StateNotifier<ParentState> {
         ];
         final mergedUnreadCount = _calculateUnreadCount(mergedNotifications);
         
-        print('📱 Total notifications after merge: ${mergedNotifications.length} (${mergedUnreadCount} unread)');
+        print('📱 Total notifications after merge: ${mergedNotifications.length} ($mergedUnreadCount unread)');
         
         state = state.copyWith(
           notifications: mergedNotifications,

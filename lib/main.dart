@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,7 +21,6 @@ import 'core/config/app_config.dart';
 import 'core/utils/hot_reload_handler.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 // Import background handler function - must be imported before Firebase init
-import 'core/services/notification_service.dart' show firebaseMessagingBackgroundHandler;
 import 'core/services/notification_service.dart';
 import 'core/services/notification_navigation_service.dart';
 
@@ -114,11 +115,39 @@ Future<void> _requestPermissions() async {
   await Permission.contacts.request();
 }
 
-class GoDropApp extends ConsumerWidget {
+class GoDropApp extends ConsumerStatefulWidget {
   const GoDropApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GoDropApp> createState() => _GoDropAppState();
+}
+
+class _GoDropAppState extends ConsumerState<GoDropApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Returning after a long background stint: renew the access token before
+      // anything below tries to use it, so the parent never sees a failed load.
+      unawaited(ApiService.ensureFreshSession());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // Initialize hot reload handler in development
     if (kDebugMode) {
       HotReloadHandler.initialize(ref);

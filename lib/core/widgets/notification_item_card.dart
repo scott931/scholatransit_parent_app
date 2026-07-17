@@ -25,7 +25,7 @@ class _NotificationItemCardState extends ConsumerState<NotificationItemCard>
   late Animation<double> _slideAnimation;
   late Animation<double> _glowAnimation;
 
-  bool _isPressed = false;
+  final bool _isPressed = false;
 
   @override
   void initState() {
@@ -211,7 +211,7 @@ class _NotificationItemCardState extends ConsumerState<NotificationItemCard>
                             borderRadius: BorderRadius.circular(12.r),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
+                                color: Colors.black.withValues(alpha: 0.1),
                                 blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),
@@ -275,10 +275,10 @@ class _NotificationItemCardState extends ConsumerState<NotificationItemCard>
           child: Container(
             padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
             decoration: BoxDecoration(
-              color: _getTypeColor(type).withOpacity(0.1),
+              color: _getTypeColor(type).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8.r),
               border: Border.all(
-                color: _getTypeColor(type).withOpacity(0.3),
+                color: _getTypeColor(type).withValues(alpha: 0.3),
                 width: 1,
               ),
             ),
@@ -288,7 +288,7 @@ class _NotificationItemCardState extends ConsumerState<NotificationItemCard>
                 Container(
                   padding: EdgeInsets.all(4.w),
                   decoration: BoxDecoration(
-                    color: _getTypeColor(type).withOpacity(0.2),
+                    color: _getTypeColor(type).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(6.r),
                   ),
                   child: Icon(
@@ -323,7 +323,7 @@ class _NotificationItemCardState extends ConsumerState<NotificationItemCard>
           child: Container(
             padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
             decoration: BoxDecoration(
-              color: Colors.grey[100]?.withOpacity(0.8),
+              color: Colors.grey[100]?.withValues(alpha: 0.8),
               borderRadius: BorderRadius.circular(12.r),
               border: Border.all(color: Colors.grey[300]!, width: 1),
             ),
@@ -492,7 +492,7 @@ class _NotificationItemCardState extends ConsumerState<NotificationItemCard>
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [color.withOpacity(0.15), color.withOpacity(0.05)],
+          colors: [color.withValues(alpha: 0.15), color.withValues(alpha: 0.05)],
           begin: isLeft ? Alignment.centerLeft : Alignment.centerRight,
           end: isLeft ? Alignment.centerRight : Alignment.centerLeft,
         ),
@@ -512,7 +512,7 @@ class _NotificationItemCardState extends ConsumerState<NotificationItemCard>
                 Container(
                   padding: EdgeInsets.all(8.w),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.2),
+                    color: color.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12.r),
                   ),
                   child: Icon(icon, color: color[700], size: 20.w),
@@ -546,7 +546,7 @@ class _NotificationItemCardState extends ConsumerState<NotificationItemCard>
 
     final typeColor = _getTypeColor(type);
     return LinearGradient(
-      colors: [Colors.white, typeColor.withOpacity(0.02), Colors.grey[50]!],
+      colors: [Colors.white, typeColor.withValues(alpha: 0.02), Colors.grey[50]!],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
@@ -556,7 +556,7 @@ class _NotificationItemCardState extends ConsumerState<NotificationItemCard>
     if (isRead) {
       return [
         BoxShadow(
-          color: Colors.grey.withOpacity(0.1),
+          color: Colors.grey.withValues(alpha: 0.1),
           blurRadius: 8,
           offset: const Offset(0, 2),
         ),
@@ -566,13 +566,13 @@ class _NotificationItemCardState extends ConsumerState<NotificationItemCard>
     final typeColor = _getTypeColor(type);
     return [
       BoxShadow(
-        color: typeColor.withOpacity(0.15),
+        color: typeColor.withValues(alpha: 0.15),
         blurRadius: 20,
         offset: const Offset(0, 8),
         spreadRadius: 2,
       ),
       BoxShadow(
-        color: Colors.black.withOpacity(0.05),
+        color: Colors.black.withValues(alpha: 0.05),
         blurRadius: 10,
         offset: const Offset(0, 4),
       ),

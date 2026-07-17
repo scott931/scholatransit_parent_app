@@ -7,7 +7,6 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:go_router/go_router.dart';
 import '../config/app_config.dart';
 import '../services/api_service.dart';
 import 'notification_navigation_service.dart';

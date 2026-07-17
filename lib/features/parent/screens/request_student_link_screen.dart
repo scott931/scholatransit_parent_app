@@ -317,7 +317,7 @@ class _RequestStudentLinkScreenState
         child: Row(
           children: [
             CircleAvatar(
-              backgroundColor: const Color(0xFF0052CC).withOpacity(0.2),
+              backgroundColor: const Color(0xFF0052CC).withValues(alpha: 0.2),
               child: Icon(
                 Icons.schedule,
                 color: Colors.orange,
@@ -344,7 +344,7 @@ class _RequestStudentLinkScreenState
             Container(
               padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.15),
+                color: Colors.orange.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8.r),
               ),
               child: Text(
@@ -388,7 +388,7 @@ class _RequestStudentLinkScreenState
       child: ListTile(
         contentPadding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
         leading: CircleAvatar(
-          backgroundColor: const Color(0xFF0052CC).withOpacity(0.2),
+          backgroundColor: const Color(0xFF0052CC).withValues(alpha: 0.2),
           child: Text(
             student.firstName.isNotEmpty ? student.firstName[0].toUpperCase() : '?',
             style: TextStyle(
@@ -451,7 +451,7 @@ class _RequestStudentLinkScreenState
             Icon(
               Icons.person_search_outlined,
               size: 80.w,
-              color: const Color(0xFF0052CC).withOpacity(0.6),
+              color: const Color(0xFF0052CC).withValues(alpha: 0.6),
             ),
             SizedBox(height: 20.h),
             Text(

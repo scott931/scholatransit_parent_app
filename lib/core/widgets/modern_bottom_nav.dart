@@ -29,7 +29,7 @@ class _ModernBottomNavState extends State<ModernBottomNav> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 20,
             offset: const Offset(0, -4),
           ),
@@ -179,7 +179,7 @@ class _ModernNavItemState extends State<_ModernNavItem>
                       height: 48.w,
                       decoration: BoxDecoration(
                         color: widget.isActive
-                            ? AppTheme.primaryColor.withOpacity(0.1)
+                            ? AppTheme.primaryColor.withValues(alpha: 0.1)
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(12.r),
                       ),
@@ -288,7 +288,7 @@ class _ModernBottomNavWithFABState extends State<ModernBottomNavWithFAB>
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha: 0.08),
                 blurRadius: 20,
                 offset: const Offset(0, -4),
               ),
@@ -326,7 +326,7 @@ class _ModernBottomNavWithFABState extends State<ModernBottomNavWithFAB>
                         borderRadius: BorderRadius.circular(28.r),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.primaryColor.withOpacity(0.3),
+                            color: AppTheme.primaryColor.withValues(alpha: 0.3),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),

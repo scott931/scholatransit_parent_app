@@ -417,7 +417,7 @@ class ConsolidatedCommunicationService {
     final path = '/api/v1/communication/chats/$chatId/messages/';
     // Use multipart for file upload
     final formData = dio.FormData();
-    formData.fields..add(MapEntry('content', content));
+    formData.fields.add(MapEntry('content', content));
     if (replyTo != null) {
       formData.fields.add(MapEntry('reply_to', replyTo.toString()));
     }

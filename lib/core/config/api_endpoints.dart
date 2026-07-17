@@ -1,5 +1,5 @@
 /// API Endpoints Reference
-/// Base URL: http://148.230.122.207:3001/
+/// Base URL: see [ApiEndpoints.baseUrl] (override with --dart-define=API_BASE_URL).
 ///
 /// This file contains all API endpoints used in the SchoolTransit app.
 /// All endpoints are relative to the base URL to prevent URL confusion.
@@ -7,7 +7,13 @@ library;
 
 class ApiEndpoints {
   // Base Configuration
-  static const String baseUrl = 'http://148.230.122.207:8001/';
+  // Override per build without editing code:
+  //   flutter run --dart-define=API_BASE_URL=http://192.168.100.40:8001/
+  // Must end with a trailing slash (endpoints concatenate directly).
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://148.230.122.207:8001/',
+  );
 
   // ============================================================================
   // AUTHENTICATION ENDPOINTS

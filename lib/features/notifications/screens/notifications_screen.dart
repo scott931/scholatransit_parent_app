@@ -200,8 +200,8 @@ class _EmptyNotificationsView extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    const Color(0xFF3B82F6).withOpacity(0.1),
-                    const Color(0xFF3B82F6).withOpacity(0.05),
+                    const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                    const Color(0xFF3B82F6).withValues(alpha: 0.05),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -209,7 +209,7 @@ class _EmptyNotificationsView extends StatelessWidget {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF3B82F6).withOpacity(0.1),
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),

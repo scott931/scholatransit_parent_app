@@ -381,7 +381,7 @@ class _CommunicationLogScreenState extends State<CommunicationLogScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -395,7 +395,7 @@ class _CommunicationLogScreenState extends State<CommunicationLogScreen> {
               Container(
                 padding: EdgeInsets.all(8.w),
                 decoration: BoxDecoration(
-                  color: _getTypeColor(log.type).withOpacity(0.1),
+                  color: _getTypeColor(log.type).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8.r),
                 ),
                 child: Text(log.type.icon, style: TextStyle(fontSize: 16.sp)),
@@ -427,8 +427,8 @@ class _CommunicationLogScreenState extends State<CommunicationLogScreen> {
                 padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
                 decoration: BoxDecoration(
                   color: log.success
-                      ? const Color(0xFF10B981).withOpacity(0.1)
-                      : const Color(0xFFEF4444).withOpacity(0.1),
+                      ? const Color(0xFF10B981).withValues(alpha: 0.1)
+                      : const Color(0xFFEF4444).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12.r),
                 ),
                 child: Text(
@@ -544,7 +544,7 @@ class _CommunicationLogScreenState extends State<CommunicationLogScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<CommunicationType?>(
-              value: _selectedType,
+              initialValue: _selectedType,
               decoration: const InputDecoration(
                 labelText: 'Communication Type',
               ),

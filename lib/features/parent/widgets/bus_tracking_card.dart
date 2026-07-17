@@ -7,7 +7,35 @@ class BusTrackingCard extends StatelessWidget {
   final ParentTrip trip;
   final VoidCallback? onTap;
 
-  const BusTrackingCard({super.key, required this.trip, this.onTap});
+  /// Live `next_stop` payload from the tracking poll (backend-computed:
+  /// where the bus is heading, distance and ETA). Optional.
+  final Map<String, dynamic>? nextStopInfo;
+
+  const BusTrackingCard({
+    super.key,
+    required this.trip,
+    this.onTap,
+    this.nextStopInfo,
+  });
+
+  String? get _nextStopLine {
+    final ns = nextStopInfo;
+    if (ns == null) return null;
+    final name = ns['name']?.toString();
+    if (name == null || name.isEmpty) return null;
+    final seq = ns['sequence'];
+    final total = ns['total_stops'];
+    final etaSeconds = (ns['eta_seconds'] as num?)?.toInt();
+    final parts = <String>[
+      if (seq != null && total != null) 'Stop $seq/$total',
+      name,
+      if (ns['status'] == 'arrived')
+        'bus at stop'
+      else if (etaSeconds != null)
+        '~${(etaSeconds / 60).ceil()} min',
+    ];
+    return parts.join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +52,7 @@ class BusTrackingCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(12.r),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
@@ -57,7 +85,7 @@ class BusTrackingCard extends StatelessWidget {
                       vertical: 4.h,
                     ),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(trip.status).withOpacity(0.1),
+                      color: _getStatusColor(trip.status).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12.r),
                     ),
                     child: Text(
@@ -84,6 +112,27 @@ class BusTrackingCard extends StatelessWidget {
                           fontSize: 14.sp,
                           color: Colors.grey[600],
                         ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8.h),
+              ],
+              if (_nextStopLine != null) ...[
+                Row(
+                  children: [
+                    Icon(Icons.near_me, size: 16.w, color: const Color(0xFF0052CC)),
+                    SizedBox(width: 4.w),
+                    Expanded(
+                      child: Text(
+                        'Heading to: $_nextStopLine',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF0052CC),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -135,7 +184,7 @@ class BusTrackingCard extends StatelessWidget {
                         vertical: 6.h,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0052CC).withOpacity(0.1),
+                        color: const Color(0xFF0052CC).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8.r),
                       ),
                       child: Row(

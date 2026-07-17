@@ -34,6 +34,9 @@ dependencies:
 
   # Local Storage
   shared_preferences: ^2.2.3
+  # Refresh tokens live in Keychain / EncryptedSharedPreferences rather than plaintext
+  # prefs: a session now lasts years, so a leaked refresh token is a lasting account key.
+  flutter_secure_storage: ^9.2.2
   hive: ^2.2.3
   hive_flutter: ^1.1.0
 

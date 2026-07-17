@@ -202,16 +202,16 @@ class _ParentNotificationsScreenState
         // Use finalBody if available, otherwise try data, otherwise use fallback
         'body': finalBody.isNotEmpty 
             ? finalBody 
-            : ((data['body']?.toString()?.isNotEmpty == true) 
+            : ((data['body']?.toString().isNotEmpty == true) 
                 ? data['body']!.toString() 
-                : ((data['message']?.toString()?.isNotEmpty == true)
+                : ((data['message']?.toString().isNotEmpty == true)
                     ? data['message']!.toString()
                     : 'No message content available')),
         'message': finalBody.isNotEmpty 
             ? finalBody 
-            : ((data['message']?.toString()?.isNotEmpty == true) 
+            : ((data['message']?.toString().isNotEmpty == true) 
                 ? data['message']!.toString() 
-                : ((data['body']?.toString()?.isNotEmpty == true)
+                : ((data['body']?.toString().isNotEmpty == true)
                     ? data['body']!.toString()
                     : 'No message content available')),
       };
@@ -538,8 +538,8 @@ class _ParentNotificationsScreenState
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    const Color(0xFF3B82F6).withOpacity(0.1),
-                    const Color(0xFF3B82F6).withOpacity(0.05),
+                    const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                    const Color(0xFF3B82F6).withValues(alpha: 0.05),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -547,7 +547,7 @@ class _ParentNotificationsScreenState
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF3B82F6).withOpacity(0.1),
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),

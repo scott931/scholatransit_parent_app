@@ -390,9 +390,9 @@ class _ParentScheduleScreenState extends ConsumerState<ParentScheduleScreen> {
         Builder(
           builder: (context) {
             final scheduledTrips = _getScheduledTrips(parentState.activeTrips);
-            if (parentState.isLoading)
+            if (parentState.isLoading) {
               return _buildLoadingState();
-            else if (scheduledTrips.isEmpty)
+            } else if (scheduledTrips.isEmpty)
               return _buildEmptyState(context);
             else
               return Column(

@@ -52,6 +52,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
   PolylineAnnotationManager? _parentToStartPolylineManager;
   PolylineAnnotation? _routePolyline;
   PolylineAnnotation? _parentToStartPolyline;
+
+  /// Live leg the bus is driving to reach the next stop — the server's road
+  /// geometry, drawn over the planned route so parents can watch the bus come
+  /// along the actual road rather than guess from a moving dot.
+  PolylineAnnotationManager? _navLegPolylineManager;
+  PolylineAnnotation? _navLegPolyline;
+  List<Map<String, double>>? _navLegCoords;
+  int? _navLegVersion;
+  /// Trip the cached leg belongs to. Versions restart per trip, so without this
+  /// a switch between two children's buses could reuse the wrong geometry.
+  String? _navLegTripId;
   // Trip id whose planned (stop-based) route line is currently drawn, so the
   // static route is fetched/rendered once per trip instead of on every poll.
   String? _plannedRouteTripId;
@@ -365,7 +376,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.8),
+                color: Colors.red.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: const Text(
@@ -419,6 +430,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
                       await _parentToStartPolylineManager!.setLineDasharray(
                         const [2.0, 2.5],
                       );
+                      // Created last so the live leg draws above the planned route.
+                      _navLegPolylineManager = await mapboxMap.annotations
+                          .createPolylineAnnotationManager();
                       print('🗺️ DEBUG: Point annotation manager created');
                       print('🗺️ DEBUG: Polyline annotation manager created');
 
@@ -853,7 +867,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         await _refreshStudentPickupMarkers(currentTrip);
         await _drawParentToTripStartLine(
           currentTrip,
-          routeStops: resolvedStops.length >= 1 ? resolvedStops : null,
+          routeStops: resolvedStops.isNotEmpty ? resolvedStops : null,
         );
       }
 
@@ -1030,7 +1044,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       _parentToStartPolyline = await _parentToStartPolylineManager!.create(
         PolylineAnnotationOptions(
           geometry: LineString(coordinates: positions),
-          lineColor: AppTheme.secondaryColor.value,
+          lineColor: AppTheme.secondaryColor.toARGB32(),
           lineWidth: 4.0,
           lineOpacity: 0.9,
         ),
@@ -1119,7 +1133,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       _routePolyline = await _polylineAnnotationManager!.create(
         PolylineAnnotationOptions(
           geometry: LineString(coordinates: positions),
-          lineColor: AppTheme.routeGreen.value,
+          lineColor: AppTheme.routeGreen.toARGB32(),
           lineWidth: 6.0,
           lineOpacity: 1.0,
         ),
@@ -1327,7 +1341,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       // Create polyline annotation
       final polylineOptions = PolylineAnnotationOptions(
         geometry: routeLine,
-        lineColor: routeColor.value,
+        lineColor: routeColor.toARGB32(),
         lineWidth: 4.0,
         lineOpacity: 0.8,
       );
@@ -1426,7 +1440,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       // Create polyline annotation
       final polylineOptions = PolylineAnnotationOptions(
         geometry: routeLine,
-        lineColor: routeColor.value,
+        lineColor: routeColor.toARGB32(),
         lineWidth: 4.0,
         lineOpacity: 0.8,
       );
@@ -1538,6 +1552,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       _clearVehicleMarker();
       _clearStudentPickupMarkers();
       _clearParentToStartPolyline();
+      _clearNavLeg();
     }
   }
 
@@ -1654,6 +1669,14 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
       if (lat == null || lng == null) return;
 
+      // Redraw the road to the next stop before the movement filters below —
+      // a stopped bus still needs its line, and a re-route can land on a tick
+      // where the bus has barely moved.
+      final navigation = data['navigation'] is Map
+          ? Map<String, dynamic>.from(data['navigation'] as Map)
+          : null;
+      await _syncNavLeg(navigation, lat, lng, tripId);
+
       // Duplicate fix (same position re-served) → nothing to animate.
       if (_isDuplicateVehicleCoordinate(lat, lng)) return;
 
@@ -1680,6 +1703,117 @@ class _MapScreenState extends ConsumerState<MapScreen>
     } finally {
       _isFetchingVehicleStatus = false;
     }
+  }
+
+  /// Drop the part of the leg the bus has already driven, so the line shortens
+  /// toward the stop as it approaches instead of trailing behind it.
+  List<Map<String, double>> _trimNavLegToVehicle(
+    List<Map<String, double>> coords,
+    double lat,
+    double lng,
+  ) {
+    if (coords.length < 2) return coords;
+
+    var bestIdx = 0;
+    var bestDist = double.infinity;
+    for (var i = 0; i < coords.length; i++) {
+      final d = _haversineMeters(
+        lat,
+        lng,
+        coords[i]['latitude']!,
+        coords[i]['longitude']!,
+      );
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+    // Too far off to trust a projection — the server re-routes shortly.
+    if (bestDist > 150) return coords;
+
+    final rest = coords.sublist(bestIdx);
+    if (rest.length < 2) return coords.sublist(coords.length - 2);
+    // Anchor to the bus so the line starts under the marker.
+    return [
+      {'latitude': lat, 'longitude': lng},
+      ...rest,
+    ];
+  }
+
+  /// Reconcile the drawn leg with the server's latest navigation descriptor.
+  ///
+  /// `/status/` always carries the polyline, so a version bump is all we need
+  /// to know the driver re-routed.
+  Future<void> _syncNavLeg(
+    Map<String, dynamic>? navigation,
+    double lat,
+    double lng,
+    String tripId,
+  ) async {
+    if (_navLegPolylineManager == null) return;
+
+    if (navigation == null) {
+      await _clearNavLeg();
+      return;
+    }
+
+    // Different trip → the cached geometry is meaningless regardless of version.
+    if (_navLegTripId != tripId) {
+      _navLegCoords = null;
+      _navLegVersion = null;
+      _navLegTripId = tripId;
+    }
+
+    final version = (navigation['version'] as num?)?.toInt();
+    final encoded = navigation['polyline']?.toString();
+
+    if (version != null && version != _navLegVersion && encoded != null && encoded.isNotEmpty) {
+      final decoded = RoutingService.decodePolyline(encoded);
+      if (decoded.length >= 2) {
+        _navLegCoords = decoded;
+        _navLegVersion = version;
+      }
+    }
+
+    final coords = _navLegCoords;
+    if (coords == null || coords.length < 2) return;
+
+    final trimmed = _trimNavLegToVehicle(coords, lat, lng);
+    if (trimmed.length < 2) return;
+
+    final positions = trimmed
+        .map((c) => Position(c['longitude']!, c['latitude']!))
+        .toList();
+
+    try {
+      if (_navLegPolyline != null) {
+        await _navLegPolylineManager!.delete(_navLegPolyline!);
+        _navLegPolyline = null;
+      }
+      _navLegPolyline = await _navLegPolylineManager!.create(
+        PolylineAnnotationOptions(
+          geometry: LineString(coordinates: positions),
+          lineColor: 0xFFF59E0B,
+          lineWidth: 5.0,
+          lineOpacity: 0.9,
+        ),
+      );
+    } catch (e) {
+      print('⚠️ Nav leg draw failed: $e');
+    }
+  }
+
+  Future<void> _clearNavLeg() async {
+    _navLegCoords = null;
+    _navLegVersion = null;
+    _navLegTripId = null;
+    if (_navLegPolylineManager == null || _navLegPolyline == null) return;
+    try {
+      await _navLegPolylineManager!.delete(_navLegPolyline!);
+    } catch (_) {
+      /* annotation already gone */
+    }
+    _navLegPolyline = null;
   }
 
   double? _toNullableDouble(dynamic value) {
@@ -2555,7 +2689,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       // Create polyline annotation
       final polylineOptions = PolylineAnnotationOptions(
         geometry: routeLine,
-        lineColor: routeColor.value,
+        lineColor: routeColor.toARGB32(),
         lineWidth: 4.0,
         lineOpacity: 0.8,
       );
@@ -3246,7 +3380,7 @@ class _NoActiveTripCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -3275,9 +3409,9 @@ class _NoActiveTripCard extends StatelessWidget {
           Container(
             padding: EdgeInsets.all(12.w),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
+              color: Colors.orange.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8.r),
-              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -3361,7 +3495,7 @@ class _TripDetailsCardState extends State<_TripDetailsCard> {
         borderRadius: BorderRadius.circular(16.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -3453,7 +3587,7 @@ class _TripDetailsCardState extends State<_TripDetailsCard> {
                         decoration: BoxDecoration(
                           color: _getStatusColor(
                             currentTrip.status,
-                          ).withOpacity(0.1),
+                          ).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12.r),
                         ),
                         child: Text(
@@ -3526,10 +3660,10 @@ class _TripDetailsCardState extends State<_TripDetailsCard> {
                               vertical: 12.h,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0052CC).withOpacity(0.1),
+                              color: const Color(0xFF0052CC).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12.r),
                               border: Border.all(
-                                color: const Color(0xFF0052CC).withOpacity(0.3),
+                                color: const Color(0xFF0052CC).withValues(alpha: 0.3),
                               ),
                             ),
                             child: Row(
@@ -3576,7 +3710,7 @@ class _TripDetailsCardState extends State<_TripDetailsCard> {
                     Container(
                       padding: EdgeInsets.all(8.w),
                       decoration: BoxDecoration(
-                        color: Colors.yellow.withOpacity(0.2),
+                        color: Colors.yellow.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(8.r),
                       ),
                       child: Text(
@@ -3590,7 +3724,7 @@ class _TripDetailsCardState extends State<_TripDetailsCard> {
                   Container(
                     padding: EdgeInsets.all(16.w),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF667EEA).withOpacity(0.1),
+                      color: const Color(0xFF667EEA).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12.r),
                     ),
                     child: Column(
@@ -3813,13 +3947,13 @@ class _TripDetailsCardState extends State<_TripDetailsCard> {
       padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
         color: trip.isRunningLate
-            ? Colors.red.withOpacity(0.1)
-            : Colors.blue.withOpacity(0.1),
+            ? Colors.red.withValues(alpha: 0.1)
+            : Colors.blue.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8.r),
         border: Border.all(
           color: trip.isRunningLate
-              ? Colors.red.withOpacity(0.3)
-              : Colors.blue.withOpacity(0.3),
+              ? Colors.red.withValues(alpha: 0.3)
+              : Colors.blue.withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -3847,7 +3981,7 @@ class _TripDetailsCardState extends State<_TripDetailsCard> {
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.2),
+                    color: Colors.red.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4.r),
                   ),
                   child: Text(
@@ -3985,7 +4119,7 @@ class _CurrentLocationButton extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -4018,7 +4152,7 @@ class _FollowVehicleButton extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -4051,7 +4185,7 @@ class _RefreshButton extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -4080,7 +4214,7 @@ class _TestGreenMarkerButton extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -4109,7 +4243,7 @@ class _ZoomToStartButton extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -4138,7 +4272,7 @@ class _ToggleRouteButton extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -4171,7 +4305,7 @@ class _DistanceInfo extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8.r),
       ),
       child: Column(
@@ -4220,7 +4354,7 @@ class _TimeInfo extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8.r),
       ),
       child: Row(
@@ -4271,7 +4405,7 @@ class _DebugDistanceButton extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -4301,7 +4435,7 @@ class _ForceDistanceUpdateButton extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -4331,11 +4465,11 @@ class _LocationGuidanceBanner extends StatelessWidget {
       margin: EdgeInsets.all(16.w),
       padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
-        color: Colors.orange.withOpacity(0.9),
+        color: Colors.orange.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(12.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -4381,7 +4515,7 @@ class _CheckConflictsButton extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -4411,7 +4545,7 @@ class _ForceAcceptLocationButton extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -4440,7 +4574,7 @@ class _ForceRestartLocationButton extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

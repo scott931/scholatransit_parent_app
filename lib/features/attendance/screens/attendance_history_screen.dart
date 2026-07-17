@@ -164,7 +164,7 @@ class _AttendanceHistoryScreenState
         border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -178,7 +178,7 @@ class _AttendanceHistoryScreenState
               Container(
                 padding: EdgeInsets.all(8.w),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8.r),
                 ),
                 child: Icon(icon, color: color, size: 20.w),
@@ -333,7 +333,7 @@ class _AttendanceHistoryScreenState
                             decoration: BoxDecoration(
                               color: _getTripLogStatusColor(
                                 trip.status,
-                              ).withOpacity(0.1),
+                              ).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6.r),
                             ),
                             child: Icon(
@@ -375,7 +375,7 @@ class _AttendanceHistoryScreenState
                             decoration: BoxDecoration(
                               color: _getTripLogStatusColor(
                                 trip.status,
-                              ).withOpacity(0.1),
+                              ).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6.r),
                             ),
                             child: Text(
@@ -527,7 +527,7 @@ class _AttendanceHistoryScreenState
         border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -552,7 +552,7 @@ class _AttendanceHistoryScreenState
                     decoration: BoxDecoration(
                       color: _getTripLogStatusColor(
                         tripLog.status,
-                      ).withOpacity(0.1),
+                      ).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8.r),
                     ),
                     child: Text(

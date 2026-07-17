@@ -55,7 +55,7 @@ class StudentDetailsScreen extends ConsumerWidget {
                       _getStatusColor(_parseStudentStatus(student.status)),
                       _getStatusColor(
                         _parseStudentStatus(student.status),
-                      ).withOpacity(0.8),
+                      ).withValues(alpha: 0.8),
                     ],
                   ),
                 ),
@@ -80,7 +80,7 @@ class StudentDetailsScreen extends ConsumerWidget {
                                 size: 24.sp,
                               ),
                               style: IconButton.styleFrom(
-                                backgroundColor: Colors.white.withOpacity(0.2),
+                                backgroundColor: Colors.white.withValues(alpha: 0.2),
                                 shape: const CircleBorder(),
                               ),
                             ),
@@ -91,14 +91,14 @@ class StudentDetailsScreen extends ConsumerWidget {
                               height: 80.w,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: Colors.white.withOpacity(0.2),
+                                color: Colors.white.withValues(alpha: 0.2),
                                 border: Border.all(
                                   color: Colors.white,
                                   width: 3,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
+                                    color: Colors.black.withValues(alpha: 0.1),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
                                   ),
@@ -138,7 +138,7 @@ class StudentDetailsScreen extends ConsumerWidget {
                                       vertical: 4.h,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
+                                      color: Colors.white.withValues(alpha: 0.2),
                                       borderRadius: BorderRadius.circular(12.r),
                                     ),
                                     child: Text(
@@ -166,7 +166,7 @@ class StudentDetailsScreen extends ConsumerWidget {
                                 borderRadius: BorderRadius.circular(20.r),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
+                                    color: Colors.black.withValues(alpha: 0.1),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   ),
@@ -528,7 +528,7 @@ class _QuickActionsSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(16.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -630,9 +630,9 @@ class _QuickActionButton extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.symmetric(vertical: 12.h),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12.r),
-          border: Border.all(color: color.withOpacity(0.2), width: 1),
+          border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
         ),
         child: Column(
           children: [
@@ -672,7 +672,7 @@ class _InfoSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(16.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

@@ -103,10 +103,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
+                    color: Colors.orange.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: Colors.orange.withOpacity(0.3),
+                      color: Colors.orange.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -991,7 +991,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Future<void> _showRecordingPreview() async {
     if (_recordedFilePath == null || !mounted) {
       print(
-        '⚠️ Cannot show preview: _recordedFilePath=${_recordedFilePath}, mounted=$mounted',
+        '⚠️ Cannot show preview: _recordedFilePath=$_recordedFilePath, mounted=$mounted',
       );
       return;
     }
@@ -1421,7 +1421,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           Text(
             'Voice message (unavailable)',
             style: TextStyle(
-              color: textColor.withOpacity(0.7),
+              color: textColor.withValues(alpha: 0.7),
               fontSize: 14,
               fontStyle: FontStyle.italic,
             ),
@@ -1448,8 +1448,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             height: 40,
             decoration: BoxDecoration(
               color: isMine
-                  ? textColor.withOpacity(0.2)
-                  : bubbleColor.withOpacity(0.1),
+                  ? textColor.withValues(alpha: 0.2)
+                  : bubbleColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -1473,8 +1473,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 height: 32,
                 decoration: BoxDecoration(
                   color: isMine
-                      ? textColor.withOpacity(0.15)
-                      : Colors.grey.withOpacity(0.1),
+                      ? textColor.withValues(alpha: 0.15)
+                      : Colors.grey.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Stack(
@@ -1493,7 +1493,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             width: 2,
                             height: height,
                             decoration: BoxDecoration(
-                              color: textColor.withOpacity(0.4),
+                              color: textColor.withValues(alpha: 0.4),
                               borderRadius: BorderRadius.circular(1),
                             ),
                           );
@@ -1513,7 +1513,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                 width: progressWidth,
                                 height: 32,
                                 decoration: BoxDecoration(
-                                  color: textColor.withOpacity(0.3),
+                                  color: textColor.withValues(alpha: 0.3),
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: Row(
@@ -1528,7 +1528,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                       width: 2,
                                       height: height,
                                       decoration: BoxDecoration(
-                                        color: textColor.withOpacity(0.8),
+                                        color: textColor.withValues(alpha: 0.8),
                                         borderRadius: BorderRadius.circular(1),
                                       ),
                                     );
@@ -1549,7 +1549,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   Icon(
                     Icons.mic_rounded,
                     size: 12,
-                    color: textColor.withOpacity(0.7),
+                    color: textColor.withValues(alpha: 0.7),
                   ),
                   const SizedBox(width: 4),
                   Text(
@@ -1557,7 +1557,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       isCurrentlyPlaying ? _audioPosition : duration,
                     ),
                     style: TextStyle(
-                      color: textColor.withOpacity(0.8),
+                      color: textColor.withValues(alpha: 0.8),
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
                       letterSpacing: 0.2,
@@ -2159,7 +2159,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                               boxShadow: [
                                                 BoxShadow(
                                                   color: Colors.black
-                                                      .withOpacity(0.03),
+                                                      .withValues(alpha: 0.03),
                                                   blurRadius: 6,
                                                   offset: const Offset(0, 2),
                                                 ),
@@ -2423,7 +2423,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                               borderRadius: BorderRadius.circular(28),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.04),
+                                  color: Colors.black.withValues(alpha: 0.04),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -2540,7 +2540,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                               BoxShadow(
                                 color: Theme.of(
                                   context,
-                                ).colorScheme.primary.withOpacity(0.3),
+                                ).colorScheme.primary.withValues(alpha: 0.3),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -2673,7 +2673,7 @@ class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
               width: double.infinity,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.3),
+                color: Colors.grey.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
               child: Stack(

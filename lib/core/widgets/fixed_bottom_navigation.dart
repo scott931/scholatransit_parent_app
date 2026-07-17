@@ -29,7 +29,7 @@ class _FixedBottomNavigationState extends State<FixedBottomNavigation> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
@@ -271,7 +271,7 @@ class _FixedBottomNavigationWithFABState
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: Colors.black.withValues(alpha: 0.03),
                 blurRadius: 8,
                 offset: const Offset(0, -2),
               ),
@@ -309,7 +309,7 @@ class _FixedBottomNavigationWithFABState
                         borderRadius: BorderRadius.circular(26.r),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.primaryColor.withOpacity(0.2),
+                            color: AppTheme.primaryColor.withValues(alpha: 0.2),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),

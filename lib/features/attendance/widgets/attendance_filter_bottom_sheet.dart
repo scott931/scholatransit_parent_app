@@ -182,10 +182,10 @@ class _AttendanceFilterBottomSheetState
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
         decoration: BoxDecoration(
-          color: isSelected ? status.color : status.color.withOpacity(0.1),
+          color: isSelected ? status.color : status.color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20.r),
           border: Border.all(
-            color: isSelected ? status.color : status.color.withOpacity(0.3),
+            color: isSelected ? status.color : status.color.withValues(alpha: 0.3),
             width: 1,
           ),
         ),

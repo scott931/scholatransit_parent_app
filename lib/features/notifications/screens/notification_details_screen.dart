@@ -120,15 +120,15 @@ class NotificationDetailsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            _getTypeColor(type).withOpacity(0.1),
-            _getTypeColor(type).withOpacity(0.05),
+            _getTypeColor(type).withValues(alpha: 0.1),
+            _getTypeColor(type).withValues(alpha: 0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16.r),
         border: Border.all(
-          color: _getTypeColor(type).withOpacity(0.3),
+          color: _getTypeColor(type).withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -140,7 +140,7 @@ class NotificationDetailsScreen extends StatelessWidget {
               Container(
                 padding: EdgeInsets.all(12.w),
                 decoration: BoxDecoration(
-                  color: _getTypeColor(type).withOpacity(0.2),
+                  color: _getTypeColor(type).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12.r),
                 ),
                 child: Icon(
@@ -247,7 +247,7 @@ class NotificationDetailsScreen extends StatelessWidget {
         border: Border.all(color: Colors.grey[200]!, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

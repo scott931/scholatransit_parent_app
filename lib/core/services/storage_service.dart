@@ -1,3 +1,4 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../config/app_config.dart';
@@ -6,6 +7,17 @@ class StorageService {
   static SharedPreferences? _prefs;
   static Box? _box;
   static bool _isInitialized = false;
+
+  static const _secure = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+  );
+
+  /// The refresh token, mirrored in memory so [getRefreshToken] can stay
+  /// synchronous for its many call sites while the token itself lives in
+  /// encrypted storage, which is async-only. Loaded by [init] before runApp.
+  static String? _refreshToken;
+  static bool _secureAvailable = true;
 
   static Future<void> init() async {
     if (_isInitialized) {
@@ -18,10 +30,52 @@ class StorageService {
       _prefs = await SharedPreferences.getInstance();
       _box = await Hive.openBox('go_drop_parents');
       _isInitialized = true;
+      await _loadRefreshToken();
       print('✅ StorageService: Initialization completed successfully');
     } catch (e) {
       print('❌ StorageService: Initialization failed: $e');
       rethrow;
+    }
+  }
+
+  /// Reads the refresh token into memory, migrating it out of plaintext prefs if
+  /// an older build left it there.
+  static Future<void> _loadRefreshToken() async {
+    String? secureToken;
+    try {
+      secureToken = await _secure.read(key: AppConfig.refreshTokenKey);
+    } catch (e) {
+      // Keystore can fail on some devices (corrupt keys, unsupported ROMs).
+      // Degrade to prefs rather than locking the user out of their session.
+      _secureAvailable = false;
+      print('⚠️ StorageService: secure storage unavailable, using prefs: $e');
+    }
+
+    final legacyToken = _prefs!.getString(AppConfig.refreshTokenKey);
+
+    if (secureToken != null && secureToken.isNotEmpty) {
+      _refreshToken = secureToken;
+      // Drop any leftover plaintext copy now that the secure one is authoritative.
+      if (legacyToken != null) await _prefs!.remove(AppConfig.refreshTokenKey);
+      return;
+    }
+
+    if (legacyToken != null && legacyToken.isNotEmpty) {
+      _refreshToken = legacyToken;
+      if (_secureAvailable) {
+        try {
+          await _secure.write(
+            key: AppConfig.refreshTokenKey,
+            value: legacyToken,
+          );
+          // Only remove the plaintext copy once the secure write has succeeded,
+          // so a failure here costs privacy, never the user's session.
+          await _prefs!.remove(AppConfig.refreshTokenKey);
+          print('✅ StorageService: migrated refresh token to secure storage');
+        } catch (e) {
+          print('⚠️ StorageService: refresh token migration failed: $e');
+        }
+      }
     }
   }
 
@@ -277,39 +331,35 @@ class StorageService {
       return;
     }
 
-    try {
-      await setString(AppConfig.refreshTokenKey, token);
-      print(
-        '✅ StorageService: Refresh token saved successfully (${token.length} chars)',
-      );
-    } catch (e) {
-      print('❌ StorageService: Failed to save refresh token: $e');
-      rethrow;
+    _refreshToken = token;
+    if (_secureAvailable) {
+      try {
+        await _secure.write(key: AppConfig.refreshTokenKey, value: token);
+        print('✅ StorageService: Refresh token saved to secure storage');
+        return;
+      } catch (e) {
+        _secureAvailable = false;
+        print('⚠️ StorageService: secure write failed, using prefs: $e');
+      }
     }
+    await setString(AppConfig.refreshTokenKey, token);
   }
 
-  static String? getRefreshToken() {
-    try {
-      final token = getString(AppConfig.refreshTokenKey);
-      if (token != null && token.isNotEmpty) {
-        print(
-          '✅ StorageService: Refresh token retrieved (${token.length} chars)',
-        );
-      } else {
-        print('⚠️ StorageService: No refresh token found');
-      }
-      return token;
-    } catch (e) {
-      print('❌ StorageService: Failed to get refresh token: $e');
-      return null;
-    }
-  }
+  static String? getRefreshToken() => _refreshToken;
 
   static Future<void> clearAuthTokens() async {
     try {
       print('🔧 StorageService: Clearing authentication tokens...');
+      _refreshToken = null;
       await remove(AppConfig.authTokenKey);
+      // Clear both stores: which one holds the token depends on whether migration
+      // ran and whether the keystore was usable at the time.
       await remove(AppConfig.refreshTokenKey);
+      try {
+        await _secure.delete(key: AppConfig.refreshTokenKey);
+      } catch (e) {
+        print('⚠️ StorageService: secure delete failed: $e');
+      }
       print('✅ StorageService: Authentication tokens cleared');
     } catch (e) {
       print('❌ StorageService: Failed to clear auth tokens: $e');

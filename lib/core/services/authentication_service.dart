@@ -59,7 +59,7 @@ class AuthenticationService {
         ).timeout(
           const Duration(seconds: 15),
         );
-      } on TimeoutException catch (e) {
+      } on TimeoutException {
         print('⏰ AuthService: Authentication validation timed out');
         // If token exists but validation times out, assume token is valid
         // This prevents blocking the dashboard on slow networks

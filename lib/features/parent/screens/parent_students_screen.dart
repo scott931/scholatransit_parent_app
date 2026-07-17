@@ -209,7 +209,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
               width: 100.w,
               height: 100.w,
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withOpacity(0.1),
+                color: AppTheme.primaryColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(24.r),
               ),
               child: Icon(
@@ -232,7 +232,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
               'Please log in to view your linked students.',
               style: GoogleFonts.poppins(
                 fontSize: 15.sp,
-                color: AppTheme.textPrimary.withOpacity(0.6),
+                color: AppTheme.textPrimary.withValues(alpha: 0.6),
                 height: 1.4,
               ),
               textAlign: TextAlign.center,
@@ -254,7 +254,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
               width: 100.w,
               height: 100.w,
               decoration: BoxDecoration(
-                color: AppTheme.errorColor.withOpacity(0.1),
+                color: AppTheme.errorColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(24.r),
               ),
               child: Icon(
@@ -277,7 +277,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
               error,
               style: GoogleFonts.poppins(
                 fontSize: 15.sp,
-                color: AppTheme.textPrimary.withOpacity(0.6),
+                color: AppTheme.textPrimary.withValues(alpha: 0.6),
                 height: 1.4,
               ),
               textAlign: TextAlign.center,
@@ -328,8 +328,8 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppTheme.primaryColor.withOpacity(0.15),
-                  AppTheme.primaryLight.withOpacity(0.1),
+                  AppTheme.primaryColor.withValues(alpha: 0.15),
+                  AppTheme.primaryLight.withValues(alpha: 0.1),
                 ],
               ),
               borderRadius: BorderRadius.circular(32.r),
@@ -354,7 +354,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
             'Link to a student from your school to see them here. Request access and wait for school approval.',
             style: GoogleFonts.poppins(
               fontSize: 15.sp,
-              color: AppTheme.textPrimary.withOpacity(0.6),
+              color: AppTheme.textPrimary.withValues(alpha: 0.6),
               height: 1.5,
             ),
             textAlign: TextAlign.center,
@@ -381,7 +381,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
               borderRadius: BorderRadius.circular(16.r),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -392,7 +392,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
                 Container(
                   padding: EdgeInsets.all(10.w),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12.r),
                   ),
                   child: Icon(
@@ -419,7 +419,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
                         'Request to link • School approves • Student appears here',
                         style: GoogleFonts.poppins(
                           fontSize: 13.sp,
-                          color: AppTheme.textPrimary.withOpacity(0.6),
+                          color: AppTheme.textPrimary.withValues(alpha: 0.6),
                           height: 1.4,
                         ),
                       ),
@@ -458,7 +458,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
         borderRadius: BorderRadius.circular(20.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -554,12 +554,12 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
         borderRadius: BorderRadius.circular(20.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -593,7 +593,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
                         borderRadius: BorderRadius.circular(16.r),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.primaryColor.withOpacity(0.3),
+                            color: AppTheme.primaryColor.withValues(alpha: 0.3),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -633,7 +633,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
                                     vertical: 4.h,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: AppTheme.primaryColor.withOpacity(0.1),
+                                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8.r),
                                   ),
                                   child: Text(
@@ -653,7 +653,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
                                     student.schoolName,
                                     style: GoogleFonts.poppins(
                                       fontSize: 13.sp,
-                                      color: AppTheme.textPrimary.withOpacity(0.6),
+                                      color: AppTheme.textPrimary.withValues(alpha: 0.6),
                                       fontWeight: FontWeight.w500,
                                     ),
                                     overflow: TextOverflow.ellipsis,
@@ -670,7 +670,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
                         vertical: 6.h,
                       ),
                       decoration: BoxDecoration(
-                        color: _getStatusColor(student.status).withOpacity(0.15),
+                        color: _getStatusColor(student.status).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12.r),
                       ),
                       child: Text(
@@ -696,10 +696,10 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
                   Container(
                     padding: EdgeInsets.all(14.w),
                     decoration: BoxDecoration(
-                      color: _getTripStatusColor(tripStatus).withOpacity(0.08),
+                      color: _getTripStatusColor(tripStatus).withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(14.r),
                       border: Border.all(
-                        color: _getTripStatusColor(tripStatus).withOpacity(0.25),
+                        color: _getTripStatusColor(tripStatus).withValues(alpha: 0.25),
                       ),
                     ),
                     child: Row(
@@ -718,7 +718,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
                                 'On trip',
                                 style: GoogleFonts.poppins(
                                   fontSize: 12.sp,
-                                  color: AppTheme.textPrimary.withOpacity(0.6),
+                                  color: AppTheme.textPrimary.withValues(alpha: 0.6),
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -744,7 +744,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
                       Icon(
                         Icons.route_rounded,
                         size: 16.w,
-                        color: AppTheme.primaryColor.withOpacity(0.8),
+                        color: AppTheme.primaryColor.withValues(alpha: 0.8),
                       ),
                       SizedBox(width: 8.w),
                       Text(
@@ -904,7 +904,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
         border: Border.all(color: Colors.grey[300]!),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -957,7 +957,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(student.status).withOpacity(0.1),
+                    color: _getStatusColor(student.status).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12.r),
                   ),
                   child: Text(
@@ -976,7 +976,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
               Container(
                 padding: EdgeInsets.all(12.w),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0052CC).withOpacity(0.1),
+                  color: const Color(0xFF0052CC).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8.r),
                 ),
                 child: Column(
@@ -1021,7 +1021,7 @@ class _ParentStudentsScreenState extends ConsumerState<ParentStudentsScreen> {
               Container(
                 padding: EdgeInsets.all(12.w),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
+                  color: Colors.orange.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8.r),
                 ),
                 child: Column(

@@ -2,60 +2,99 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 
+/// Road routing for the parent app.
+///
+/// Prefers the Google Routes API (`GOOGLE_MAPS_API_KEY` dart-define) and falls
+/// back to Mapbox Directions, so existing Mapbox builds keep working during
+/// the migration. Map matching (GPS snap-to-road) stays on Mapbox for now.
 class RoutingService {
   static const String _baseUrl = 'https://api.mapbox.com/directions/v5';
   static const String _profile =
       'driving'; // Use driving profile for road-based routing
+  static const String _googleRoutesUrl =
+      'https://routes.googleapis.com/directions/v2:computeRoutes';
 
-  /// Get route coordinates between two points using Mapbox Directions API
+  static bool get _useGoogle => AppConfig.googleMapsApiKey.isNotEmpty;
+
+  /// Get route coordinates between two points.
   static Future<List<Map<String, double>>?> getRouteCoordinates({
     required double startLat,
     required double startLng,
     required double endLat,
     required double endLng,
   }) async {
+    final info = await getRouteInfo(
+      startLat: startLat,
+      startLng: startLng,
+      endLat: endLat,
+      endLng: endLng,
+    );
+    return info?.coordinates;
+  }
+
+  static Map<String, dynamic> _googleWaypoint(double lat, double lng) => {
+        'location': {
+          'latLng': {'latitude': lat, 'longitude': lng},
+        },
+      };
+
+  static Future<RouteInfo?> _getGoogleRoute(
+    List<Map<String, double>> points,
+  ) async {
+    if (points.length < 2) return null;
     try {
-      print(
-        '🗺️ Routing Service: Getting route from ($startLat, $startLng) to ($endLat, $endLng)',
-      );
+      final body = <String, dynamic>{
+        'origin': _googleWaypoint(
+          points.first['latitude']!,
+          points.first['longitude']!,
+        ),
+        'destination': _googleWaypoint(
+          points.last['latitude']!,
+          points.last['longitude']!,
+        ),
+        if (points.length > 2)
+          'intermediates': points
+              .sublist(1, points.length - 1)
+              .map((p) => _googleWaypoint(p['latitude']!, p['longitude']!))
+              .toList(),
+        'travelMode': 'DRIVE',
+        'routingPreference': 'TRAFFIC_AWARE',
+        'polylineQuality': 'OVERVIEW',
+      };
 
-      // Construct the API URL
-      final coordinates = '$startLng,$startLat;$endLng,$endLat';
-      final url =
-          '$_baseUrl/mapbox/$_profile/$coordinates?access_token=${AppConfig.mapboxToken}&geometries=polyline&overview=full';
+      final response = await http
+          .post(
+            Uri.parse(_googleRoutesUrl),
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': AppConfig.googleMapsApiKey,
+              'X-Goog-FieldMask':
+                  'routes.polyline.encodedPolyline,routes.distanceMeters,routes.duration',
+            },
+            body: json.encode(body),
+          )
+          .timeout(AppConfig.apiTimeout);
 
-      print('🌐 Routing Service: Making request to: $url');
-
-      final response = await http.get(Uri.parse(url));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        if (data['routes'] != null && data['routes'].isNotEmpty) {
-          final route = data['routes'][0];
-          final geometry = route['geometry'];
-
-          if (geometry != null) {
-            // Decode the polyline geometry to get coordinate list
-            final coordinates = _decodePolyline(geometry);
-            print(
-              '✅ Routing Service: Route found with ${coordinates.length} points',
-            );
-            return coordinates;
-          }
-        }
-
-        print('⚠️ Routing Service: No route found in response');
-        return null;
-      } else {
-        print(
-          '❌ Routing Service: API request failed with status ${response.statusCode}',
-        );
-        print('❌ Routing Service: Response: ${response.body}');
+      if (response.statusCode != 200) {
+        print('❌ Google Routes: HTTP ${response.statusCode}');
         return null;
       }
+      final data = json.decode(response.body);
+      final routes = data['routes'];
+      if (routes is! List || routes.isEmpty) return null;
+      final route = routes.first;
+      final encoded = route['polyline']?['encodedPolyline'];
+      if (encoded is! String || encoded.isEmpty) return null;
+      final duration =
+          double.tryParse(route['duration'].toString().replaceAll('s', '')) ??
+              0.0;
+      return RouteInfo(
+        coordinates: _decodePolyline(encoded),
+        distance: (route['distanceMeters'] as num?)?.toDouble() ?? 0.0,
+        duration: duration,
+      );
     } catch (e) {
-      print('❌ Routing Service: Error getting route: $e');
+      print('❌ Google Routes: $e');
       return null;
     }
   }
@@ -67,10 +106,15 @@ class RoutingService {
     List<Map<String, double>> waypoints,
   ) async {
     if (waypoints.length < 2) return null;
-    // Mapbox Directions allows up to 25 coordinates; keep first..last if more.
+    // Both providers cap at 25 coordinates; keep first..last if more.
     final pts = waypoints.length > 25
         ? [...waypoints.sublist(0, 24), waypoints.last]
         : waypoints;
+
+    if (_useGoogle) {
+      final google = await _getGoogleRoute(pts);
+      if (google != null) return google;
+    }
     try {
       final coordinates =
           pts.map((p) => '${p['longitude']},${p['latitude']}').join(';');
@@ -198,6 +242,14 @@ class RoutingService {
     required double endLat,
     required double endLng,
   }) async {
+    if (_useGoogle) {
+      final google = await _getGoogleRoute([
+        {'latitude': startLat, 'longitude': startLng},
+        {'latitude': endLat, 'longitude': endLng},
+      ]);
+      if (google != null) return google;
+      // fall through to Mapbox on Google failure
+    }
     try {
       print(
         '🗺️ Routing Service: Getting detailed route info from ($startLat, $startLng) to ($endLat, $endLng)',

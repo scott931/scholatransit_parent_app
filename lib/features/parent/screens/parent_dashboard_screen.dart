@@ -74,7 +74,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
             'latitude': initialPosition.latitude,
             'longitude': initialPosition.longitude,
             'accuracy': initialPosition.accuracy,
-            'timestamp': initialPosition.timestamp?.toIso8601String(),
+            'timestamp': initialPosition.timestamp.toIso8601String(),
           });
         }
       }
@@ -168,7 +168,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
                 Container(
                   padding: EdgeInsets.all(24.w),
                   decoration: BoxDecoration(
-                    color: AppTheme.errorColor.withOpacity(0.08),
+                    color: AppTheme.errorColor.withValues(alpha: 0.08),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -233,7 +233,10 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
 
               // Live / in-progress trips only — scheduled trips live on Schedule tab.
               if (parentState.activeTrips.liveTrips.isNotEmpty) ...[
-                _buildActiveTripsSection(parentState.activeTrips.liveTrips),
+                _buildActiveTripsSection(
+                  parentState.activeTrips.liveTrips,
+                  parentState.currentLocation,
+                ),
                 SizedBox(height: 20.h),
               ],
 
@@ -278,12 +281,12 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
         borderRadius: BorderRadius.circular(20.r),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.primaryColor.withOpacity(0.3),
+            color: AppTheme.primaryColor.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -295,7 +298,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
             width: 56.w,
             height: 56.w,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(16.r),
             ),
             child: Icon(
@@ -314,7 +317,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
                   style: GoogleFonts.poppins(
                     fontSize: 14.sp,
                     fontWeight: FontWeight.w500,
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                   ),
                 ),
                 SizedBox(height: 4.h),
@@ -334,7 +337,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
                   'Track your children\'s safety in real-time',
                   style: GoogleFonts.poppins(
                     fontSize: 13.sp,
-                    color: Colors.white.withOpacity(0.85),
+                    color: Colors.white.withValues(alpha: 0.85),
                   ),
                 ),
               ],
@@ -345,7 +348,17 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
     );
   }
 
-  Widget _buildActiveTripsSection(List<ParentTrip> activeTrips) {
+  Widget _buildActiveTripsSection(
+    List<ParentTrip> activeTrips, [
+    Map<String, dynamic>? liveTracking,
+  ]) {
+    // Live poll payload carries the backend-computed next stop for the trip
+    // currently being tracked — attach it to the matching card only.
+    final trackedTripId = liveTracking?['trip_id']?.toString();
+    final nextStop = liveTracking?['next_stop'] is Map
+        ? Map<String, dynamic>.from(liveTracking!['next_stop'] as Map)
+        : null;
+
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 16.w),
       child: Column(
@@ -359,6 +372,10 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
           ...activeTrips.map(
             (trip) => BusTrackingCard(
               trip: trip,
+              nextStopInfo:
+                  trackedTripId != null && trip.backendTripId == trackedTripId
+                      ? nextStop
+                      : null,
               onTap: () => context.go('/parent/tracking'),
             ),
           ),
@@ -390,7 +407,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
         Container(
           padding: EdgeInsets.all(8.w),
           decoration: BoxDecoration(
-            color: AppTheme.primaryColor.withOpacity(0.1),
+            color: AppTheme.primaryColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10.r),
           ),
           child: Icon(icon, size: 20.w, color: AppTheme.primaryColor),
@@ -416,7 +433,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
         borderRadius: BorderRadius.circular(12.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -443,7 +460,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
                     borderRadius: BorderRadius.circular(20.r),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -597,10 +614,10 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
             Container(
               padding: EdgeInsets.symmetric(vertical: 28.w, horizontal: 20.w),
               decoration: BoxDecoration(
-                color: AppTheme.surfaceBlue.withOpacity(0.5),
+                color: AppTheme.surfaceBlue.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(16.r),
                 border: Border.all(
-                  color: AppTheme.borderColor.withOpacity(0.5),
+                  color: AppTheme.borderColor.withValues(alpha: 0.5),
                 ),
               ),
               child: Center(
@@ -610,7 +627,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
                     Icon(
                       Icons.notifications_none_rounded,
                       size: 24.w,
-                      color: AppTheme.textSecondary.withOpacity(0.6),
+                      color: AppTheme.textSecondary.withValues(alpha: 0.6),
                     ),
                     SizedBox(width: 12.w),
                     Text(
@@ -634,13 +651,13 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
                       borderRadius: BorderRadius.circular(14.r),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
+                          color: Colors.black.withValues(alpha: 0.04),
                           blurRadius: 12,
                           offset: const Offset(0, 2),
                         ),
                       ],
                       border: Border.all(
-                        color: AppTheme.borderColor.withOpacity(0.6),
+                        color: AppTheme.borderColor.withValues(alpha: 0.6),
                       ),
                     ),
                     child: Row(
@@ -648,7 +665,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
                         Container(
                           padding: EdgeInsets.all(10.w),
                           decoration: BoxDecoration(
-                            color: AppTheme.primaryColor.withOpacity(0.1),
+                            color: AppTheme.primaryColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12.r),
                           ),
                           child: Icon(
@@ -723,7 +740,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
                   'latitude': position.latitude,
                   'longitude': position.longitude,
                   'accuracy': position.accuracy,
-                  'timestamp': position.timestamp?.toIso8601String(),
+                  'timestamp': position.timestamp.toIso8601String(),
                 });
               }
             } catch (e) {
@@ -824,7 +841,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
     
     // Draw shadow for depth
     final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.2)
+      ..color = Colors.black.withValues(alpha: 0.2)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(
       Offset(headCenter.dx + 1, headCenter.dy + 1),
@@ -840,7 +857,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
     
     // Draw highlight on head
     final highlightPaint = Paint()
-      ..color = Colors.white.withOpacity(0.6)
+      ..color = Colors.white.withValues(alpha: 0.6)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(
       Offset(headCenter.dx - headRadius * 0.3, headCenter.dy - headRadius * 0.3),
@@ -889,7 +906,7 @@ class _ParentDashboardScreenState extends ConsumerState<ParentDashboardScreen> {
               Container(
                 padding: EdgeInsets.all(24.w),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withOpacity(0.08),
+                  color: AppTheme.primaryColor.withValues(alpha: 0.08),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -978,18 +995,18 @@ class _QuickActionCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16.r),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 12,
               offset: const Offset(0, 2),
             ),
             BoxShadow(
-              color: AppTheme.primaryColor.withOpacity(0.03),
+              color: AppTheme.primaryColor.withValues(alpha: 0.03),
               blurRadius: 8,
               offset: const Offset(0, 1),
             ),
           ],
           border: Border.all(
-            color: AppTheme.borderColor.withOpacity(0.5),
+            color: AppTheme.borderColor.withValues(alpha: 0.5),
           ),
         ),
         child: fullWidth
@@ -1003,8 +1020,8 @@ class _QuickActionCard extends StatelessWidget {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          AppTheme.primaryColor.withOpacity(0.15),
-                          AppTheme.secondaryColor.withOpacity(0.1),
+                          AppTheme.primaryColor.withValues(alpha: 0.15),
+                          AppTheme.secondaryColor.withValues(alpha: 0.1),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(12.r),
@@ -1028,7 +1045,7 @@ class _QuickActionCard extends StatelessWidget {
                   Icon(
                     Icons.arrow_forward_ios_rounded,
                     size: 14.w,
-                    color: AppTheme.textSecondary.withOpacity(0.6),
+                    color: AppTheme.textSecondary.withValues(alpha: 0.6),
                   ),
                 ],
               )
@@ -1043,8 +1060,8 @@ class _QuickActionCard extends StatelessWidget {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          AppTheme.primaryColor.withOpacity(0.12),
-                          AppTheme.secondaryColor.withOpacity(0.08),
+                          AppTheme.primaryColor.withValues(alpha: 0.12),
+                          AppTheme.secondaryColor.withValues(alpha: 0.08),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(14.r),

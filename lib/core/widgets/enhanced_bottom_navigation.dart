@@ -69,12 +69,12 @@ class _EnhancedBottomNavigationState extends State<EnhancedBottomNavigation>
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 24,
                 offset: const Offset(0, -6),
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 12,
                 offset: const Offset(0, -3),
               ),
@@ -316,12 +316,12 @@ class _EnhancedNavItemState extends State<_EnhancedNavItem>
                       height: 52.w,
                       decoration: BoxDecoration(
                         color: widget.isActive
-                            ? AppTheme.primaryColor.withOpacity(0.12)
+                            ? AppTheme.primaryColor.withValues(alpha: 0.12)
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(16.r),
                         border: widget.isActive
                             ? Border.all(
-                                color: AppTheme.primaryColor.withOpacity(0.2),
+                                color: AppTheme.primaryColor.withValues(alpha: 0.2),
                                 width: 1.5,
                               )
                             : null,

@@ -128,6 +128,9 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
 
       if (token != null && parentId != null) {
         print('🔐 DEBUG: Found existing parent auth, loading profile...');
+        // The app may have been closed for months. Renew the access token first
+        // so the profile load below authenticates on the first try.
+        await ApiService.ensureFreshSession();
         await _loadParentProfile();
       } else {
         print('🔐 DEBUG: No parent authentication found - user needs to login');
@@ -862,20 +865,38 @@ class ParentAuthNotifier extends StateNotifier<ParentAuthState> {
         );
         await _registerDeviceTokenForPush();
         print('🔐 DEBUG: Parent profile loaded successfully');
-      } else {
-        print('🔐 DEBUG: Failed to load parent profile: ${response.error}');
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // The server rejected our credentials even after the interceptor tried a
+        // refresh, so the session really is over.
+        print('🔐 DEBUG: Parent profile rejected (${response.statusCode}) - logging out');
         await logout();
+      } else {
+        // Anything else — offline, timeout, 5xx — is transient. Keep the session
+        // and let the user retry; a bad connection must not sign anyone out.
+        print('🔐 DEBUG: Failed to load parent profile: ${response.error}');
+        final cached = StorageService.getUserProfile();
+        state = state.copyWith(
+          isAuthenticated: cached != null,
+          parent: cached != null ? Parent.fromJson(cached) : state.parent,
+          error: null,
+        );
       }
     } catch (e) {
-      print('🔐 DEBUG: Error loading parent profile: $e');
-      await logout();
+      // Same reasoning: an exception here is a local/network fault, not a
+      // statement about whether the session is valid.
+      print('🔐 DEBUG: Error loading parent profile (keeping session): $e');
     }
   }
 
   Future<void> logout() async {
     try {
-      // Call logout endpoint
-      await ApiService.post(AppConfig.logoutEndpoint); // '/users/logout/'
+      // Send the refresh token: it is what the server blacklists. Without it the
+      // session stays valid server-side, and this one lasts years.
+      final refresh = StorageService.getRefreshToken();
+      await ApiService.post(
+        AppConfig.logoutEndpoint, // '/users/logout/'
+        data: refresh != null && refresh.isNotEmpty ? {'refresh': refresh} : null,
+      );
     } catch (e) {
       print('🔐 DEBUG: Logout API call failed: $e');
     }

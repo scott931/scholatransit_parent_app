@@ -190,7 +190,7 @@ class _SearchableDropdownFieldState<T>
                             : 'No options found. You can type your own.',
                         style: TextStyle(
                           fontSize: 14.sp,
-                          color: AppTheme.textPrimary.withOpacity(0.6),
+                          color: AppTheme.textPrimary.withValues(alpha: 0.6),
                         ),
                       ),
                     )

@@ -138,7 +138,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
                 borderRadius: BorderRadius.circular(8.r),
               ),
               backgroundColor: authState.isLoading
-                  ? AppTheme.primaryColor.withOpacity(0.7)
+                  ? AppTheme.primaryColor.withValues(alpha: 0.7)
                   : AppTheme.primaryColor,
               elevation: authState.isLoading ? 0 : 2,
             ),

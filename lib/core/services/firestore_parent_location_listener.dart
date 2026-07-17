@@ -174,7 +174,7 @@ class FirestoreParentLocationListener {
 
       return querySnapshot.docs
           .map((doc) => FirestoreLocationUpdate.fromMap(
-                doc.data() as Map<String, dynamic>,
+                doc.data(),
               ))
           .toList();
     } catch (e) {

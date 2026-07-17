@@ -336,7 +336,7 @@ class ParentMainShell extends ConsumerWidget {
                   color: Colors.white,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 2),
                     ),
@@ -540,7 +540,7 @@ class _ParentSideDrawerState extends ConsumerState<_ParentSideDrawer> {
                         borderRadius: BorderRadius.circular(30),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF0052CC).withOpacity(0.3),
+                            color: const Color(0xFF0052CC).withValues(alpha: 0.3),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -699,11 +699,11 @@ class _ParentSideDrawerState extends ConsumerState<_ParentSideDrawer> {
       margin: const EdgeInsets.symmetric(vertical: 2),
       decoration: BoxDecoration(
         color: selected
-            ? const Color(0xFF0052CC).withOpacity(0.1)
+            ? const Color(0xFF0052CC).withValues(alpha: 0.1)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         border: selected
-            ? Border.all(color: const Color(0xFF0052CC).withOpacity(0.3))
+            ? Border.all(color: const Color(0xFF0052CC).withValues(alpha: 0.3))
             : null,
       ),
       child: ListTile(

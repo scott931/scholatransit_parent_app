@@ -228,7 +228,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
         borderRadius: BorderRadius.circular(12.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -280,16 +280,16 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
     return Container(
       padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
+        color: color.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: color.withOpacity(0.2), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
       ),
       child: Column(
         children: [
           Container(
             padding: EdgeInsets.all(8.w),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8.r),
             ),
             child: Icon(icon, color: color, size: 20.w),
@@ -328,7 +328,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
         borderRadius: BorderRadius.circular(12.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -535,7 +535,7 @@ class _ProfileHeader extends StatelessWidget {
           Text(
             'Driver ID: ${driver.id}',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withValues(alpha: 0.8),
             ),
           ),
           SizedBox(height: 8.h),
@@ -544,7 +544,7 @@ class _ProfileHeader extends StatelessWidget {
           Container(
             padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
             decoration: BoxDecoration(
-              color: _getStatusColor(driver.status).withOpacity(0.2),
+              color: _getStatusColor(driver.status).withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12.r),
               border: Border.all(
                 color: _getStatusColor(driver.status),

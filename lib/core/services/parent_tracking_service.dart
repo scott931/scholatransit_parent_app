@@ -13,6 +13,11 @@ import 'route_stop_resolver.dart';
 class ParentTrackingService {
   static Timer? _tripPollTimer;
   static String? _trackingTripId;
+  static ParentTrip? _cachedTripDetails;
+  static int _pollTick = 0;
+  /// Full trip details are refetched every Nth status poll (status is light,
+  /// details are heavy — no need for both every 3 s).
+  static const int _detailsEveryNTicks = 5;
   static final StreamController<ParentTrip> _tripController =
       StreamController<ParentTrip>.broadcast();
   static final StreamController<Map<String, dynamic>> _etaController =
@@ -198,6 +203,8 @@ class ParentTrackingService {
     _tripPollTimer?.cancel();
     _tripPollTimer = null;
     _trackingTripId = null;
+    _cachedTripDetails = null;
+    _pollTick = 0;
   }
 
   static Future<void> _pollTripLocation(String backendTripId) async {
@@ -205,10 +212,19 @@ class ParentTrackingService {
 
     try {
       final statusResponse = await getTripRealtimeStatus(backendTripId);
-      final detailsResponse = await getTripDetails(backendTripId);
-      if (!detailsResponse.success || detailsResponse.data == null) return;
 
-      var trip = detailsResponse.data!;
+      // Full details are heavier — refresh them on the first tick and then
+      // every Nth poll; the light /status/ payload carries GPS + next stop.
+      if (_cachedTripDetails == null || _pollTick % _detailsEveryNTicks == 0) {
+        final detailsResponse = await getTripDetails(backendTripId);
+        if (detailsResponse.success && detailsResponse.data != null) {
+          _cachedTripDetails = detailsResponse.data!;
+        }
+      }
+      _pollTick++;
+      if (_cachedTripDetails == null) return;
+
+      var trip = _cachedTripDetails!;
       if (statusResponse.success && statusResponse.data != null) {
         final data = statusResponse.data!;
         final coords =
@@ -223,8 +239,24 @@ class ParentTrackingService {
             ? data['is_active'] as bool
             : data['is_active']?.toString().toLowerCase() == 'true';
 
+        // Backend now reports the stop the driver is heading to, with
+        // distance and a speed-aware ETA — prefer it over local guesses.
+        final nextStop = data['next_stop'] is Map
+            ? Map<String, dynamic>.from(data['next_stop'] as Map)
+            : null;
+        final backendEtaSeconds = (nextStop?['eta_seconds'] as num?)?.toInt();
+
+        // Road geometry the bus is actually driving to reach that stop. The
+        // server owns it, so the line here matches the driver's and the
+        // backoffice's exactly, and re-routes when the driver goes off-road.
+        final navigation = data['navigation'] is Map
+            ? Map<String, dynamic>.from(data['navigation'] as Map)
+            : null;
+
         if (lat != null && lng != null) {
-          final eta = await _calculateETAFromCoords(lat, lng, trip);
+          final eta = backendEtaSeconds != null
+              ? (backendEtaSeconds / 60).ceil()
+              : await _calculateETAFromCoords(lat, lng, trip);
           trip = trip.copyWith(
             currentLatitude: lat,
             currentLongitude: lng,
@@ -241,6 +273,8 @@ class ParentTrackingService {
             'current_location': {'latitude': lat, 'longitude': lng},
             'speed': data['speed'],
             'heading': data['heading'],
+            if (nextStop != null) 'next_stop': nextStop,
+            if (navigation != null) 'navigation': navigation,
             'timestamp': DateTime.now().toIso8601String(),
           });
         } else if (isActive) {

@@ -248,7 +248,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         borderRadius: BorderRadius.circular(24.r),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.primaryColor.withOpacity(0.3),
+            color: AppTheme.primaryColor.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -258,7 +258,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24.r),
           gradient: LinearGradient(
-            colors: [Colors.white.withOpacity(0.1), Colors.transparent],
+            colors: [Colors.white.withValues(alpha: 0.1), Colors.transparent],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -272,12 +272,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.white.withValues(alpha: 0.3),
                     width: 4,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: Colors.black.withValues(alpha: 0.2),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -285,7 +285,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 ),
                 child: CircleAvatar(
                   radius: 60.r,
-                  backgroundColor: Colors.white.withOpacity(0.2),
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
                   child: driver.profileImage != null
                       ? ClipOval(
                           child: CachedNetworkImage(
@@ -296,7 +296,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             placeholder: (context, url) => Container(
                               width: 120.w,
                               height: 120.h,
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                               child: const Center(
                                 child: CircularProgressIndicator(
                                   color: Colors.white,
@@ -338,7 +338,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               Text(
                 'Professional Driver',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
@@ -350,7 +350,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(driver.status).withOpacity(0.2),
+                  color: _getStatusColor(driver.status).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20.r),
                   border: Border.all(
                     color: _getStatusColor(driver.status),
@@ -395,7 +395,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         borderRadius: BorderRadius.circular(20.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -411,7 +411,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 Container(
                   padding: EdgeInsets.all(8.w),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12.r),
                   ),
                   child: Icon(
@@ -470,16 +470,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     return Container(
       padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
+        color: color.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: color.withOpacity(0.2), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
       ),
       child: Column(
         children: [
           Container(
             padding: EdgeInsets.all(12.w),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12.r),
             ),
             child: Icon(icon, color: color, size: 24.w),
@@ -638,7 +638,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               borderRadius: BorderRadius.circular(16.r),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
@@ -650,7 +650,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   duration: const Duration(milliseconds: 200),
                   padding: EdgeInsets.all(12.w),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12.r),
                   ),
                   child: Icon(icon, color: AppTheme.primaryColor, size: 20.w),
@@ -685,7 +685,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         borderRadius: BorderRadius.circular(20.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -701,7 +701,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 Container(
                   padding: EdgeInsets.all(8.w),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12.r),
                   ),
                   child: Icon(icon, color: AppTheme.primaryColor, size: 20.w),
@@ -737,11 +737,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
         color: isImportant
-            ? AppTheme.primaryColor.withOpacity(0.05)
+            ? AppTheme.primaryColor.withValues(alpha: 0.05)
             : AppTheme.backgroundColor,
         borderRadius: BorderRadius.circular(12.r),
         border: isImportant
-            ? Border.all(color: AppTheme.primaryColor.withOpacity(0.2))
+            ? Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2))
             : null,
       ),
       child: Row(
@@ -750,8 +750,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             padding: EdgeInsets.all(8.w),
             decoration: BoxDecoration(
               color: isImportant
-                  ? AppTheme.primaryColor.withOpacity(0.1)
-                  : AppTheme.textSecondary.withOpacity(0.1),
+                  ? AppTheme.primaryColor.withValues(alpha: 0.1)
+                  : AppTheme.textSecondary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8.r),
             ),
             child: Icon(
@@ -793,7 +793,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             Container(
               padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withOpacity(0.1),
+                color: AppTheme.primaryColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6.r),
               ),
               child: Text(
@@ -815,14 +815,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       width: double.infinity,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppTheme.errorColor, AppTheme.errorColor.withOpacity(0.8)],
+          colors: [AppTheme.errorColor, AppTheme.errorColor.withValues(alpha: 0.8)],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),
         borderRadius: BorderRadius.circular(16.r),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.errorColor.withOpacity(0.3),
+            color: AppTheme.errorColor.withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

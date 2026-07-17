@@ -1,4 +1,3 @@
-import 'package:url_launcher/url_launcher.dart';
 import 'consolidated_whatsapp_service.dart';
 
 /// Legacy WhatsAppService - now uses ConsolidatedWhatsAppService internally

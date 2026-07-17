@@ -1,0 +1,31 @@
+{
+  // Local-first launch configs. "Parent — LOCAL backend" is the default for
+  // day-to-day dev; API_BASE_URL must end with a trailing slash.
+  // NOTE: --dart-define is baked in at COMPILE time — switching configs
+  // requires a full stop + relaunch, not hot reload.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Parent — LOCAL backend (LAN 192.168.100.40)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define=API_BASE_URL=http://192.168.100.40:8001/"
+      ]
+    },
+    {
+      "name": "Parent — LOCAL backend (Android emulator)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define=API_BASE_URL=http://10.0.2.2:8001/"
+      ]
+    },
+    {
+      "name": "Parent — PRODUCTION backend (default fallback)",
+      "request": "launch",
+      "type": "dart",
+      "args": []
+    }
+  ]
+}

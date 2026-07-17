@@ -106,7 +106,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
     return showDialog<String>(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -118,7 +118,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
               borderRadius: BorderRadius.circular(24.r),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 30,
                   offset: const Offset(0, 15),
                 ),
@@ -149,7 +149,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                       Container(
                         padding: EdgeInsets.all(12.w),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12.r),
                         ),
                         child: Icon(
@@ -175,7 +175,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                               'Enter parent\'s phone number to start WhatsApp chat',
                               style: GoogleFonts.poppins(
                                 fontSize: 14.sp,
-                                color: Colors.white.withOpacity(0.9),
+                                color: Colors.white.withValues(alpha: 0.9),
                                 fontWeight: FontWeight.w400,
                               ),
                             ),
@@ -295,7 +295,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                                 BoxShadow(
                                   color: const Color(
                                     0xFF3B82F6,
-                                  ).withOpacity(0.3),
+                                  ).withValues(alpha: 0.3),
                                   blurRadius: 8,
                                   offset: const Offset(0, 4),
                                 ),
@@ -322,7 +322,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                           color: const Color(0xFFF0F9FF),
                           borderRadius: BorderRadius.circular(8.r),
                           border: Border.all(
-                            color: const Color(0xFF0EA5E9).withOpacity(0.2),
+                            color: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
                             width: 1,
                           ),
                         ),
@@ -399,7 +399,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                                   BoxShadow(
                                     color: const Color(
                                       0xFF10B981,
-                                    ).withOpacity(0.3),
+                                    ).withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4),
                                   ),
@@ -458,7 +458,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
     return showDialog<String>(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -470,7 +470,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
               borderRadius: BorderRadius.circular(24.r),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 30,
                   offset: const Offset(0, 15),
                 ),
@@ -501,7 +501,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                       Container(
                         padding: EdgeInsets.all(12.w),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12.r),
                         ),
                         child: Icon(
@@ -527,7 +527,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                               'Enter parent\'s phone number to make a call',
                               style: GoogleFonts.poppins(
                                 fontSize: 14.sp,
-                                color: Colors.white.withOpacity(0.9),
+                                color: Colors.white.withValues(alpha: 0.9),
                                 fontWeight: FontWeight.w400,
                               ),
                             ),
@@ -647,7 +647,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                                 BoxShadow(
                                   color: const Color(
                                     0xFF3B82F6,
-                                  ).withOpacity(0.3),
+                                  ).withValues(alpha: 0.3),
                                   blurRadius: 8,
                                   offset: const Offset(0, 4),
                                 ),
@@ -674,7 +674,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                           color: const Color(0xFFF0F9FF),
                           borderRadius: BorderRadius.circular(8.r),
                           border: Border.all(
-                            color: const Color(0xFF0EA5E9).withOpacity(0.2),
+                            color: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
                             width: 1,
                           ),
                         ),
@@ -751,7 +751,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                                   BoxShadow(
                                     color: const Color(
                                       0xFF10B981,
-                                    ).withOpacity(0.3),
+                                    ).withValues(alpha: 0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4),
                                   ),
@@ -1024,9 +1024,9 @@ class _ConversationsScreenState extends State<ConversationsScreen>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFF3B82F6).withOpacity(0.1),
-                const Color(0xFF1E40AF).withOpacity(0.05),
-                const Color(0xFF1E3A8A).withOpacity(0.02),
+                const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                const Color(0xFF1E40AF).withValues(alpha: 0.05),
+                const Color(0xFF1E3A8A).withValues(alpha: 0.02),
               ],
             ),
           ),
@@ -1042,10 +1042,10 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                       Container(
                         padding: EdgeInsets.all(16.w),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF3B82F6).withOpacity(0.1),
+                          color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(20.r),
                           border: Border.all(
-                            color: const Color(0xFF3B82F6).withOpacity(0.2),
+                            color: const Color(0xFF3B82F6).withValues(alpha: 0.2),
                             width: 1,
                           ),
                         ),
@@ -1090,7 +1090,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                           borderRadius: BorderRadius.circular(20.r),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF10B981).withOpacity(0.4),
+                              color: const Color(0xFF10B981).withValues(alpha: 0.4),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -1120,7 +1120,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
         Container(
           margin: EdgeInsets.only(right: 8.w),
           decoration: BoxDecoration(
-            color: const Color(0xFF3B82F6).withOpacity(0.1),
+            color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8.r),
           ),
           child: IconButton(
@@ -1139,7 +1139,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
         Container(
           margin: EdgeInsets.only(right: 16.w),
           decoration: BoxDecoration(
-            color: const Color(0xFF10B981).withOpacity(0.1),
+            color: const Color(0xFF10B981).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8.r),
           ),
           child: IconButton(
@@ -1217,7 +1217,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
         borderRadius: BorderRadius.circular(28.r),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF3B82F6).withOpacity(0.3),
+            color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -1339,15 +1339,15 @@ class _ConversationsScreenState extends State<ConversationsScreen>
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+          colors: [color.withValues(alpha: 0.1), color.withValues(alpha: 0.05)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: color.withOpacity(0.2), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1366,7 +1366,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                 Container(
                   padding: EdgeInsets.all(12.w),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.2),
+                    color: color.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12.r),
                   ),
                   child: Icon(icon, color: color, size: 24.w),
@@ -1493,15 +1493,15 @@ class _ConversationsScreenState extends State<ConversationsScreen>
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [color.withOpacity(0.2), color.withOpacity(0.1)],
+            colors: [color.withValues(alpha: 0.2), color.withValues(alpha: 0.1)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(20.r),
-          border: Border.all(color: color.withOpacity(0.3), width: 1),
+          border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -1516,7 +1516,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
               Container(
                 padding: EdgeInsets.all(6.w),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
+                  color: color.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8.r),
                 ),
                 child: Icon(icon, color: color, size: 16.w),
@@ -1623,10 +1623,10 @@ class _ConversationsScreenState extends State<ConversationsScreen>
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16.r),
-              border: Border.all(color: color.withOpacity(0.2), width: 1),
+              border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -1637,7 +1637,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
                 Container(
                   padding: EdgeInsets.all(12.w),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.2),
+                    color: color.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12.r),
                   ),
                   child: Icon(icon, color: color, size: 24.w),
@@ -1754,7 +1754,7 @@ class _ConversationsScreenState extends State<ConversationsScreen>
           Container(
             padding: EdgeInsets.all(6.w),
             decoration: BoxDecoration(
-              color: _getTypeColor(log.type).withOpacity(0.1),
+              color: _getTypeColor(log.type).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(6.r),
             ),
             child: Text(log.type.icon, style: TextStyle(fontSize: 12.sp)),
@@ -1914,16 +1914,16 @@ class _ConversationsScreenState extends State<ConversationsScreen>
         child: Container(
           padding: EdgeInsets.all(16.w),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12.r),
-            border: Border.all(color: color.withOpacity(0.3), width: 1),
+            border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
           ),
           child: Row(
             children: [
               Container(
                 padding: EdgeInsets.all(8.w),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
+                  color: color.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8.r),
                 ),
                 child: Icon(icon, color: color, size: 20.w),

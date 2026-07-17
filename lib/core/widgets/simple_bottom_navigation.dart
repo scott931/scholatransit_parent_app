@@ -23,7 +23,7 @@ class SimpleBottomNavigation extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             border: Border(
-              top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 0.5),
+              top: BorderSide(color: Colors.grey.withValues(alpha: 0.2), width: 0.5),
             ),
           ),
           child: Row(

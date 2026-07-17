@@ -178,13 +178,13 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
           borderRadius: BorderRadius.circular(28.r),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 40,
               offset: const Offset(0, 20),
               spreadRadius: 0,
             ),
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 10,
               offset: const Offset(0, 4),
               spreadRadius: 0,
@@ -232,10 +232,10 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
               Container(
                 padding: EdgeInsets.all(14.w),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(16.r),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     width: 1,
                   ),
                 ),
@@ -266,7 +266,7 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
                       'Choose a contact to get their phone number',
                       style: GoogleFonts.poppins(
                         fontSize: 14.sp,
-                        color: Colors.white.withOpacity(0.85),
+                        color: Colors.white.withValues(alpha: 0.85),
                         fontWeight: FontWeight.w400,
                         height: 1.3,
                       ),
@@ -278,7 +278,7 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
               // Close button with modern styling
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12.r),
                 ),
                 child: IconButton(
@@ -301,10 +301,10 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
             Container(
               padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
+                color: Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(20.r),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   width: 1,
                 ),
               ),
@@ -313,7 +313,7 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
                 children: [
                   Icon(
                     Icons.people_rounded,
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                     size: 16.w,
                   ),
                   SizedBox(width: 8.w),
@@ -321,7 +321,7 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
                     '${_filteredContacts.length} contact${_filteredContacts.length != 1 ? 's' : ''}',
                     style: GoogleFonts.poppins(
                       fontSize: 12.sp,
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -367,7 +367,7 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
           borderRadius: BorderRadius.circular(16.r),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF3B82F6).withOpacity(0.08),
+              color: const Color(0xFF3B82F6).withValues(alpha: 0.08),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -475,7 +475,7 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -489,8 +489,8 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
             Navigator.of(context).pop();
           },
           borderRadius: BorderRadius.circular(16.r),
-          splashColor: const Color(0xFF3B82F6).withOpacity(0.1),
-          highlightColor: const Color(0xFF3B82F6).withOpacity(0.05),
+          splashColor: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+          highlightColor: const Color(0xFF3B82F6).withValues(alpha: 0.05),
           child: Padding(
             padding: EdgeInsets.all(20.w),
             child: Row(
@@ -511,7 +511,7 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
                     borderRadius: BorderRadius.circular(26.r),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF3B82F6).withOpacity(0.3),
+                        color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -617,7 +617,7 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
                 borderRadius: BorderRadius.circular(40.r),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF3B82F6).withOpacity(0.3),
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),
@@ -630,7 +630,7 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
                   child: CircularProgressIndicator(
                     color: Colors.white,
                     strokeWidth: 3,
-                    backgroundColor: Colors.white.withOpacity(0.2),
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
                   ),
                 ),
               ),
@@ -718,12 +718,12 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
                 ),
                 borderRadius: BorderRadius.circular(16.r),
                 border: Border.all(
-                  color: const Color(0xFF0EA5E9).withOpacity(0.2),
+                  color: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF0EA5E9).withOpacity(0.1),
+                    color: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -734,7 +734,7 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
                   Container(
                     padding: EdgeInsets.all(12.w),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0EA5E9).withOpacity(0.1),
+                      color: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12.r),
                     ),
                     child: Icon(
@@ -813,7 +813,7 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
                       borderRadius: BorderRadius.circular(12.r),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF3B82F6).withOpacity(0.3),
+                          color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 4),
                         ),
@@ -869,7 +869,7 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
                 ),
                 borderRadius: BorderRadius.circular(50.r),
                 border: Border.all(
-                  color: const Color(0xFFF59E0B).withOpacity(0.3),
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
                   width: 2,
                 ),
               ),
@@ -912,12 +912,12 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
                 ),
                 borderRadius: BorderRadius.circular(16.r),
                 border: Border.all(
-                  color: const Color(0xFFF59E0B).withOpacity(0.2),
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFF59E0B).withOpacity(0.1),
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -928,7 +928,7 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
                   Container(
                     padding: EdgeInsets.all(12.w),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF59E0B).withOpacity(0.1),
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12.r),
                     ),
                     child: Icon(
@@ -1007,7 +1007,7 @@ class _ContactPickerWidgetState extends State<ContactPickerWidget> {
                       borderRadius: BorderRadius.circular(12.r),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF3B82F6).withOpacity(0.3),
+                          color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 4),
                         ),
