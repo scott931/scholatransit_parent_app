@@ -143,7 +143,7 @@ class AppConfig {
   static const Duration retryDelay = Duration(seconds: 2);
 
   /// Interval for polling live bus GPS on the parent map (seconds).
-  static const int parentLiveTrackingPollSeconds = 3;
+  static const int parentLiveTrackingPollSeconds = 2;
 
   /// Interval for refetching trip metadata (route/status) on the parent map.
   static const int parentTripMetadataPollSeconds = 30;
