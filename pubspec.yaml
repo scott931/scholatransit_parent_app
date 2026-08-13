@@ -24,6 +24,9 @@ dependencies:
   # HTTP and API
   http: ^1.2.2
   dio: ^5.4.3+1
+  # Live bus position rides the same Channels socket the backoffice uses
+  # (/ws/tracking/trips/<id>/) instead of polling /status/ every 2s.
+  web_socket_channel: ^3.0.1
 
   # Location and Maps
   geolocator: ^12.0.0

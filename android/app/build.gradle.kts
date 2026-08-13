@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -9,16 +11,15 @@ plugins {
 android {
     namespace = "com.scholatransit.driver.scholatransit_parent_app"
     compileSdk = 36
-    ndkVersion = "27.0.12077973"
+    // Bumped from 27.0.12077973 — the `jni` plugin (pulled in transitively,
+    // likely via mapbox_maps_flutter) requires 28.2.13676358. NDKs are
+    // backward compatible, so raising to the higher version covers both.
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
         isCoreLibraryDesugaringEnabled = true
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
     defaultConfig {
@@ -38,6 +39,15 @@ android {
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+}
+
+// Replaces the old `android { kotlinOptions { jvmTarget = ... } }` DSL, which
+// the Kotlin 2.3.x Gradle plugin now hard-errors on ("Please migrate to the
+// compilerOptions DSL").
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_11)
     }
 }
 

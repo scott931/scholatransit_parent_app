@@ -143,7 +143,17 @@ class AppConfig {
   static const Duration retryDelay = Duration(seconds: 2);
 
   /// Interval for polling live bus GPS on the parent map (seconds).
+  ///
+  /// Only used while the tracking WebSocket is down — the socket is the primary
+  /// feed (see `TripTrackingSocket`). This is the degraded-mode cadence.
   static const int parentLiveTrackingPollSeconds = 2;
+
+  /// Reconciliation cadence while the socket *is* healthy (seconds).
+  ///
+  /// The socket carries position and the shared `eta_chain`, but `my_stop` is
+  /// per-user and the WS group is per-trip, so it can only come from REST. This
+  /// is slow on purpose: one request every 20 s per parent instead of thirty.
+  static const int parentLiveTrackingHeartbeatSeconds = 20;
 
   /// Interval for refetching trip metadata (route/status) on the parent map.
   static const int parentTripMetadataPollSeconds = 30;

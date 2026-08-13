@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
-import '../../../core/services/communication_service.dart';
+import '../../../core/services/consolidated_communication_service.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/config/api_endpoints.dart';
 import '../../../core/services/storage_service.dart';
@@ -32,7 +32,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   void initState() {
     super.initState();
-    _future = CommunicationService.listChats();
+    _future = ConsolidatedCommunicationService.listChats();
     _searchController.addListener(_onSearchChanged);
   }
 
@@ -73,7 +73,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   Future<void> _reload() async {
     setState(() {
-      _future = CommunicationService.listChats();
+      _future = ConsolidatedCommunicationService.listChats();
     });
   }
 
@@ -619,10 +619,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _loading = true;
       _error = null;
     });
-    final details = await CommunicationService.getChatDetails(
+    final details = await ConsolidatedCommunicationService.getChatDetails(
       chatId: widget.chatId,
     );
-    final msgs = await CommunicationService.getChatMessages(
+    final msgs = await ConsolidatedCommunicationService.getChatMessages(
       chatId: widget.chatId,
     );
     if (!mounted) return;
@@ -661,7 +661,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _messages = mergedMessages;
       _loading = false;
     });
-    CommunicationService.markChatAsRead(chatId: widget.chatId);
+    ConsolidatedCommunicationService.markChatAsRead(chatId: widget.chatId);
     await Future.delayed(const Duration(milliseconds: 150));
     if (_scroll.hasClients) {
       _scroll.jumpTo(_scroll.position.maxScrollExtent);
@@ -672,7 +672,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     _controller.clear();
-    final resp = await CommunicationService.sendTextMessage(
+    final resp = await ConsolidatedCommunicationService.sendTextMessage(
       chatId: widget.chatId,
       content: text,
     );
@@ -852,10 +852,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   Future<void> _loadSilently() async {
-    final details = await CommunicationService.getChatDetails(
+    final details = await ConsolidatedCommunicationService.getChatDetails(
       chatId: widget.chatId,
     );
-    final msgs = await CommunicationService.getChatMessages(
+    final msgs = await ConsolidatedCommunicationService.getChatMessages(
       chatId: widget.chatId,
     );
     if (!mounted) return;
@@ -1066,7 +1066,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _scroll.jumpTo(_scroll.position.maxScrollExtent);
     }
 
-    final resp = await CommunicationService.sendVoiceMessage(
+    final resp = await ConsolidatedCommunicationService.sendVoiceMessage(
       chatId: widget.chatId,
       content: 'Voice message',
       attachment: _recordedFilePath!,
@@ -1635,7 +1635,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       if (_scroll.hasClients) {
         _scroll.jumpTo(_scroll.position.maxScrollExtent);
       }
-      final resp = await CommunicationService.sendImageMessage(
+      final resp = await ConsolidatedCommunicationService.sendImageMessage(
         chatId: widget.chatId,
         content: 'Image',
         attachment: file.path,
@@ -1665,7 +1665,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Future<bool> _tryReplaceWithRemoteOnce() async {
     try {
-      final msgs = await CommunicationService.getChatMessages(
+      final msgs = await ConsolidatedCommunicationService.getChatMessages(
         chatId: widget.chatId,
       );
       if (!msgs.success) return false;

@@ -22,8 +22,10 @@ import '../../../core/utils/coordinate_utils.dart';
 import '../../../core/utils/name_abbreviation.dart';
 import '../../../core/services/realtime_distance_tracker.dart';
 import '../../../core/services/location_service_resolver.dart';
-import '../../../core/services/communication_service.dart';
+import '../../../core/services/consolidated_communication_service.dart';
+import '../../../core/services/eta_alert_service.dart';
 import '../../../core/services/parent_tracking_service.dart';
+import '../../../core/services/trip_tracking_socket.dart';
 import '../../communication/screens/chat_list_screen.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
@@ -85,6 +87,15 @@ class _MapScreenState extends ConsumerState<MapScreen>
   static const double _vehicleCoordinateEpsilon = 1e-6;
 
   // ── Real-time vehicle feed (parent live tracking) ─────────────────────────
+  /// Primary feed: the same Channels socket the backoffice consumes. REST
+  /// polling below is the fallback for when it is down.
+  TripTrackingSocket? _tripSocket;
+  String? _socketTripId;
+  TripFeedStatus _feedStatus = TripFeedStatus.idle;
+  /// Receipt time of the newest socket fix, so a REST reply that raced it (and
+  /// carries an older position) can't drag the marker backwards.
+  DateTime? _lastSocketFixAt;
+
   Timer? _vehicleStatusPollTimer;
   Timer? _staleTicker;
   bool _isFetchingVehicleStatus = false;
@@ -92,6 +103,21 @@ class _MapScreenState extends ConsumerState<MapScreen>
   double? _lastVehicleHeading; // backend-reported heading (degrees)
   double? _lastVehicleSpeed; // backend-reported speed
   bool _isVehiclePositionStale = false;
+
+  // ── Parent-facing ETA ─────────────────────────────────────────────────────
+  /// This parent's own stop, from `/status/`. The socket can't carry it (its
+  /// group is per trip, not per user), so REST seeds it and the shared
+  /// `eta_chain` below keeps its countdown live between reconciliations.
+  Map<String, dynamic>? _myStop;
+  List<Map<String, dynamic>>? _etaChain;
+  /// Seconds to *this parent's* stop — the number the countdown and the
+  /// 30/20/10/5 alerts both run off.
+  int? _myStopEtaSeconds;
+  /// Live status of the parent's stop, resolved fresh from `_etaChain` on
+  /// every socket tick. Kept separate from `_myStop['status']`, which is only
+  /// as fresh as the last REST heartbeat (up to 20s old) — without this, the
+  /// card could keep reading "arrived" for up to 20s after the bus departs.
+  String? _myStopLiveStatus;
   // Raw accepted GPS points used for map-matching / breadcrumb trail.
   final List<Map<String, double>> _rawVehicleTrack = [];
   final List<Point> _vehicleTrailPoints = [];
@@ -232,9 +258,6 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (!widget.pollActiveTrips) return;
     _stopParentTrackingTimers();
 
-    final gpsPollInterval = Duration(
-      seconds: AppConfig.parentLiveTrackingPollSeconds,
-    );
     final tripPollInterval = Duration(
       seconds: AppConfig.parentTripMetadataPollSeconds,
     );
@@ -245,12 +268,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
       _loadTrackingTrips();
     });
 
-    // Real-time vehicle position feed (drives the moving marker).
-    _vehicleStatusPollTimer = Timer.periodic(gpsPollInterval, (_) {
-      if (!mounted) return;
-      _pollVehicleRealtimeStatus();
-    });
-    // Kick off an immediate fetch so movement starts without waiting a cycle.
+    // Live position rides the socket; this timer is the fallback + the
+    // `my_stop` reconciliation. Cadence depends on socket health.
+    _restartVehiclePollTimer();
+
+    // Open the socket and seed from REST so the marker and the ETA card are
+    // populated before the driver's next GPS tick.
+    _syncTripSocket();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _pollVehicleRealtimeStatus();
     });
@@ -259,6 +283,24 @@ class _MapScreenState extends ConsumerState<MapScreen>
     _staleTicker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       _recomputeVehicleStaleness();
+    });
+  }
+
+  /// (Re)arm the REST poll at the cadence matching the socket's health.
+  ///
+  /// Live socket → a 20 s heartbeat that exists only to refresh `my_stop`.
+  /// Socket down → back to the old 2 s cadence so the map keeps moving.
+  void _restartVehiclePollTimer() {
+    _vehicleStatusPollTimer?.cancel();
+    if (!widget.pollActiveTrips) return;
+
+    final seconds = _feedStatus == TripFeedStatus.live
+        ? AppConfig.parentLiveTrackingHeartbeatSeconds
+        : AppConfig.parentLiveTrackingPollSeconds;
+
+    _vehicleStatusPollTimer = Timer.periodic(Duration(seconds: seconds), (_) {
+      if (!mounted) return;
+      _pollVehicleRealtimeStatus();
     });
   }
 
@@ -287,8 +329,12 @@ class _MapScreenState extends ConsumerState<MapScreen>
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
-      // Stop network + animation work while the map is not visible.
+      // Stop network + animation work while the map is not visible. The socket
+      // is suspended rather than disposed: backgrounding is not the end of the
+      // trip, and Android kills idle sockets anyway. Countdown alerts keep
+      // arriving over FCM while we're away — that is what the push path is for.
       _stopParentTrackingTimers();
+      _tripSocket?.suspend();
       _vehicleAnimationTimer?.cancel();
       _vehicleAnimationTimer = null;
       _vehicleAnimationInProgress = false;
@@ -299,6 +345,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _stopParentTrackingTimers();
+    _teardownTripSocket();
     _vehicleAnimationTimer?.cancel();
     _vehicleCoordinateSubscription?.cancel();
     _tripStateSubscription?.close();
@@ -359,6 +406,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
   @override
   Widget build(BuildContext context) {
     final tripState = _getDisplayTripState();
+    final myStopEtaCard = widget.pollActiveTrips && tripState.currentTrip != null
+        ? _buildMyStopEtaCard()
+        : null;
 
     print(
       '🗺️ DEBUG: Building MapScreen - _currentLocation: $_currentLocation',
@@ -469,6 +519,17 @@ class _MapScreenState extends ConsumerState<MapScreen>
                     }
                   },
                 ),
+
+          // Countdown to this parent's own stop, sat directly above the
+          // freshness chip so "12 min away" and "is that number current?" read
+          // as one unit.
+          if (myStopEtaCard != null)
+            Positioned(
+              bottom: 70.h,
+              left: 16.w,
+              right: 16.w,
+              child: Center(child: myStopEtaCard),
+            ),
 
           // Live position freshness indicator (parent live tracking only)
           if (widget.pollActiveTrips && tripState.currentTrip != null)
@@ -1540,6 +1601,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final prevTripKey = previous != null ? _parentTripKey(previous) : null;
     final nextTripKey = _parentTripKey(next);
 
+    // Follow the trip the map is showing — a second child's bus starting, or
+    // this one ending, has to move the socket with it.
+    _syncTripSocket();
+
     if (_mapboxMap != null && nextTripKey != null) {
       if (prevTripKey != nextTripKey) {
         _plannedRouteTripId = null;
@@ -1624,9 +1689,181 @@ class _MapScreenState extends ConsumerState<MapScreen>
 
   // ── Real-time vehicle status feed ─────────────────────────────────────────
 
-  /// Polls the lightweight `/trips/{id}/status/` endpoint for the freshest GPS
-  /// fix (with device heading/speed), filters GPS noise, snaps the segment to
-  /// the road network, animates the marker, and extends the breadcrumb trail.
+  /// Open (or move) the live socket so it follows the trip currently on screen.
+  ///
+  /// The socket is the primary feed; `_pollVehicleRealtimeStatus` stays wired as
+  /// the fallback and as the only source of the per-user `my_stop` block.
+  void _syncTripSocket() {
+    if (!widget.pollActiveTrips) return;
+
+    final tripId = _getCurrentMapTrip()?.tripId;
+    if (tripId == null || tripId.isEmpty) {
+      _teardownTripSocket();
+      return;
+    }
+    if (_socketTripId == tripId && _tripSocket != null) return;
+
+    // Switching children (or trips) invalidates every cached per-trip value.
+    _teardownTripSocket();
+    _socketTripId = tripId;
+    _myStop = null;
+    _etaChain = null;
+    _myStopEtaSeconds = null;
+    _myStopLiveStatus = null;
+
+    final socket = TripTrackingSocket(
+      tripId: tripId,
+      onUpdate: _onSocketUpdate,
+      onStatusChange: (status) {
+        if (!mounted) return;
+        final wasLive = _feedStatus == TripFeedStatus.live;
+        _feedStatus = status;
+        // Cadence follows health: heartbeat while the socket carries the feed,
+        // back to fast polling the moment it can't.
+        if (wasLive != (status == TripFeedStatus.live)) {
+          _restartVehiclePollTimer();
+        }
+        setState(() {});
+      },
+    );
+    _tripSocket = socket;
+    unawaited(socket.connect());
+  }
+
+  void _teardownTripSocket() {
+    final socket = _tripSocket;
+    _tripSocket = null;
+    _socketTripId = null;
+    _lastSocketFixAt = null;
+    _feedStatus = TripFeedStatus.idle;
+    unawaited(socket?.dispose() ?? Future.value());
+  }
+
+  void _onSocketUpdate(TripFeedUpdate update) {
+    if (!mounted) return;
+    _lastSocketFixAt = update.receivedAt;
+    unawaited(_applyFeedUpdate(update));
+  }
+
+  /// Single path every position update flows through, socket or REST.
+  ///
+  /// Filters GPS noise, snaps the segment to the road network, animates the
+  /// marker, extends the breadcrumb trail and refreshes the ETA/alerts.
+  ///
+  /// Fields left null on an update mean "this tick said nothing about it" — the
+  /// server's fast broadcast carries position only, and the enriched one that
+  /// follows fills in stops and geometry. Overwriting with null would blank the
+  /// ETA card twice a tick.
+  Future<void> _applyFeedUpdate(TripFeedUpdate update) async {
+    if (!mounted) return;
+    if (_pointAnnotationManager == null) return;
+
+    final tripId = update.tripId;
+
+    if (update.timestamp != null) {
+      _lastVehicleUpdateAt = update.timestamp!.toLocal();
+    } else if (update.source == TripFeedSource.socket) {
+      _lastVehicleUpdateAt = update.receivedAt;
+    }
+    if (update.heading != null) _lastVehicleHeading = update.heading;
+    if (update.speed != null) _lastVehicleSpeed = update.speed;
+    _recomputeVehicleStaleness();
+
+    if (update.etaChain != null) _etaChain = update.etaChain;
+    if (update.myStop != null) _myStop = update.myStop;
+    await _refreshMyStopEta(tripId);
+
+    if (!update.hasPosition) return;
+    final lat = update.latitude!;
+    final lng = update.longitude!;
+
+    // Redraw the road to the next stop before the movement filters below —
+    // a stopped bus still needs its line, and a re-route can land on a tick
+    // where the bus has barely moved. A null leg only clears the line when the
+    // sender actually meant "no leg" (see `navigationAuthoritative`).
+    if (update.navigation != null || update.navigationAuthoritative) {
+      await _syncNavLeg(update.navigation, lat, lng, tripId);
+    }
+
+    // Duplicate fix (same position re-served) → nothing to animate.
+    if (_isDuplicateVehicleCoordinate(lat, lng)) return;
+
+    // GPS noise filter: ignore tiny jitter so the marker doesn't shiver.
+    if (_lastAcceptedVehicleLat != null && _lastAcceptedVehicleLng != null) {
+      final moved = _haversineMeters(
+        _lastAcceptedVehicleLat!,
+        _lastAcceptedVehicleLng!,
+        lat,
+        lng,
+      );
+      if (moved < _minVehicleMoveMeters) return;
+    }
+
+    _rememberAcceptedVehicleCoordinate(lat, lng);
+    _rawVehicleTrack.add({'latitude': lat, 'longitude': lng});
+    if (_rawVehicleTrack.length > 100) {
+      _rawVehicleTrack.removeAt(0);
+    }
+
+    await _moveVehicleWithSnapping(lat, lng, update.heading);
+  }
+
+  /// Recompute the countdown to this parent's stop and let the alert service
+  /// decide whether a threshold was crossed.
+  Future<void> _refreshMyStopEta(String tripId) async {
+    final myStop = _myStop;
+    if (myStop == null) return;
+
+    final stopId = myStop['stop_id'];
+    if (stopId == null) return;
+
+    // Prefer the live chain (refreshed every socket tick) over the `my_stop`
+    // snapshot, which is only as fresh as the last REST reconciliation.
+    int? etaSeconds;
+    String status = myStop['status']?.toString() ?? '';
+    final chain = _etaChain;
+    if (chain != null) {
+      for (final entry in chain) {
+        if (entry['stop_id'] == stopId) {
+          etaSeconds = (entry['eta_seconds'] as num?)?.toInt();
+          status = entry['status']?.toString() ?? status;
+          break;
+        }
+      }
+      // Gone from the chain entirely → the bus has served and left this stop.
+      if (etaSeconds == null && chain.isNotEmpty) status = 'departed';
+    }
+    etaSeconds ??= (myStop['eta_seconds'] as num?)?.toInt();
+
+    if (!mounted) return;
+    setState(() {
+      _myStopEtaSeconds = etaSeconds;
+      _myStopLiveStatus = status.isNotEmpty ? status : null;
+    });
+
+    final stopName = myStop['name']?.toString() ?? 'your stop';
+    final students = myStop['students'];
+    String? childName;
+    if (students is List && students.isNotEmpty && students.first is Map) {
+      childName = (students.first as Map)['first_name']?.toString();
+    }
+
+    final arrived = status == 'arrived';
+    if (!arrived && etaSeconds == null) return;
+
+    await EtaAlertService.onEtaUpdate(
+      tripId: tripId,
+      stopId: stopId,
+      stopName: stopName,
+      etaSeconds: etaSeconds ?? 0,
+      childName: childName,
+      arrived: arrived,
+    );
+  }
+
+  /// Polls `/trips/{id}/status/` — the socket's fallback, and the only source of
+  /// the per-user `my_stop` block. Cadence is set by `_restartVehiclePollTimer`:
+  /// fast when the socket is down, a slow heartbeat when it is healthy.
   Future<void> _pollVehicleRealtimeStatus() async {
     if (!widget.pollActiveTrips) return;
     if (_isFetchingVehicleStatus) return;
@@ -1637,6 +1874,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (tripId == null || tripId.isEmpty) return;
 
     _isFetchingVehicleStatus = true;
+    final requestedAt = DateTime.now();
     try {
       final response = await ParentTrackingService.getTripRealtimeStatus(
         tripId,
@@ -1654,50 +1892,48 @@ class _MapScreenState extends ConsumerState<MapScreen>
             data['longitude'] ?? data['current_longitude'],
           ) ??
           CoordinateUtils.fromLocationValue(data['current_location']);
-      final lat = coords?['latitude'];
-      final lng = coords?['longitude'];
-      final heading = _toNullableDouble(data['heading']);
-      final speed = _toNullableDouble(data['speed']);
-      final lastUpdateRaw = data['last_update']?.toString();
 
-      if (lastUpdateRaw != null) {
-        _lastVehicleUpdateAt = DateTime.tryParse(lastUpdateRaw)?.toLocal();
-      }
-      _lastVehicleHeading = heading;
-      _lastVehicleSpeed = speed;
-      _recomputeVehicleStaleness();
+      // A socket fix that landed while this request was in flight is strictly
+      // newer than the row this reply was built from — take the REST metadata
+      // (`my_stop` especially) but leave the marker where the socket put it.
+      final socketWonTheRace =
+          _lastSocketFixAt != null && _lastSocketFixAt!.isAfter(requestedAt);
 
-      if (lat == null || lng == null) return;
-
-      // Redraw the road to the next stop before the movement filters below —
-      // a stopped bus still needs its line, and a re-route can land on a tick
-      // where the bus has barely moved.
-      final navigation = data['navigation'] is Map
-          ? Map<String, dynamic>.from(data['navigation'] as Map)
-          : null;
-      await _syncNavLeg(navigation, lat, lng, tripId);
-
-      // Duplicate fix (same position re-served) → nothing to animate.
-      if (_isDuplicateVehicleCoordinate(lat, lng)) return;
-
-      // GPS noise filter: ignore tiny jitter so the marker doesn't shiver.
-      if (_lastAcceptedVehicleLat != null && _lastAcceptedVehicleLng != null) {
-        final moved = _haversineMeters(
-          _lastAcceptedVehicleLat!,
-          _lastAcceptedVehicleLng!,
-          lat,
-          lng,
-        );
-        if (moved < _minVehicleMoveMeters) return;
-      }
-
-      _rememberAcceptedVehicleCoordinate(lat, lng);
-      _rawVehicleTrack.add({'latitude': lat, 'longitude': lng});
-      if (_rawVehicleTrack.length > 100) {
-        _rawVehicleTrack.removeAt(0);
-      }
-
-      await _moveVehicleWithSnapping(lat, lng, heading);
+      await _applyFeedUpdate(
+        TripFeedUpdate(
+          tripId: tripId,
+          receivedAt: DateTime.now(),
+          source: TripFeedSource.rest,
+          navigationAuthoritative: true,
+          // heading/speed/timestamp come from the same Location row as lat/lng
+          // — if the socket won the race, all four are stale together, not
+          // just position. Otherwise a beaten reply could still flicker the
+          // freshness chip's speed for one tick with an older reading.
+          latitude: socketWonTheRace ? null : coords?['latitude'],
+          longitude: socketWonTheRace ? null : coords?['longitude'],
+          heading: socketWonTheRace ? null : _toNullableDouble(data['heading']),
+          speed: socketWonTheRace ? null : _toNullableDouble(data['speed']),
+          accuracy: socketWonTheRace ? null : _toNullableDouble(data['accuracy']),
+          timestamp: socketWonTheRace
+              ? null
+              : DateTime.tryParse(data['last_update']?.toString() ?? ''),
+          nextStop: data['next_stop'] is Map
+              ? Map<String, dynamic>.from(data['next_stop'] as Map)
+              : null,
+          navigation: data['navigation'] is Map
+              ? Map<String, dynamic>.from(data['navigation'] as Map)
+              : null,
+          myStop: data['my_stop'] is Map
+              ? Map<String, dynamic>.from(data['my_stop'] as Map)
+              : null,
+          etaChain: data['eta_chain'] is List
+              ? (data['eta_chain'] as List)
+                    .whereType<Map>()
+                    .map((e) => Map<String, dynamic>.from(e))
+                    .toList()
+              : null,
+        ),
+      );
     } catch (e) {
       print('⚠️ Vehicle status poll failed: $e');
     } finally {
@@ -2048,6 +2284,147 @@ class _MapScreenState extends ConsumerState<MapScreen>
     );
   }
 
+  /// The headline number for a parent: how long until the bus reaches *their*
+  /// stop. Distinct from the driver-facing "next stop" — when the child's stop
+  /// is six stops down the route, those are very different answers.
+  Widget? _buildMyStopEtaCard() {
+    final myStop = _myStop;
+    if (myStop == null) return null;
+
+    final stopName = myStop['name']?.toString() ?? 'Your stop';
+    // Prefer the status resolved fresh from the live chain over the REST
+    // snapshot's — otherwise "Bus is at the stop" can linger up to 20s (the
+    // heartbeat interval) after the bus has actually departed.
+    final status = _myStopLiveStatus ?? myStop['status']?.toString() ?? '';
+    final eta = _myStopEtaSeconds;
+
+    final students = myStop['students'];
+    String? childName;
+    if (students is List && students.isNotEmpty && students.first is Map) {
+      childName = (students.first as Map)['first_name']?.toString();
+    }
+
+    int? stopsAhead;
+    final chain = _etaChain;
+    if (chain != null) {
+      for (final entry in chain) {
+        if (entry['stop_id'] == myStop['stop_id']) {
+          stopsAhead = (entry['stops_ahead'] as num?)?.toInt();
+          break;
+        }
+      }
+    }
+    stopsAhead ??= (myStop['stops_ahead'] as num?)?.toInt();
+
+    final bool arrived = status == 'arrived';
+    // Once the stop falls out of the ETA chain, `eta` reads null the same way
+    // it would before the bus ever set off — without checking status too,
+    // "already picked up" and "not picked up yet" would render identically.
+    final bool departed = status == 'departed';
+    late final String headline;
+    late final Color accent;
+
+    if (arrived) {
+      headline = 'Bus is at the stop';
+      accent = const Color(0xFF16A34A);
+    } else if (departed) {
+      final isDropoff = myStop['trip_type'] == 'dropoff';
+      final verb = isDropoff ? 'dropped off' : 'picked up';
+      headline = childName != null ? '$childName was $verb' : 'Already stopped here';
+      accent = const Color(0xFF16A34A);
+    } else if (eta == null) {
+      headline = 'Waiting for the bus';
+      accent = AppTheme.textSecondary;
+    } else {
+      final minutes = (eta / 60).round();
+      // Below a minute, "0 min" reads as broken — say what's actually true.
+      headline = minutes <= 0 ? 'Arriving now' : '$minutes min away';
+      accent = minutes <= 5
+          ? const Color(0xFFDC2626)
+          : minutes <= 15
+              ? const Color(0xFFEA580C)
+              : const Color(0xFF0052CC);
+    }
+
+    final subtitleParts = <String>[stopName];
+    // `stopsAhead` falls back to the (up to 20s stale) REST snapshot once the
+    // stop leaves the live chain — same reason `departed` is excluded here as
+    // `arrived` is: a departed stop's last-known "3 stops ahead" is no longer
+    // true the moment it's read.
+    if (stopsAhead != null && stopsAhead > 0 && !arrived && !departed) {
+      subtitleParts.add(
+        stopsAhead == 1 ? '1 stop before yours' : '$stopsAhead stops before yours',
+      );
+    }
+    // The departed headline already names the child ("Amina was picked up");
+    // repeating it in the subtitle would be redundant.
+    if (childName != null && !departed) subtitleParts.add('for $childName');
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: accent.withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: EdgeInsets.all(8.w),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              arrived
+                  ? Icons.directions_bus_rounded
+                  : departed
+                      ? Icons.check_circle_rounded
+                      : Icons.access_time_rounded,
+              size: 20.w,
+              color: accent,
+            ),
+          ),
+          SizedBox(width: 12.w),
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  headline,
+                  style: GoogleFonts.poppins(
+                    fontSize: 15.sp,
+                    fontWeight: FontWeight.w700,
+                    color: accent,
+                  ),
+                ),
+                SizedBox(height: 2.h),
+                Text(
+                  subtitleParts.join(' · '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 11.sp,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildVehicleFreshnessChip() {
     final last = _lastVehicleUpdateAt;
     final bool live = !_isVehiclePositionStale && last != null;
@@ -2065,6 +2442,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
         final mins = secs ~/ 60;
         label = 'Updated ${mins}m ago';
       }
+    }
+
+    // Surface the transport when it degrades. A parent staring at a stalled
+    // marker deserves to know the app fell back to polling rather than assume
+    // the bus stopped moving.
+    if (widget.pollActiveTrips && _feedStatus == TripFeedStatus.degraded) {
+      label = '$label · reconnecting';
     }
 
     // Append current speed (km/h) when live and moving.
@@ -3151,13 +3535,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
     try {
       // Student-based: backend resolves parent and driver from student
       final studentId = students.first.id;
-      var resp = await CommunicationService.createDriverParentChat(
+      var resp = await ConsolidatedCommunicationService.createDriverParentChat(
         studentId: studentId,
       );
 
       // Fallback: driver-based if student endpoint fails
       if (!resp.success && currentTrip.driverId > 0) {
-        resp = await CommunicationService.createChat(
+        resp = await ConsolidatedCommunicationService.createChat(
           chatType: 'driver_parent',
           otherUserId: currentTrip.driverId,
           studentId: studentId,

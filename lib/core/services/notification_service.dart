@@ -9,6 +9,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../config/app_config.dart';
 import '../services/api_service.dart';
+import 'eta_alert_service.dart';
 import 'notification_navigation_service.dart';
 
 /// Simple Time class for scheduling notifications
@@ -130,7 +131,33 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         // Continue anyway - channel might already exist
       }
     }
-  
+
+    // Bus countdown/arrival pushes get the dedicated alert channel with its
+    // escalating vibration, in the background isolate too — this handler runs
+    // in a separate isolate from the app, so EtaAlertService's in-memory dedupe
+    // set is not visible here. The backend's per-stop debounce is what keeps
+    // this honest; the worst case is one duplicate buzz if a local alert fired
+    // for the same threshold just before the app was backgrounded.
+    if (message.data['type']?.toString() == 'bus_proximity') {
+      try {
+        await EtaAlertService.showFromPush(
+          title: message.notification?.title ??
+              message.data['title']?.toString() ??
+              '🚌 Bus update',
+          body: message.notification?.body ??
+              message.data['body']?.toString() ??
+              message.data['message']?.toString() ??
+              '',
+          threshold: message.data['threshold']?.toString() ?? '',
+          payload: jsonEncode({'type': 'bus_proximity', 'data': message.data}),
+        );
+        print('🔔 Background proximity alert shown on the ETA channel');
+        return;
+      } catch (e) {
+        print('⚠️ Background proximity alert failed, using generic path: $e');
+      }
+    }
+
   // Show notification for background messages
   if (message.notification != null) {
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
@@ -356,6 +383,9 @@ class NotificationService {
     tz.initializeTimeZones();
     
     await _initializeLocalNotifications();
+    // Bus countdown/arrival alerts live on their own high-importance channel so
+    // they survive a parent muting general notifications.
+    await EtaAlertService.init();
     await _initializeFirebaseMessaging();
     await _requestNotificationPermission();
   }
@@ -442,9 +472,20 @@ class NotificationService {
     print('═══════════════════════════════════════════════════════════');
 
     // Check notification type
-    final notificationType = message.data['type']?.toString() ?? 
+    final notificationType = message.data['type']?.toString() ??
                             message.data['notification_type']?.toString();
-    final isPickupAlert = notificationType == 'student_pickup' || 
+
+    // Bus proximity/countdown pushes are handled by EtaAlertService, not the
+    // generic path below: they need the dedicated alert channel (own sound,
+    // escalating vibration) and they must not double-buzz when the map is open
+    // and the socket already fired the same threshold locally. `alert_key` is
+    // stamped by the backend precisely so both sides debounce on one string.
+    if (notificationType == 'bus_proximity') {
+      final handled = await _handleBusProximityMessage(message);
+      if (handled) return;
+    }
+
+    final isPickupAlert = notificationType == 'student_pickup' ||
                          notificationType == 'pickup_alert' ||
                          message.data.containsKey('pickup_alert');
     final isDropPointAlert = notificationType == 'student_dropoff' || 
@@ -552,6 +593,55 @@ class NotificationService {
       print('   - Payload length: ${payloadJson.length}');
     } else {
       print('⚠️ Foreground message has no notification payload or data');
+    }
+  }
+
+  /// Route a `bus_proximity` push through the ETA alert channel.
+  ///
+  /// Returns true when the message was fully handled (shown or deliberately
+  /// suppressed as a duplicate) and the generic notification path should be
+  /// skipped.
+  static Future<bool> _handleBusProximityMessage(RemoteMessage message) async {
+    try {
+      final data = message.data;
+      final alertKey = data['alert_key']?.toString();
+      final threshold = data['threshold']?.toString() ?? '';
+
+      // The app already alerted for this exact threshold off the live socket —
+      // the push is the slower duplicate, so drop it silently.
+      if (alertKey != null && alertKey.isNotEmpty) {
+        if (EtaAlertService.hasFired(alertKey)) {
+          print('🔕 Proximity push suppressed (already alerted locally): $alertKey');
+          return true;
+        }
+        // Claim it first so a socket tick arriving mid-flight can't re-fire it.
+        await EtaAlertService.claim(alertKey);
+      }
+
+      final title = message.notification?.title ??
+          data['title']?.toString() ??
+          '🚌 Bus update';
+      final body = message.notification?.body ??
+          data['body']?.toString() ??
+          data['message']?.toString() ??
+          '';
+
+      await EtaAlertService.showFromPush(
+        title: title,
+        body: body,
+        threshold: threshold,
+        payload: jsonEncode({
+          'type': 'bus_proximity',
+          'data': data,
+          'title': title,
+          'body': body,
+        }),
+      );
+      print('🔔 Proximity push shown on the ETA channel ($threshold)');
+      return true;
+    } catch (e) {
+      print('⚠️ Proximity push handling failed, falling back to generic: $e');
+      return false;
     }
   }
 

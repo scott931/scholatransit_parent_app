@@ -461,6 +461,10 @@ class ApiService {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.receiveTimeout:
       case DioExceptionType.sendTimeout:
+      // transformTimeout: request/response encoding-decoding timed out, not the
+      // transport itself — but indistinguishable to the user from any other
+      // timeout, so it gets the same message.
+      case DioExceptionType.transformTimeout:
         return 'Connection timeout. Please check your internet connection.';
       case DioExceptionType.badResponse:
         final statusCode = error.response?.statusCode;

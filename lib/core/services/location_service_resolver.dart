@@ -100,7 +100,7 @@ class LocationServiceResolver {
 
     // Note: We don't stop LocationService or LocationProvider here
     // as they might be used by other parts of the app
-    // The key is to ensure ImprovedLocationServiceV2 is the primary service
+    // The key is to ensure StreamFirstLocationService is the primary service
   }
 
   /// Start location tracking with conflict resolution

@@ -17,15 +17,12 @@ import '../../features/settings/screens/notification_listener_settings_screen.da
 import '../../features/parent/screens/parent_dashboard_screen.dart';
 import '../../features/parent/screens/parent_tracking_screen.dart';
 import '../../features/parent/screens/parent_schedule_screen.dart';
-import '../../features/communication/screens/conversations_screen.dart';
 import '../../features/communication/screens/chat_list_screen.dart';
 import '../../features/attendance/screens/attendance_history_screen.dart';
 import '../../features/parent/screens/parent_notifications_screen.dart';
 import '../../features/parent/screens/parent_profile_screen.dart';
 import '../../features/parent/screens/parent_students_screen.dart';
 import '../../features/parent/screens/request_student_link_screen.dart';
-import '../../features/communication/screens/whatsapp_redirect_screen.dart';
-import '../../features/communication/screens/contact_demo_screen.dart';
 import '../../features/students/screens/qr_scanner_screen.dart';
 import '../../features/students/screens/students_screen.dart';
 import '../../features/students/screens/student_details_screen.dart';
@@ -36,7 +33,7 @@ import '../../features/map/screens/map_screen.dart';
 import '../../features/trip_logs/screens/trip_logs_screen.dart';
 import '../../core/models/parent_trip_model.dart';
 import '../../core/providers/parent_provider.dart';
-import '../../core/services/communication_service.dart';
+import '../../core/services/consolidated_communication_service.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -99,28 +96,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final chatId = int.parse(state.pathParameters['id']!);
           return ChatDetailScreen(chatId: chatId);
         },
-      ),
-      GoRoute(
-        path: '/conversations',
-        name: 'conversations',
-        builder: (context, state) => const ConversationsScreen(),
-      ),
-      GoRoute(
-        path: '/conversations/whatsapp-redirect',
-        name: 'whatsapp-redirect',
-        builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>;
-          return WhatsAppRedirectScreen(
-            contactName: extra['contactName'] as String,
-            contactType: extra['contactType'] as String,
-            phoneNumber: extra['phoneNumber'] as String?,
-          );
-        },
-      ),
-      GoRoute(
-        path: '/contact-demo',
-        name: 'contact-demo',
-        builder: (context, state) => const ContactDemoScreen(),
       ),
       GoRoute(
         path: '/settings',
@@ -209,11 +184,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const ParentScheduleScreen(),
           ),
           GoRoute(
-            path: '/parent/messages',
-            name: 'parent-messages',
-            builder: (context, state) => const ConversationsScreen(),
-          ),
-          GoRoute(
             path: '/parent/notifications',
             name: 'parent-notifications',
             builder: (context, state) {
@@ -285,8 +255,6 @@ class ParentMainShell extends ConsumerWidget {
         return 'Live Tracking';
       case '/parent/schedule':
         return 'Schedule';
-      case '/parent/messages':
-        return 'Messages';
       case '/parent/notifications':
         return 'Notifications';
       case '/parent/students':
@@ -429,7 +397,7 @@ class _ParentSideDrawerState extends ConsumerState<_ParentSideDrawer> {
 
   Future<void> _loadChatUnreadCount() async {
     try {
-      final response = await CommunicationService.getUnreadCount();
+      final response = await ConsolidatedCommunicationService.getUnreadCount();
       if (response.success && response.data != null) {
         final count =
             response.data!['unread_count'] ??
@@ -612,7 +580,6 @@ class _ParentSideDrawerState extends ConsumerState<_ParentSideDrawer> {
                       title: 'Messages',
                       icon: Icons.chat_bubble_rounded,
                       selected:
-                          widget.currentPath.startsWith('/parent/messages') ||
                           widget.currentPath.startsWith('/chats') ||
                           widget.currentPath.startsWith('/communication/chats'),
                       to: '/chats',
